@@ -1,9 +1,0 @@
----
-description: 
-globs: 
-alwaysApply: true
----
-= tech stack ==
-
-- For frontend: You have to use ShadCN, React 19, typescript, eslint (airbnb + airbnb-typescript + react-hooks + react-refresh), @tanstack/query.
-- For backend: You are using Python 3.12, uvicorn, fastapi, postgres with timescaledb, sqlalchemy 2.0 with pycopg2 and asyncpg.
