@@ -1,15 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
 
 import ProtocolLegend, { LegendItem } from '@/components/ProtocolLegend';
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+} from '@/components/ui/card';
+import { useBreadcrumb } from '@/hooks/use-breadcrumb';
+
 import ReceiverTimeline, {
   ReceiverPacketInfo,
-} from '@/components/ReceiverTimeline';
-import SenderTimeline, { SenderPacket } from '@/components/SenderTimeline';
-import SimulationControls from '@/components/SimulationControls';
-import TransitZone from '@/components/TransitZone';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { useBreadcrumb } from '@/hooks/use-breadcrumb';
-import { GoBackNSim, GoBackNState, createInitialState } from '@/lib/gobackn';
+} from './components/ReceiverTimeline';
+import SenderTimeline, { SenderPacket } from './components/SenderTimeline';
+import SimulationControls from './components/SimulationControls';
+import TransitZone from './components/TransitZone';
+import { GoBackNSim, GoBackNState, createInitialState } from './lib/gobackn';
 
 // Protocol simulation colors
 const PACKET_COLORS = {
@@ -111,11 +117,12 @@ export default function GoBackN() {
               packetSpacing={PACKET_SPACING}
               timelineTopOffset={TIMELINE_TOP_OFFSET}
             />
-
-            <ProtocolLegend items={legendItems} />
           </div>
         </div>
       </CardContent>
+      <CardFooter>
+        <ProtocolLegend items={legendItems} />
+      </CardFooter>
     </Card>
   );
 }

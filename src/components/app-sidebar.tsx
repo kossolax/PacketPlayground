@@ -60,23 +60,23 @@ const osiLayers: OSILayer[] = [
     items: [
       {
         title: 'TCP SYN',
-        url: '/tcp-syn',
+        url: '/transport/tcp-syn',
         icon: Play,
       },
       {
-        title: 'TCP FIN',
-        url: '/tcp-fin',
-        icon: Square,
-      },
-      {
         title: 'Go-Back-N',
-        url: '/gobackn',
+        url: '/transport/go-back-n',
         icon: IterationCw,
       },
       {
         title: 'Selective Repeat',
-        url: '/selectiverepeat',
+        url: '/transport/selective-repeat',
         icon: Repeat2,
+      },
+      {
+        title: 'TCP FIN',
+        url: '/transport/tcp-fin',
+        icon: Square,
       },
     ],
   },

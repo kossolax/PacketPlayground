@@ -1,0 +1,22 @@
+import { Route, Routes } from 'react-router-dom';
+
+import GoBackN from './GoBackN';
+import SelectiveRepeat from './SelectiveRepeat';
+import TcpFin from './TcpFin';
+import TcpSyn from './TcpSyn';
+
+export default function Transport() {
+  return (
+    <Routes>
+      <Route path="tcp-syn" element={<TcpSyn />} />
+      <Route path="tcp-fin" element={<TcpFin />} />
+      <Route path="go-back-n" element={<GoBackN />} />
+      <Route path="selective-repeat" element={<SelectiveRepeat />} />
+
+      <Route
+        path="*"
+        element={<div>Select a protocol from the sidebar.</div>}
+      />
+    </Routes>
+  );
+}
