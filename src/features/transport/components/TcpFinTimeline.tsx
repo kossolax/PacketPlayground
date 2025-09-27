@@ -19,6 +19,11 @@ export default function TcpFinTimeline({ state }: TcpFinTimelineProps) {
   const topOffset = 64; // space for headers
   const clientXPercent = 15; // lifeline x positions in %
   const serverXPercent = 85;
+  // Height of the envelope chip so lines meet its bottom edge
+  const envelopeHeight = 28;
+  // Simple offset to start the very first blue line just under the label
+  // This is the desired Y position for the BOTTOM of the first envelope, relative to the container top
+  const firstLineBottomOffset = 80; // px; tweak if needed
 
   // Visual timeline state: progressive y cursor, completed segments, and stationary envelopes
   const segmentHeight = 90; // vertical step per message
@@ -76,6 +81,17 @@ export default function TcpFinTimeline({ state }: TcpFinTimelineProps) {
     state.flyingPackets.forEach((p) => {
       if (!prev.has(p.animId)) {
         // allocate start Y at current cursor (chain effect)
+        // For the very first packet, align start just under the proper label if measured
+        const isFirstPacket =
+          Object.keys(startYMapRef.current).length === 0 &&
+          segments.length === 0;
+        if (isFirstPacket && cursorYRef.current === topOffset) {
+          // Store startY as the TOP of the envelope; bottom should land at the configured offset
+          cursorYRef.current = Math.max(
+            0,
+            firstLineBottomOffset - envelopeHeight
+          );
+        }
         startYMapRef.current[p.animId] = cursorYRef.current;
         dirMapRef.current[p.animId] = p.from === 'client' ? 'L2R' : 'R2L';
         typeMapRef.current[p.animId] = p.type;
@@ -90,15 +106,21 @@ export default function TcpFinTimeline({ state }: TcpFinTimelineProps) {
         const type = typeMapRef.current[id] ?? 'FIN';
         const x1 = dir === 'L2R' ? clientXPercent : serverXPercent;
         const x2 = dir === 'L2R' ? serverXPercent : clientXPercent;
-        const y1 = startY;
-        const y2 = startY + segmentHeight;
+        // Draw lines so they touch the bottom of the envelope at both ends
+        const envelopeTopAtArrival = startY + segmentHeight;
+        const y1 = startY + envelopeHeight;
+        const y2 = envelopeTopAtArrival;
 
         // finalize segment and stationary envelope at arrival
         setSegments((s) => [...s, { id, x1, y1, x2, y2, type }]);
-        setArrivals((a) => [...a, { id, x: x2, y: y2, type }]);
+        // Store the top position for the stationary envelope (not the bottom)
+        setArrivals((a) => [
+          ...a,
+          { id, x: x2, y: envelopeTopAtArrival, type },
+        ]);
 
-        // advance cursor for next packet to start here
-        cursorYRef.current = y2;
+        // advance cursor for next packet to start at the top of the next envelope
+        cursorYRef.current = envelopeTopAtArrival;
         // cleanup maps for this id
         delete startYMapRef.current[id];
         delete dirMapRef.current[id];
@@ -107,7 +129,13 @@ export default function TcpFinTimeline({ state }: TcpFinTimelineProps) {
     });
 
     prevFlyingIdsRef.current = flyingIds;
-  }, [flyingIds, state.flyingPackets, clientXPercent, serverXPercent]);
+  }, [
+    flyingIds,
+    state.flyingPackets,
+    clientXPercent,
+    serverXPercent,
+    segments.length,
+  ]);
 
   // Drive WAIT progress animation as soon as TIME_WAIT starts on the initiator side
   // Start when the client enters TIME_WAIT or as soon as the time-wait timer is armed,
@@ -169,6 +197,18 @@ export default function TcpFinTimeline({ state }: TcpFinTimelineProps) {
       default:
         return 'bg-muted border-border';
     }
+  };
+
+  // Determine a stable startY for a packet even on its very first frame
+  const getStartY = (id: number) => {
+    const mapped = startYMapRef.current[id];
+    if (mapped != null) return mapped;
+    // If it's the very first packet ever, use the configured offset
+    const isFirstEver =
+      segments.length === 0 && Object.keys(startYMapRef.current).length === 0;
+    if (isFirstEver) return Math.max(0, firstLineBottomOffset - envelopeHeight);
+    // Otherwise, fall back to current cursor position
+    return cursorYRef.current;
   };
 
   return (
@@ -274,7 +314,8 @@ export default function TcpFinTimeline({ state }: TcpFinTimelineProps) {
         );
         let y1 = topOffset;
         if (clientAckFlying) {
-          y1 = startYMapRef.current[clientAckFlying.animId] ?? topOffset;
+          // In-flight envelope: start WAIT from the bottom of that envelope
+          y1 = getStartY(clientAckFlying.animId) + envelopeHeight;
         } else if (ackFromClient) {
           y1 = ackFromClient.y1;
         } else if (finOnClient) {
@@ -319,8 +360,10 @@ export default function TcpFinTimeline({ state }: TcpFinTimelineProps) {
       >
         {state.flyingPackets.map((p) => {
           const t = p.position / 100;
-          const startY = startYMapRef.current[p.animId] ?? topOffset;
-          const y = startY + t * segmentHeight;
+          const startY = getStartY(p.animId);
+          // trailing line end: interpolate from bottom (t=0) to top (t=1) to avoid flicker
+          const yTop = startY + t * segmentHeight;
+          const y = yTop + (1 - t) * envelopeHeight;
           const isLeftToRight = p.from === 'client' && p.to === 'server';
           const x = isLeftToRight
             ? clientXPercent + (serverXPercent - clientXPercent) * t
@@ -332,7 +375,7 @@ export default function TcpFinTimeline({ state }: TcpFinTimelineProps) {
             <line
               key={`trail-${p.animId}`}
               x1={xStart}
-              y1={startY}
+              y1={startY + envelopeHeight}
               x2={x}
               y2={y}
               stroke={strokeColor}
@@ -346,7 +389,8 @@ export default function TcpFinTimeline({ state }: TcpFinTimelineProps) {
       {/* Flying packets with trailing line growing progressively */}
       {state.flyingPackets.map((p) => {
         const t = p.position / 100;
-        const startY = startYMapRef.current[p.animId] ?? topOffset;
+        const startY = getStartY(p.animId);
+        // Place the envelope by its top; we add height elsewhere when drawing lines
         const y = startY + t * segmentHeight;
         const isLeftToRight = p.from === 'client' && p.to === 'server';
         const x = isLeftToRight

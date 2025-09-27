@@ -3,8 +3,14 @@ import { useCallback } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
-import { Switch } from '@/components/ui/switch';
 
 import type { TcpFinSim, TcpFinState } from '../lib/tcpfin';
 
@@ -28,11 +34,8 @@ export default function TcpFinControls({
     (ms: number) => simulation?.setTimeWaitDuration(ms),
     [simulation]
   );
-  const handleVariantToggle = useCallback(
-    (clientFirst: boolean) =>
-      simulation?.setVariant(
-        clientFirst ? 'client_closes_first' : 'server_closes_first'
-      ),
+  const handleVariantChange = useCallback(
+    (variant: string) => simulation?.setVariant(variant as any),
     [simulation]
   );
 
@@ -84,16 +87,25 @@ export default function TcpFinControls({
 
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <Switch
-              checked={state.variant === 'client_closes_first'}
-              onCheckedChange={handleVariantToggle}
+            <Label className="text-sm">Connection Closure</Label>
+            <Select
+              value={state.variant}
+              onValueChange={handleVariantChange}
               disabled={state.isRunning}
-            />
-            <Label className="text-sm">Client closes first</Label>
+            >
+              <SelectTrigger className="w-auto">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="client_closes_first">
+                  Client initiates
+                </SelectItem>
+                <SelectItem value="server_closes_first">
+                  Server initiates
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Toggle to switch who initiates closure (client/server)
-          </p>
         </div>
       </div>
     </div>
