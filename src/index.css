@@ -154,9 +154,9 @@
 
   --sidebar-background: var(--light-gray);
   --sidebar-foreground: var(--dark-gray);
-  --sidebar-primary: var(--green);
+  --sidebar-primary: var(--emerald);
   --sidebar-primary-foreground: var(--white);
-  --sidebar-accent: var(--green);
+  --sidebar-accent: var(--emerald);
   --sidebar-accent-foreground: var(--white);
   --sidebar-border: var(--dark-gray);
   --sidebar-ring: var(--dark-gray);
@@ -193,7 +193,7 @@
 
   --sidebar-background: var(--darker-gray);
   --sidebar-foreground: var(--light-gray);
-  --sidebar-primary: var(--green);
+  --sidebar-primary: var(--emerald);
   --sidebar-primary-foreground: var(--black);
   --sidebar-accent: var(--dark-gray);
   --sidebar-accent-foreground: var(--light-gray);

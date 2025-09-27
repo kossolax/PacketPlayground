@@ -10,7 +10,7 @@ import {
   Truck,
   Zap,
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 
 import {
   Sidebar,
@@ -91,6 +91,10 @@ const developmentItems: SidebarItem[] = [
 ];
 
 export default function AppSidebar() {
+  const location = useLocation();
+  const isActive = (url: string) =>
+    location.pathname === url || location.pathname.startsWith(`${url}/`);
+
   return (
     <Sidebar variant="sidebar" collapsible="offcanvas">
       <SidebarHeader>
@@ -109,7 +113,7 @@ export default function AppSidebar() {
               <SidebarMenu>
                 {layer.items.map((item) => (
                   <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild>
+                    <SidebarMenuButton asChild isActive={isActive(item.url)}>
                       <Link
                         to={item.url}
                         className="flex flex-row items-center gap-2"
@@ -134,7 +138,7 @@ export default function AppSidebar() {
             <SidebarMenu>
               {developmentItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
+                  <SidebarMenuButton asChild isActive={isActive(item.url)}>
                     <Link
                       to={item.url}
                       className="flex flex-row items-center gap-2"
