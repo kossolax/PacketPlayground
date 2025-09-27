@@ -273,7 +273,9 @@ export class GoBackNSim extends Simulation<GoBackNState> {
     if (seqNum >= this.state.totalPackets || !this.state.isRunning) return;
     // mark sent
     this.state.senderPackets = this.state.senderPackets.map((p) =>
-      p.seqNum === seqNum ? { ...p, status: 'sent', isFastRetransmit: false } : p
+      p.seqNum === seqNum
+        ? { ...p, status: 'sent', isFastRetransmit: false }
+        : p
     );
     this.emit();
 
@@ -408,7 +410,7 @@ export class GoBackNSim extends Simulation<GoBackNState> {
 
         // Fast retransmit detection
         if (seqNum === this.state.lastAckReceived) {
-          this.state.duplicateAckCount++;
+          this.state.duplicateAckCount += 1;
           if (this.state.duplicateAckCount >= 3) {
             this.handleFastRetransmit();
             return;
@@ -423,7 +425,12 @@ export class GoBackNSim extends Simulation<GoBackNState> {
         this.clearBaseTimer();
         this.state.senderPackets = this.state.senderPackets.map((p) =>
           p.seqNum <= seqNum
-            ? { ...p, status: 'acked', hasTimer: false, isFastRetransmit: false }
+            ? {
+                ...p,
+                status: 'acked',
+                hasTimer: false,
+                isFastRetransmit: false,
+              }
             : { ...p, hasTimer: false }
         );
         const prevBase = this.state.base;

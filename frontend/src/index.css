@@ -160,6 +160,8 @@
   --sidebar-border: var(--dark-gray);
   --sidebar-ring: var(--dark-gray);
   --sidebar: hsl(0 0% 98%);
+  --sidebar-width: 16rem;
+  --sidebar-width-icon: 3rem;
 }
 .dark {
   --background: var(--black);
@@ -197,6 +199,8 @@
   --sidebar-border: var(--dark-gray);
   --sidebar-ring: var(--gray);
   --sidebar: var(--darker-gray);
+  --sidebar-width: 16rem;
+  --sidebar-width-icon: 3rem;
 }
 
 @layer base {

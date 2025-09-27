@@ -6,7 +6,12 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
-import { GoBackNSim, GoBackNState, createInitialState } from '@/lib/gobackn';
+import {
+  FlyingPacket,
+  GoBackNSim,
+  GoBackNState,
+  createInitialState,
+} from '@/lib/gobackn';
 
 export default function GoBackN() {
   const totalPackets = 10;
@@ -43,7 +48,7 @@ export default function GoBackN() {
   };
 
   // Styles pour les paquets volants
-  const getFlyingPacketStyles = (packet: any) => {
+  const getFlyingPacketStyles = (packet: FlyingPacket) => {
     const baseClasses =
       'px-3 py-1 rounded-lg shadow-lg flex items-center gap-2';
 
