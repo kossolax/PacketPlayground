@@ -27,7 +27,7 @@ export default function ReceiverTimeline({
   const getPacketInfo = (i: number): ReceiverPacketInfo =>
     packets.find((p) => p.seqNum === i) || {
       seqNum: i,
-      bgColor: 'bg-gray-50',
+      bgColor: 'bg-muted',
       icons: {},
     };
 
@@ -36,7 +36,7 @@ export default function ReceiverTimeline({
   return (
     <div className="absolute right-0 top-0 bottom-0 w-48 bg-green-50 border-l border-green-200">
       <div className="p-4">
-        <h3 className="font-semibold mb-3 text-green-900">Receiver</h3>
+        <h3 className="font-semibold mb-3 text-foreground">Receiver</h3>
         <div className="space-y-1.5">
           {Array.from({ length: totalPackets }, (_, i) => {
             const packetInfo = getPacketInfo(i);

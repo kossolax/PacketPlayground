@@ -53,7 +53,7 @@ export default function SelectiveRepeat() {
       const hasArrived = vm.arrivedPackets.includes(i);
       const isBuffered = vm.receiverBuffer[i]?.received && !isDelivered;
 
-      let bgColor = 'bg-gray-50';
+      let bgColor = 'bg-muted';
       if (isDelivered) {
         bgColor = 'bg-blue-100';
       } else if (isBuffered) {
@@ -90,7 +90,7 @@ export default function SelectiveRepeat() {
       </CardHeader>
       <CardContent>
         <div className="border-1">
-          <div className="relative h-[500px] bg-gradient-to-r from-blue-50 via-white to-green-50 overflow-hidden">
+          <div className="relative h-[500px] bg-gradient-to-r from-blue-50 via-background to-green-50 overflow-hidden">
             <SenderTimeline
               packets={senderPackets}
               base={vm.base}

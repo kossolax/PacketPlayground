@@ -44,7 +44,7 @@ export default function TransitZone({
       return `${baseClasses} bg-purple-200 border border-purple-400 text-purple-700`;
     }
 
-    return `${baseClasses} bg-white border border-gray-300`;
+    return `${baseClasses} bg-background border border-border`;
   };
 
   return (

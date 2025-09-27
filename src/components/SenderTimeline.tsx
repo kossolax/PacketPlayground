@@ -21,7 +21,7 @@ export default function SenderTimeline({
   return (
     <div className="absolute left-0 top-0 bottom-0 w-48 bg-blue-50 border-r border-blue-200">
       <div className="p-4">
-        <h3 className="font-semibold mb-3 text-blue-900">Sender</h3>
+        <h3 className="font-semibold mb-3 text-foreground">Sender</h3>
         <div className="space-y-1.5">
           {packets.map((packet) => (
             <div
@@ -33,7 +33,7 @@ export default function SenderTimeline({
                     ? 'ring-2 ring-blue-500'
                     : ''
                 }
-                ${packet.status === 'waiting' ? 'bg-gray-100' : ''}
+                ${packet.status === 'waiting' ? 'bg-muted' : ''}
                 ${packet.status === 'sent' ? 'bg-yellow-100' : ''}
                 ${packet.status === 'acked' ? 'bg-green-100' : ''}
                 ${
