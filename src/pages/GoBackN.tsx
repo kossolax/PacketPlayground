@@ -8,12 +8,15 @@ import SenderTimeline, { SenderPacket } from '@/components/SenderTimeline';
 import SimulationControls from '@/components/SimulationControls';
 import TransitZone from '@/components/TransitZone';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { usePageTitle } from '@/hooks/use-title';
+import { useBreadcrumb } from '@/hooks/use-breadcrumb';
 import { GoBackNSim, GoBackNState, createInitialState } from '@/lib/gobackn';
 
 export default function GoBackN() {
-  const { setTitle } = usePageTitle();
-  setTitle('Go-Back-N');
+  const { setBreadcrumbs } = useBreadcrumb();
+
+  useEffect(() => {
+    setBreadcrumbs('Transport', 'Go-Back-N');
+  }, [setBreadcrumbs]);
 
   const totalPackets = 10;
   const [vm, setVm] = useState<GoBackNState>(() =>

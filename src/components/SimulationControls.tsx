@@ -110,7 +110,7 @@ export default function SimulationControls<T extends SimulationState>({
           <Slider
             value={[state.windowSize]}
             onValueChange={(v) => simulation?.setWindowSize(v[0])}
-            min={2}
+            min={1}
             max={5}
             disabled={state.isRunning}
           />

@@ -7,6 +7,7 @@ import { Toaster } from '@/components/ui/sonner';
 
 import App from './App.tsx';
 import './index.css';
+import { BreadcrumbProvider } from './providers/breadcrumb-provider.tsx';
 import ThemeProvider from './providers/theme-provider.tsx';
 
 const basename = import.meta.env.BASE_URL || '';
@@ -16,9 +17,11 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ThemeProvider defaultTheme="light" storageKey="ui-theme">
       <QueryClientProvider client={queryClient}>
-        <Router basename={basename}>
-          <App />
-        </Router>
+        <BreadcrumbProvider>
+          <Router basename={basename}>
+            <App />
+          </Router>
+        </BreadcrumbProvider>
         <Toaster />
       </QueryClientProvider>
     </ThemeProvider>

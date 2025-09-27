@@ -8,7 +8,7 @@ import SenderTimeline, { SenderPacket } from '@/components/SenderTimeline';
 import SimulationControls from '@/components/SimulationControls';
 import TransitZone from '@/components/TransitZone';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { usePageTitle } from '@/hooks/use-title';
+import { useBreadcrumb } from '@/hooks/use-breadcrumb';
 import {
   SelectiveRepeatSim,
   SelectiveRepeatState,
@@ -16,8 +16,11 @@ import {
 } from '@/lib/selectiverepeat';
 
 export default function SelectiveRepeat() {
-  const { setTitle } = usePageTitle();
-  setTitle('Selective Repeat');
+  const { setBreadcrumbs } = useBreadcrumb();
+
+  useEffect(() => {
+    setBreadcrumbs('Transport', 'Selective Repeat');
+  }, [setBreadcrumbs]);
 
   const totalPackets = 10;
   const [vm, setVm] = useState<SelectiveRepeatState>(() =>

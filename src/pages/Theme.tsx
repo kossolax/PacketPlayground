@@ -48,7 +48,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { usePageTitle } from '@/hooks/use-title';
+import { useBreadcrumb } from '@/hooks/use-breadcrumb';
 import { useTheme } from '@/providers/theme-context';
 
 const tableData = [
@@ -58,8 +58,11 @@ const tableData = [
 ];
 
 export default function Theme() {
-  const { setTitle } = usePageTitle();
-  setTitle('Theme');
+  const { setBreadcrumbs } = useBreadcrumb();
+
+  React.useEffect(() => {
+    setBreadcrumbs('Development', 'Theme');
+  }, [setBreadcrumbs]);
 
   const { theme, setTheme } = useTheme();
   const [switchOn, setSwitchOn] = React.useState(theme === 'dark');
@@ -73,8 +76,6 @@ export default function Theme() {
 
   return (
     <>
-      <Switch checked={switchOn} onCheckedChange={setSwitchOn} />
-
       {/* Couleurs de base */}
       <Card>
         <CardHeader>
