@@ -199,3 +199,7 @@ When a user asks for help fixing a specific issue, first assess whether the prob
 4. Offer to explain both approaches:
    - Their requested fix
    - The framework-recommended way that could save them time and complexity in the long run
+
+# Theme Guidelines
+
+Use theme variables: `text-foreground`, `text-muted-foreground`, `bg-background`, `bg-muted`, `text-primary`, `border-border`, `bg-card` instead of hardcoded colors.
