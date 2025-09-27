@@ -1,4 +1,4 @@
-import { FileOutput, Inbox } from 'lucide-react';
+import { FileOutput, Inbox, Repeat } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 import {
@@ -25,9 +25,14 @@ const DataLink: SidebarItem[] = [];
 const Network: SidebarItem[] = [];
 const Transport: SidebarItem[] = [
   {
-    title: 'GoBackN',
+    title: 'Go-Back-N',
     url: '/gobackn',
     icon: Inbox,
+  },
+  {
+    title: 'Selective Repeat',
+    url: '/selectiverepeat',
+    icon: Repeat,
   },
 ];
 const SessionAndPresentation: SidebarItem[] = [];
