@@ -2,8 +2,6 @@ import { AlertCircle, Terminal } from 'lucide-react';
 import * as React from 'react';
 import { toast } from 'sonner';
 
-import logo from '@/assets/logo.svg';
-import Header from '@/components/header';
 import {
   Accordion,
   AccordionContent,
@@ -50,6 +48,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { usePageTitle } from '@/hooks/use-title';
 import { useTheme } from '@/providers/theme-context';
 
 const tableData = [
@@ -59,6 +58,9 @@ const tableData = [
 ];
 
 export default function Theme() {
+  const { setTitle } = usePageTitle();
+  setTitle('Theme');
+
   const { theme, setTheme } = useTheme();
   const [switchOn, setSwitchOn] = React.useState(theme === 'dark');
   const [radioValue, setRadioValue] = React.useState('option1');
@@ -71,9 +73,6 @@ export default function Theme() {
 
   return (
     <>
-      <Header>Thème</Header>
-      <img src={logo} alt="Logo" className="w-32 mb-4 mx-auto" />
-
       <Switch checked={switchOn} onCheckedChange={setSwitchOn} />
 
       {/* Couleurs de base */}

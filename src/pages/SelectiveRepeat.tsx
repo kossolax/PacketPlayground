@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 
-import Header from '@/components/header';
 import ProtocolLegend, { LegendItem } from '@/components/ProtocolLegend';
 import ReceiverTimeline, {
   ReceiverPacketInfo,
@@ -9,6 +8,7 @@ import SenderTimeline, { SenderPacket } from '@/components/SenderTimeline';
 import SimulationControls from '@/components/SimulationControls';
 import TransitZone from '@/components/TransitZone';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { usePageTitle } from '@/hooks/use-title';
 import {
   SelectiveRepeatSim,
   SelectiveRepeatState,
@@ -16,10 +16,14 @@ import {
 } from '@/lib/selectiverepeat';
 
 export default function SelectiveRepeat() {
+  const { setTitle } = usePageTitle();
+  setTitle('Selective Repeat');
+
   const totalPackets = 10;
   const [vm, setVm] = useState<SelectiveRepeatState>(() =>
     createInitialState(totalPackets)
   );
+
   const simRef = useRef<SelectiveRepeatSim | null>(null);
   if (!simRef.current) {
     simRef.current = new SelectiveRepeatSim({ totalPackets, onUpdate: setVm });
@@ -77,42 +81,38 @@ export default function SelectiveRepeat() {
   ];
 
   return (
-    <>
-      <Header>Selective Repeat</Header>
+    <Card>
+      <CardHeader>
+        <SimulationControls state={vm} simulation={simRef.current} />
+      </CardHeader>
+      <CardContent>
+        <div className="border-1">
+          <div className="relative h-[500px] bg-gradient-to-r from-blue-50 via-white to-green-50 overflow-hidden">
+            <SenderTimeline
+              packets={senderPackets}
+              base={vm.base}
+              windowSize={vm.windowSize}
+            />
 
-      <Card>
-        <CardHeader>
-          <SimulationControls state={vm} simulation={simRef.current} />
-        </CardHeader>
-        <CardContent>
-          <div className="border-1">
-            <div className="relative h-[500px] bg-gradient-to-r from-blue-50 via-white to-green-50 overflow-hidden">
-              <SenderTimeline
-                packets={senderPackets}
-                base={vm.base}
-                windowSize={vm.windowSize}
-              />
+            <ReceiverTimeline
+              totalPackets={totalPackets}
+              packets={receiverPackets}
+              windowStart={vm.expectedSeqNum}
+              windowSize={vm.windowSize}
+            />
 
-              <ReceiverTimeline
-                totalPackets={totalPackets}
-                packets={receiverPackets}
-                windowStart={vm.expectedSeqNum}
-                windowSize={vm.windowSize}
-              />
+            <TransitZone
+              flyingPackets={vm.flyingPackets}
+              flyingAcks={vm.flyingAcks}
+              packetHeight={PACKET_HEIGHT}
+              packetSpacing={PACKET_SPACING}
+              timelineTopOffset={TIMELINE_TOP_OFFSET}
+            />
 
-              <TransitZone
-                flyingPackets={vm.flyingPackets}
-                flyingAcks={vm.flyingAcks}
-                packetHeight={PACKET_HEIGHT}
-                packetSpacing={PACKET_SPACING}
-                timelineTopOffset={TIMELINE_TOP_OFFSET}
-              />
-
-              <ProtocolLegend items={legendItems} />
-            </div>
+            <ProtocolLegend items={legendItems} />
           </div>
-        </CardContent>
-      </Card>
-    </>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

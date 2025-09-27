@@ -1,4 +1,15 @@
-import { FileOutput, Inbox, Repeat } from 'lucide-react';
+import {
+  FileOutput,
+  Globe,
+  IterationCw,
+  Link2,
+  Monitor,
+  Repeat2,
+  Settings,
+  Truck,
+  Users,
+  Zap,
+} from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 import {
@@ -13,31 +24,65 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from '@/components/ui/sidebar';
+import { Badge } from './ui/badge';
 
 interface SidebarItem {
   title: string;
-  url?: string;
+  url: string;
   icon: React.FC;
 }
 
-const Physical: SidebarItem[] = [];
-const DataLink: SidebarItem[] = [];
-const Network: SidebarItem[] = [];
-const Transport: SidebarItem[] = [
+interface OSILayer {
+  name: string;
+  icon: React.FC;
+  items: SidebarItem[];
+}
+
+const osiLayers: OSILayer[] = [
   {
-    title: 'Go-Back-N',
-    url: '/gobackn',
-    icon: Inbox,
+    name: 'Physical',
+    icon: Zap,
+    items: [],
   },
   {
-    title: 'Selective Repeat',
-    url: '/selectiverepeat',
-    icon: Repeat,
+    name: 'Data Link',
+    icon: Link2,
+    items: [],
+  },
+  {
+    name: 'Network',
+    icon: Globe,
+    items: [],
+  },
+  {
+    name: 'Transport',
+    icon: Truck,
+    items: [
+      {
+        title: 'Go-Back-N',
+        url: '/gobackn',
+        icon: IterationCw,
+      },
+      {
+        title: 'Selective Repeat',
+        url: '/selectiverepeat',
+        icon: Repeat2,
+      },
+    ],
+  },
+  {
+    name: 'Session/Presentation',
+    icon: Users,
+    items: [],
+  },
+  {
+    name: 'Application',
+    icon: Monitor,
+    items: [],
   },
 ];
-const SessionAndPresentation: SidebarItem[] = [];
-const Application: SidebarItem[] = [];
-const Development: SidebarItem[] = [
+
+const developmentItems: SidebarItem[] = [
   {
     title: 'Theme',
     url: '/theme',
@@ -47,141 +92,49 @@ const Development: SidebarItem[] = [
 
 export default function AppSidebar() {
   return (
-    <Sidebar variant="sidebar">
-      <SidebarHeader />
+    <Sidebar variant="sidebar" collapsible="offcanvas">
+      <SidebarHeader>
+        <Badge className="w-full">NetPlay</Badge>
+      </SidebarHeader>
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Physical</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {Physical.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <Link
-                      to={item.url || '#'}
-                      className="flex flex-row items-center gap-2"
-                    >
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-        <SidebarGroup>
-          <SidebarGroupLabel>Data Link</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {DataLink.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <Link
-                      to={item.url || '#'}
-                      className="flex flex-row items-center gap-2"
-                    >
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-        <SidebarGroup>
-          <SidebarGroupLabel>Network</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {Network.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <Link
-                      to={item.url || '#'}
-                      className="flex flex-row items-center gap-2"
-                    >
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-        <SidebarGroup>
-          <SidebarGroupLabel>Transport</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {Transport.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <Link
-                      to={item.url || '#'}
-                      className="flex flex-row items-center gap-2"
-                    >
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {osiLayers.map((layer) => (
+          <SidebarGroup key={layer.name}>
+            <SidebarGroupLabel className="flex items-center gap-2">
+              <layer.icon />
+              {layer.name}
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {layer.items.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild>
+                      <Link
+                        to={item.url}
+                        className="flex flex-row items-center gap-2"
+                      >
+                        <item.icon />
+                        <span>{item.title}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
 
         <SidebarGroup>
-          <SidebarGroupLabel>Session/Presentation</SidebarGroupLabel>
+          <SidebarGroupLabel className="flex items-center gap-2">
+            <Settings size={16} />
+            Development
+          </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {SessionAndPresentation.map((item) => (
+              {developmentItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <Link
-                      to={item.url || '#'}
-                      className="flex flex-row items-center gap-2"
-                    >
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel>Application</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {Application.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <Link
-                      to={item.url || '#'}
-                      className="flex flex-row items-center gap-2"
-                    >
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel>Development</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {Development.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <Link
-                      to={item.url || '#'}
+                      to={item.url}
                       className="flex flex-row items-center gap-2"
                     >
                       <item.icon />

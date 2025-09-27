@@ -9,16 +9,16 @@ const Theme = lazy(() => import('./pages/Theme'));
 
 export default function App() {
   return (
-    <Layout>
-      <Suspense fallback={<div>Loading...</div>}>
-        <Routes>
+    <Suspense fallback={<div>Loading...</div>}>
+      <Routes>
+        <Route path="/" element={<Layout />}>
           <Route index element={<h1>Home</h1>} />
           <Route path="gobackn" element={<GoBackN />} />
           <Route path="selectiverepeat" element={<SelectiveRepeat />} />
           <Route path="theme" element={<Theme />} />
-          <Route path="*" element={<div>404</div>} />
-        </Routes>
-      </Suspense>
-    </Layout>
+        </Route>
+        <Route path="*" element={<div>404</div>} />
+      </Routes>
+    </Suspense>
   );
 }
