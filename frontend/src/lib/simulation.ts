@@ -13,7 +13,9 @@ export abstract class Simulation<TState> {
 
   // Simulation timing
   private startTime: number = 0;
+
   private elapsedTime: number = 0;
+
   private timerInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor(initialState: TState, onUpdate?: UpdateCallback<TState>) {

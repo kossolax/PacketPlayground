@@ -178,12 +178,12 @@ export class SelectiveRepeatSim extends Simulation<SelectiveRepeatState> {
   };
 
   private clearAllTimers(): void {
-    this.state.senderPackets.forEach((packet) => {
+    this.state.senderPackets = this.state.senderPackets.map((packet) => {
       if (packet.timer) {
         clearTimeout(packet.timer);
-        packet.timer = null;
-        packet.hasTimer = false;
+        return { ...packet, timer: null, hasTimer: false };
       }
+      return packet;
     });
   }
 

@@ -29,7 +29,8 @@ export default function SelectiveRepeat() {
   const PACKET_STEP = PACKET_HEIGHT + PACKET_SPACING;
 
   const getFlyingPacketStyles = (packet: FlyingPacket) => {
-    const baseClasses = 'px-3 py-1 rounded-lg shadow-lg flex items-center gap-2';
+    const baseClasses =
+      'px-3 py-1 rounded-lg shadow-lg flex items-center gap-2';
 
     if (packet.lost && packet.position >= 50) {
       return `${baseClasses} bg-red-200 text-red-700`;
@@ -48,11 +49,7 @@ export default function SelectiveRepeat() {
 
       <Card>
         <CardHeader>
-          <SimulationControls
-            state={vm}
-            simulation={simRef.current}
-            protocolName="Selective Repeat"
-          />
+          <SimulationControls state={vm} simulation={simRef.current} />
         </CardHeader>
         <CardContent>
           <div className="border-1">
@@ -108,7 +105,8 @@ export default function SelectiveRepeat() {
                     {Array.from({ length: totalPackets }, (_, i) => {
                       const isDelivered = vm.deliveredPackets.includes(i);
                       const hasArrived = vm.arrivedPackets.includes(i);
-                      const isBuffered = vm.receiverBuffer[i]?.received && !isDelivered;
+                      const isBuffered =
+                        vm.receiverBuffer[i]?.received && !isDelivered;
 
                       let bgColor = 'bg-gray-50';
                       if (isDelivered) {
@@ -123,7 +121,8 @@ export default function SelectiveRepeat() {
                         <div
                           key={i}
                           className={`flex items-center gap-2 px-2 rounded h-9 ${bgColor} ${
-                            i >= vm.expectedSeqNum && i < vm.expectedSeqNum + vm.windowSize
+                            i >= vm.expectedSeqNum &&
+                            i < vm.expectedSeqNum + vm.windowSize
                               ? 'ring-2 ring-green-500'
                               : ''
                           }`}

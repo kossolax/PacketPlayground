@@ -57,11 +57,7 @@ export default function GoBackN() {
 
       <Card>
         <CardHeader>
-          <SimulationControls
-            state={vm}
-            simulation={simRef.current}
-            protocolName="Go-Back-N"
-          />
+          <SimulationControls state={vm} simulation={simRef.current} />
         </CardHeader>
         <CardContent>
           {/* Zone d'animation */}
@@ -218,7 +214,7 @@ export default function GoBackN() {
                 </div>
                 <div className="flex items-center gap-1">
                   <div className="w-3 h-3 bg-green-100 rounded border border-green-300" />
-                  <span>Acquitted</span>
+                  <span>Acknowledged</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <div className="w-3 h-3 bg-red-200 rounded border border-red-300" />

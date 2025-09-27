@@ -9,7 +9,7 @@ import { Simulation } from '@/lib/simulation';
 
 // Non-linear loss rate mapping for more granular control at low values
 const LOSS_RATE_VALUES = [
-  0, 0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 50
+  0, 0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 50,
 ];
 const DEFAULT_LOSS_RATE = 2.5;
 
@@ -18,7 +18,7 @@ function mapSliderToLossRate(sliderValue: number): number {
 }
 
 function mapLossRateToSlider(lossRate: number): number {
-  const index = LOSS_RATE_VALUES.findIndex(val => val >= lossRate);
+  const index = LOSS_RATE_VALUES.findIndex((val) => val >= lossRate);
   return index === -1 ? LOSS_RATE_VALUES.length - 1 : index;
 }
 
@@ -45,13 +45,11 @@ interface SimulationInstance<T extends SimulationState> extends Simulation<T> {
 interface SimulationControlsProps<T extends SimulationState> {
   state: T;
   simulation: SimulationInstance<T> | null;
-  protocolName: string;
 }
 
 export default function SimulationControls<T extends SimulationState>({
   state,
   simulation,
-  protocolName,
 }: SimulationControlsProps<T>) {
   const handleStart = useCallback(() => {
     simulation?.start();
@@ -62,25 +60,31 @@ export default function SimulationControls<T extends SimulationState>({
   }, [simulation]);
 
   // Handle loss simulation toggle - smart logic without state property
-  const handleLossToggle = useCallback((enabled: boolean) => {
-    if (!simulation) return;
+  const handleLossToggle = useCallback(
+    (enabled: boolean) => {
+      if (!simulation) return;
 
-    if (enabled) {
-      // When enabling, set to default value if currently 0
-      const currentRate = state.lossRate;
-      if (currentRate === 0) {
-        simulation.setLossRate(DEFAULT_LOSS_RATE);
+      if (enabled) {
+        // When enabling, set to default value if currently 0
+        const currentRate = state.lossRate;
+        if (currentRate === 0) {
+          simulation.setLossRate(DEFAULT_LOSS_RATE);
+        }
+      } else {
+        // When disabling, set loss rate to 0
+        simulation.setLossRate(0);
       }
-    } else {
-      // When disabling, set loss rate to 0
-      simulation.setLossRate(0);
-    }
-  }, [simulation, state.lossRate]);
+    },
+    [simulation, state.lossRate]
+  );
 
   // Handle loss rate change
-  const handleLossRateChange = useCallback((rate: number) => {
-    simulation?.setLossRate(rate);
-  }, [simulation]);
+  const handleLossRateChange = useCallback(
+    (rate: number) => {
+      simulation?.setLossRate(rate);
+    },
+    [simulation]
+  );
 
   return (
     <div className="space-y-4">
@@ -146,7 +150,9 @@ export default function SimulationControls<T extends SimulationState>({
           </div>
           <Slider
             value={[mapLossRateToSlider(state.lossRate)]}
-            onValueChange={(v) => handleLossRateChange(mapSliderToLossRate(v[0]))}
+            onValueChange={(v) =>
+              handleLossRateChange(mapSliderToLossRate(v[0]))
+            }
             min={0}
             max={LOSS_RATE_VALUES.length - 1}
             step={1}
