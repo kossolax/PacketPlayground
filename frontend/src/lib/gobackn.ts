@@ -279,7 +279,10 @@ export class GoBackNSim extends Simulation<GoBackNState> {
     );
     this.emit();
 
-    const willBeLost = shouldLose(this.state.simulateLoss, this.state.lossRate);
+    const willBeLost = shouldLose(
+      this.state.simulateLoss,
+      this.state.lossRate / 2
+    );
     const packetAnimId = this.animationId;
     this.animationId += 1;
     const flyingPacket: FlyingPacket = {

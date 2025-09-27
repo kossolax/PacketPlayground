@@ -70,7 +70,7 @@
       height: 0;
     }
   }
-  --radius-xl: calc(var(--radius) + 4px)
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
 /*
@@ -161,7 +161,7 @@
   --sidebar-border: var(--dark-gray);
   --sidebar-ring: var(--dark-gray);
   --sidebar: hsl(0 0% 98%);
-  --sidebar-width: 16rem;
+  --sidebar-width: 10rem;
   --sidebar-width-icon: 3rem;
 }
 .dark {
@@ -200,7 +200,7 @@
   --sidebar-border: var(--dark-gray);
   --sidebar-ring: var(--gray);
   --sidebar: var(--darker-gray);
-  --sidebar-width: 16rem;
+  --sidebar-width: 10rem;
   --sidebar-width-icon: 3rem;
 }
 

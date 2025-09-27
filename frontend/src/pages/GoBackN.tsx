@@ -1,6 +1,7 @@
 import { Check, Clock, Mail, RefreshCw, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import Header from '@/components/header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -64,15 +65,15 @@ export default function GoBackN() {
   };
 
   return (
-    <div className="w-full max-w-6xl mx-auto p-4 space-y-4">
-      <h1 className="text-4xl font-bold">Go Back N</h1>
+    <>
+      <Header>GoBackN</Header>
 
       <Card>
         {/* Contrôles */}
         <CardHeader className="space-y-4">
           <div className="flex gap-3 items-center">
             <Button onClick={handleStart} disabled={vm.isRunning}>
-              Démarrer
+              Start
             </Button>
             <Button onClick={reset} variant="outline">
               <RefreshCw className="mr-2 h-4 w-4" />
@@ -82,7 +83,7 @@ export default function GoBackN() {
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="space-y-1">
-              <Label className="text-sm">Fenêtre: {vm.windowSize}</Label>
+              <Label className="text-sm">Window: {vm.windowSize}</Label>
               <Slider
                 value={[vm.windowSize]}
                 onValueChange={(v) => simRef.current?.setWindowSize(v[0])}
@@ -92,7 +93,7 @@ export default function GoBackN() {
               />
             </div>
             <div className="space-y-1">
-              <Label className="text-sm">Vitesse: {vm.speed / 1000}s</Label>
+              <Label className="text-sm">Speed: {vm.speed / 1000}s</Label>
               <Slider
                 value={[vm.speed]}
                 onValueChange={(v) => simRef.current?.setSpeed(v[0])}
@@ -122,7 +123,7 @@ export default function GoBackN() {
                   onCheckedChange={(v) => simRef.current?.setSimulateLoss(v)}
                   disabled={vm.isRunning}
                 />
-                <Label className="text-sm">Pertes {vm.lossRate}%</Label>
+                <Label className="text-sm">Loss {vm.lossRate}%</Label>
               </div>
               {vm.simulateLoss && (
                 <Slider
@@ -145,7 +146,7 @@ export default function GoBackN() {
               {/* Émetteur */}
               <div className="absolute left-0 top-0 bottom-0 w-48 bg-blue-50 border-r border-blue-200">
                 <div className="p-4">
-                  <h3 className="font-semibold mb-3 text-blue-900">Émetteur</h3>
+                  <h3 className="font-semibold mb-3 text-blue-900">Sender</h3>
                   <div className="space-y-1.5">
                     {vm.senderPackets.map((packet) => (
                       <div
@@ -183,7 +184,7 @@ export default function GoBackN() {
               <div className="absolute right-0 top-0 bottom-0 w-48 bg-green-50 border-l border-green-200">
                 <div className="p-4">
                   <h3 className="font-semibold mb-3 text-green-900">
-                    Récepteur
+                    Receiver
                   </h3>
                   <div className="space-y-1.5">
                     {Array.from({ length: totalPackets }, (_, i) => {
@@ -280,23 +281,23 @@ export default function GoBackN() {
               <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-3 bg-white px-4 py-2 rounded-lg shadow text-xs">
                 <div className="flex items-center gap-1">
                   <div className="w-3 h-3 bg-yellow-100 rounded border border-yellow-300" />
-                  <span>Envoyé</span>
+                  <span>Sent</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <div className="w-3 h-3 bg-blue-100 rounded border border-blue-300" />
-                  <span>Accepté</span>
+                  <span>Accepted</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <div className="w-3 h-3 bg-orange-100 rounded border border-orange-300" />
-                  <span>Rejeté</span>
+                  <span>Rejected</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <div className="w-3 h-3 bg-green-100 rounded border border-green-300" />
-                  <span>Acquitté</span>
+                  <span>Acquitted</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <div className="w-3 h-3 bg-red-200 rounded border border-red-300" />
-                  <span>Perdu</span>
+                  <span>Lost</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <div className="w-3 h-3 bg-purple-100 rounded border border-purple-300" />
@@ -307,6 +308,6 @@ export default function GoBackN() {
           </div>
         </CardContent>
       </Card>
-    </div>
+    </>
   );
 }

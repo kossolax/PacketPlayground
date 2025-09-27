@@ -3,6 +3,7 @@ import * as React from 'react';
 import { toast } from 'sonner';
 
 import logo from '@/assets/logo.svg';
+import Header from '@/components/header';
 import {
   Accordion,
   AccordionContent,
@@ -69,8 +70,8 @@ export default function Theme() {
   }, [setTheme, switchOn]);
 
   return (
-    <div className="p-6 space-y-8 w-full">
-      <h1>Thème</h1>
+    <>
+      <Header>Thème</Header>
       <img src={logo} alt="Logo" className="w-32 mb-4 mx-auto" />
 
       <Switch checked={switchOn} onCheckedChange={setSwitchOn} />
@@ -538,6 +539,6 @@ export default function Theme() {
           <Skeleton className="h-32 w-full" />
         </CardContent>
       </Card>
-    </div>
+    </>
   );
 }
