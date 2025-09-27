@@ -11,6 +11,16 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { useBreadcrumb } from '@/hooks/use-breadcrumb';
 import { GoBackNSim, GoBackNState, createInitialState } from '@/lib/gobackn';
 
+// Protocol simulation colors
+const PACKET_COLORS = {
+  sent: 'bg-yellow-100 border-yellow-300',
+  delivered: 'bg-blue-100 border-blue-300',
+  rejected: 'bg-orange-100 border-orange-300',
+  acknowledged: 'bg-green-100 border-green-300',
+  lost: 'bg-red-200 border-red-300',
+  fastRetransmit: 'bg-purple-100 border-purple-300',
+};
+
 export default function GoBackN() {
   const { setBreadcrumbs } = useBreadcrumb();
 
@@ -50,9 +60,9 @@ export default function GoBackN() {
 
       let bgColor = 'bg-muted';
       if (isDelivered) {
-        bgColor = 'bg-blue-100';
+        [bgColor] = PACKET_COLORS.delivered.split(' ');
       } else if (hasArrived) {
-        bgColor = 'bg-orange-100';
+        [bgColor] = PACKET_COLORS.rejected.split(' ');
       }
 
       return {
@@ -67,12 +77,12 @@ export default function GoBackN() {
   );
 
   const legendItems: LegendItem[] = [
-    { color: 'bg-yellow-100 border-yellow-300', label: 'Sent' },
-    { color: 'bg-blue-100 border-blue-300', label: 'Delivered' },
-    { color: 'bg-orange-100 border-orange-300', label: 'Rejected' },
-    { color: 'bg-green-100 border-green-300', label: 'Acknowledged' },
-    { color: 'bg-red-200 border-red-300', label: 'Lost' },
-    { color: 'bg-purple-100 border-purple-300', label: 'Fast Retransmit' },
+    { color: PACKET_COLORS.sent, label: 'Sent' },
+    { color: PACKET_COLORS.delivered, label: 'Delivered' },
+    { color: PACKET_COLORS.rejected, label: 'Rejected' },
+    { color: PACKET_COLORS.acknowledged, label: 'Acknowledged' },
+    { color: PACKET_COLORS.lost, label: 'Lost' },
+    { color: PACKET_COLORS.fastRetransmit, label: 'Fast Retransmit' },
   ];
 
   return (
