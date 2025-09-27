@@ -1,7 +1,6 @@
 import {
   FileOutput,
   Globe,
-  Handshake,
   IterationCw,
   Link2,
   Play,
@@ -95,7 +94,9 @@ export default function AppSidebar() {
   return (
     <Sidebar variant="sidebar" collapsible="offcanvas">
       <SidebarHeader>
-        <Badge className="w-full">NetPlay</Badge>
+        <Link to="/" className="flex flex-row items-center gap-2">
+          <Badge className="w-full">NetPlay</Badge>
+        </Link>
       </SidebarHeader>
       <SidebarContent>
         {osiLayers.map((layer) => (

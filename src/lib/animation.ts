@@ -3,14 +3,14 @@
 export interface FlightAnimationOptions {
   // Total duration to reach 100%
   durationMs: number;
-  // Whether this flight should be lost mid-way
-  willBeLost: boolean;
+  // Whether this flight should be lost mid-way (default: false)
+  willBeLost?: boolean;
   // Percentage at which the loss occurs (default 50)
   lossCutoffPercent?: number;
   // Called on each animation frame with current percentage [0..100]
   onProgress: (percentage: number) => void;
   // Called once if lost at the cutoff point
-  onLost: () => void;
+  onLost?: () => void;
   // Called once when arrival reaches 100%
   onArrived: () => void;
 }
@@ -24,7 +24,7 @@ export function startFlightAnimation(
 ): () => void {
   const {
     durationMs,
-    willBeLost,
+    willBeLost = false,
     lossCutoffPercent = 50,
     onProgress,
     onLost,
@@ -41,11 +41,10 @@ export function startFlightAnimation(
 
     if (willBeLost) {
       if (percent >= lossCutoffPercent) {
-        // Fix: finalize at cutoff and stop any further updates to avoid ghost continuation
         onProgress(lossCutoffPercent);
         running = false;
         clearInterval(intervalId);
-        onLost();
+        onLost?.();
         return;
       }
       onProgress(percent);
