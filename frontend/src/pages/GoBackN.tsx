@@ -1,27 +1,9 @@
 import { Check, Clock, Mail, RefreshCw, X } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
-
-// Non-linear loss rate mapping for more granular control at low values
-const LOSS_RATE_VALUES = [
-  0, 0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 50
-];
-const DEFAULT_LOSS_RATE = 2.5;
-
-function mapSliderToLossRate(sliderValue: number): number {
-  return LOSS_RATE_VALUES[sliderValue] || 0;
-}
-
-function mapLossRateToSlider(lossRate: number): number {
-  const index = LOSS_RATE_VALUES.findIndex(val => val >= lossRate);
-  return index === -1 ? LOSS_RATE_VALUES.length - 1 : index;
-}
+import { useEffect, useRef, useState } from 'react';
 
 import Header from '@/components/header';
-import { Button } from '@/components/ui/button';
+import SimulationControls from '@/components/SimulationControls';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { Slider } from '@/components/ui/slider';
-import { Switch } from '@/components/ui/switch';
 import {
   FlyingPacket,
   GoBackNSim,
@@ -53,45 +35,6 @@ export default function GoBackN() {
 
   // Pas d'initialisation via useEffect: déjà initialisé par lazy state
 
-  // Bouton Démarrer (ne bascule plus en Pause)
-  const handleStart = useCallback(() => {
-    simRef.current?.start();
-  }, []);
-
-  // Reset
-  const reset = () => {
-    simRef.current?.reset();
-  };
-
-  // Handle loss simulation toggle
-  const handleLossToggle = (enabled: boolean) => {
-    if (enabled) {
-      // When enabling, set to default value if currently 0
-      const currentRate = vm.lossRate;
-      simRef.current?.setSimulateLoss(true);
-      if (currentRate === 0) {
-        simRef.current?.setLossRate(DEFAULT_LOSS_RATE);
-      }
-    } else {
-      // When disabling, set loss rate to 0
-      simRef.current?.setSimulateLoss(false);
-      simRef.current?.setLossRate(0);
-    }
-  };
-
-  // Handle loss rate change
-  const handleLossRateChange = (rate: number) => {
-    simRef.current?.setLossRate(rate);
-    // Auto-disable switch if rate is set to 0
-    if (rate === 0) {
-      simRef.current?.setSimulateLoss(false);
-    }
-    // Auto-enable switch if rate is > 0 and switch is off
-    else if (!vm.simulateLoss) {
-      simRef.current?.setSimulateLoss(true);
-    }
-  };
-
   // Styles pour les paquets volants
   const getFlyingPacketStyles = (packet: FlyingPacket) => {
     const baseClasses =
@@ -113,79 +56,12 @@ export default function GoBackN() {
       <Header>Go-Back-N</Header>
 
       <Card>
-        {/* Contrôles */}
-        <CardHeader className="space-y-4">
-          <div className="flex gap-3 items-center">
-            <Button onClick={handleStart} disabled={vm.isRunning}>
-              Start
-            </Button>
-            <Button onClick={reset} variant="outline">
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Reset
-            </Button>
-            <div className="ml-auto flex items-center gap-2 text-sm">
-              <Clock className="h-4 w-4" />
-              <span className="font-mono">
-                Timer: {simRef.current?.getFormattedElapsedTime() || '0.0s'}
-              </span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="space-y-1">
-              <Label className="text-sm">Window: {vm.windowSize}</Label>
-              <Slider
-                value={[vm.windowSize]}
-                onValueChange={(v) => simRef.current?.setWindowSize(v[0])}
-                min={2}
-                max={5}
-                disabled={vm.isRunning}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-sm">Speed: {vm.speed / 1000}s</Label>
-              <Slider
-                value={[vm.speed]}
-                onValueChange={(v) => simRef.current?.setSpeed(v[0])}
-                min={1000}
-                max={3000}
-                step={500}
-                disabled={vm.isRunning}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-sm">
-                Timeout: {vm.timeoutDuration / 1000}s
-              </Label>
-              <Slider
-                value={[vm.timeoutDuration]}
-                onValueChange={(v) => simRef.current?.setTimeoutDuration(v[0])}
-                min={3000}
-                max={7000}
-                step={1000}
-                disabled={vm.isRunning}
-              />
-            </div>
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <Switch
-                  checked={vm.simulateLoss}
-                  onCheckedChange={handleLossToggle}
-                  disabled={vm.isRunning}
-                />
-                <Label className="text-sm">Loss {vm.lossRate}%</Label>
-              </div>
-              <Slider
-                value={[mapLossRateToSlider(vm.lossRate)]}
-                onValueChange={(v) => handleLossRateChange(mapSliderToLossRate(v[0]))}
-                min={0}
-                max={LOSS_RATE_VALUES.length - 1}
-                step={1}
-                disabled={vm.isRunning}
-                className={vm.lossRate === 0 ? 'opacity-50' : ''}
-              />
-            </div>
-          </div>
+        <CardHeader>
+          <SimulationControls
+            state={vm}
+            simulation={simRef.current}
+            protocolName="Go-Back-N"
+          />
         </CardHeader>
         <CardContent>
           {/* Zone d'animation */}

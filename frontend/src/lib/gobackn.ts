@@ -26,7 +26,6 @@ export interface GoBackNState {
   // config
   totalPackets: number;
   windowSize: number;
-  simulateLoss: boolean;
   lossRate: number; // percent
   speed: number; // ms flight time
   timeoutDuration: number; // ms
@@ -53,7 +52,6 @@ export function createInitialState(totalPackets = 10): GoBackNState {
   return {
     totalPackets,
     windowSize: 4,
-    simulateLoss: true,
     lossRate: 2.5,
     speed: 2000,
     timeoutDuration: 5000,
@@ -139,11 +137,6 @@ export class GoBackNSim extends Simulation<GoBackNState> {
 
   setTimeoutDuration(ms: number): void {
     this.state.timeoutDuration = ms;
-    this.emit();
-  }
-
-  setSimulateLoss(v: boolean): void {
-    this.state.simulateLoss = v;
     this.emit();
   }
 
@@ -282,10 +275,7 @@ export class GoBackNSim extends Simulation<GoBackNState> {
     );
     this.emit();
 
-    const willBeLost = shouldLose(
-      this.state.simulateLoss,
-      this.state.lossRate / 2
-    );
+    const willBeLost = shouldLose(this.state.lossRate);
     const packetAnimId = this.animationId;
     this.animationId += 1;
     const flyingPacket: FlyingPacket = {
@@ -361,10 +351,7 @@ export class GoBackNSim extends Simulation<GoBackNState> {
   }
 
   private sendAck(seqNum: number): void {
-    const willBeLost = shouldLose(
-      this.state.simulateLoss,
-      this.state.lossRate / 2
-    );
+    const willBeLost = shouldLose(this.state.lossRate / 2);
     const ackAnimId = this.animationId;
     this.animationId += 1;
     const flyingAck: FlyingAck = {

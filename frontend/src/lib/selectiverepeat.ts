@@ -30,7 +30,6 @@ export interface SelectiveRepeatState {
   // config
   totalPackets: number;
   windowSize: number;
-  simulateLoss: boolean;
   lossRate: number; // percent
   speed: number; // ms flight time
   timeoutDuration: number; // ms
@@ -58,7 +57,6 @@ export function createInitialState(totalPackets = 10): SelectiveRepeatState {
   return {
     totalPackets,
     windowSize: 4,
-    simulateLoss: true,
     lossRate: 2.5,
     speed: 2000,
     timeoutDuration: 5000,
@@ -93,13 +91,18 @@ export interface SelectiveRepeatOptions {
 
 export class SelectiveRepeatSim extends Simulation<SelectiveRepeatState> {
   private pendingSend: ReturnType<typeof setTimeout> | null = null;
+
   private lastSendAt = 0;
+
   private animationId = 0;
+
   private activeAnimations = new Set<() => void>();
+
   private readonly SEND_PACING_MS = 800;
 
   // Track duplicate ACKs for fast retransmit
   private lastAckReceived = -1;
+
   private senderDuplicateAckCount = 0;
 
   constructor(opts: SelectiveRepeatOptions = {}) {
@@ -148,18 +151,13 @@ export class SelectiveRepeatSim extends Simulation<SelectiveRepeatState> {
     this.emit();
   }
 
-  setSimulateLoss(v: boolean): void {
-    this.state.simulateLoss = v;
-    this.emit();
-  }
-
   setLossRate(v: number): void {
     this.state.lossRate = v;
     this.emit();
   }
 
   private handleTimeout = (seqNum: number): void => {
-    const packet = this.state.senderPackets.find(p => p.seqNum === seqNum);
+    const packet = this.state.senderPackets.find((p) => p.seqNum === seqNum);
     if (packet && packet.status === 'sent') {
       packet.status = 'waiting';
       packet.hasTimer = false;
@@ -180,7 +178,7 @@ export class SelectiveRepeatSim extends Simulation<SelectiveRepeatState> {
   };
 
   private clearAllTimers(): void {
-    this.state.senderPackets.forEach(packet => {
+    this.state.senderPackets.forEach((packet) => {
       if (packet.timer) {
         clearTimeout(packet.timer);
         packet.timer = null;
@@ -190,12 +188,15 @@ export class SelectiveRepeatSim extends Simulation<SelectiveRepeatState> {
   }
 
   private startPacketTimer(seqNum: number): void {
-    const packet = this.state.senderPackets.find(p => p.seqNum === seqNum);
+    const packet = this.state.senderPackets.find((p) => p.seqNum === seqNum);
     if (packet) {
       if (packet.timer) {
         clearTimeout(packet.timer);
       }
-      packet.timer = setTimeout(() => this.handleTimeout(seqNum), this.state.timeoutDuration);
+      packet.timer = setTimeout(
+        () => this.handleTimeout(seqNum),
+        this.state.timeoutDuration
+      );
       packet.hasTimer = true;
       this.emit();
     }
@@ -214,9 +215,17 @@ export class SelectiveRepeatSim extends Simulation<SelectiveRepeatState> {
   }
 
   private canSendNow(): boolean {
-    const { isRunning, totalPackets, windowSize, base, nextSeqNum, senderPackets } = this.state;
+    const {
+      isRunning,
+      totalPackets,
+      windowSize,
+      base,
+      nextSeqNum,
+      senderPackets,
+    } = this.state;
     if (!isRunning) return false;
-    if (nextSeqNum >= totalPackets || nextSeqNum >= base + windowSize) return false;
+    if (nextSeqNum >= totalPackets || nextSeqNum >= base + windowSize)
+      return false;
     return senderPackets[nextSeqNum]?.status === 'waiting';
   }
 
@@ -263,11 +272,13 @@ export class SelectiveRepeatSim extends Simulation<SelectiveRepeatState> {
     if (seqNum >= this.state.totalPackets || !this.state.isRunning) return;
 
     this.state.senderPackets = this.state.senderPackets.map((p) =>
-      p.seqNum === seqNum ? { ...p, status: 'sent', isFastRetransmit: false } : p
+      p.seqNum === seqNum
+        ? { ...p, status: 'sent', isFastRetransmit: false }
+        : p
     );
     this.emit();
 
-    const willBeLost = shouldLose(this.state.simulateLoss, this.state.lossRate / 2);
+    const willBeLost = shouldLose(this.state.lossRate);
     const packetAnimId = this.animationId;
     this.animationId += 1;
     const flyingPacket: FlyingPacket = {
@@ -277,7 +288,8 @@ export class SelectiveRepeatSim extends Simulation<SelectiveRepeatState> {
       lost: false,
       willBeLost,
       startTime: Date.now(),
-      isFastRetransmit: this.state.senderPackets[seqNum]?.isFastRetransmit || false,
+      isFastRetransmit:
+        this.state.senderPackets[seqNum]?.isFastRetransmit || false,
     };
     this.state.flyingPackets = [...this.state.flyingPackets, flyingPacket];
     this.emit();
@@ -290,7 +302,9 @@ export class SelectiveRepeatSim extends Simulation<SelectiveRepeatState> {
           p.animId === packetAnimId && !p.lost
             ? {
                 ...p,
-                position: willBeLost ? Math.min(percentage, 50) : Math.min(percentage, 100),
+                position: willBeLost
+                  ? Math.min(percentage, 50)
+                  : Math.min(percentage, 100),
               }
             : p
         );
@@ -321,10 +335,15 @@ export class SelectiveRepeatSim extends Simulation<SelectiveRepeatState> {
 
         // Deliver packets in order starting from expectedSeqNum
         let currentExpected = this.state.expectedSeqNum;
-        while (currentExpected < this.state.totalPackets &&
-               this.state.receiverBuffer[currentExpected]?.received) {
-          this.state.deliveredPackets = [...this.state.deliveredPackets, currentExpected];
-          currentExpected++;
+        while (
+          currentExpected < this.state.totalPackets &&
+          this.state.receiverBuffer[currentExpected]?.received
+        ) {
+          this.state.deliveredPackets = [
+            ...this.state.deliveredPackets,
+            currentExpected,
+          ];
+          currentExpected += 1;
         }
         this.state.expectedSeqNum = currentExpected;
 
@@ -337,7 +356,6 @@ export class SelectiveRepeatSim extends Simulation<SelectiveRepeatState> {
           // Any packet that arrives when we're expecting a lower sequence number
           const lastInOrder = this.state.expectedSeqNum - 1;
           if (lastInOrder >= 0) {
-            console.log(`[SR] Out-of-order P${seqNum} received, expected P${this.state.expectedSeqNum}, sending duplicate ACK${lastInOrder}`);
             setTimeout(() => this.sendDuplicateAck(lastInOrder), 150);
           }
         }
@@ -359,12 +377,12 @@ export class SelectiveRepeatSim extends Simulation<SelectiveRepeatState> {
   private sendAckInternal(seqNum: number, isDuplicate: boolean): void {
     // Track duplicate ACKs for receiver state (for UI display only)
     if (seqNum === this.state.lastAckSent) {
-      this.state.duplicateAckCount++;
+      this.state.duplicateAckCount += 1;
     } else if (!isDuplicate) {
       this.state.lastAckSent = seqNum;
       this.state.duplicateAckCount = 1;
     }
-    const willBeLost = shouldLose(this.state.simulateLoss, this.state.lossRate / 2);
+    const willBeLost = shouldLose(this.state.lossRate / 2);
     const ackAnimId = this.animationId;
     this.animationId += 1;
     const flyingAck: FlyingAck = {
@@ -387,7 +405,9 @@ export class SelectiveRepeatSim extends Simulation<SelectiveRepeatState> {
           a.animId === ackAnimId && !a.lost
             ? {
                 ...a,
-                position: willBeLost ? Math.min(percentage, 50) : Math.min(percentage, 100),
+                position: willBeLost
+                  ? Math.min(percentage, 50)
+                  : Math.min(percentage, 100),
               }
             : a
         );
@@ -415,15 +435,15 @@ export class SelectiveRepeatSim extends Simulation<SelectiveRepeatState> {
         // Handle individual ACK with duplicate detection for fast retransmit
         if (seqNum === this.lastAckReceived) {
           // Duplicate ACK received
-          this.senderDuplicateAckCount++;
-          console.log(`[SR] Duplicate ACK${seqNum} received (count: ${this.senderDuplicateAckCount})`);
+          this.senderDuplicateAckCount += 1;
 
           // Fast retransmit on 3rd duplicate ACK
           if (this.senderDuplicateAckCount === 3) {
             const nextUnacked = seqNum + 1;
-            const packetToRetransmit = this.state.senderPackets.find(p => p.seqNum === nextUnacked);
+            const packetToRetransmit = this.state.senderPackets.find(
+              (p) => p.seqNum === nextUnacked
+            );
             if (packetToRetransmit && packetToRetransmit.status === 'sent') {
-              console.log(`[SR] FAST RETRANSMIT triggered! Retransmitting P${nextUnacked}`);
               // Fast retransmit only this specific packet
               packetToRetransmit.status = 'waiting';
               packetToRetransmit.isFastRetransmit = true;
@@ -448,7 +468,9 @@ export class SelectiveRepeatSim extends Simulation<SelectiveRepeatState> {
           this.senderDuplicateAckCount = 1;
 
           // ACK only the specific packet that was acknowledged
-          const packet = this.state.senderPackets.find(p => p.seqNum === seqNum);
+          const packet = this.state.senderPackets.find(
+            (p) => p.seqNum === seqNum
+          );
           if (packet && packet.status === 'sent') {
             packet.status = 'acked';
             packet.hasTimer = false;
@@ -461,9 +483,11 @@ export class SelectiveRepeatSim extends Simulation<SelectiveRepeatState> {
           // Slide window only if this is the base packet
           if (seqNum === this.state.base) {
             let newBase = this.state.base;
-            while (newBase < this.state.totalPackets &&
-                   this.state.senderPackets[newBase]?.status === 'acked') {
-              newBase++;
+            while (
+              newBase < this.state.totalPackets &&
+              this.state.senderPackets[newBase]?.status === 'acked'
+            ) {
+              newBase += 1;
             }
             this.state.base = newBase;
           }

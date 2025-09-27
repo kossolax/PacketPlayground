@@ -71,9 +71,6 @@ export function startFlightAnimation(
  * Determine if an element should be lost given a loss rate percentage.
  * Example: shouldLose(true, 30) ~30% chance; shouldLose(true, 30/2) ~15%.
  */
-export function shouldLose(
-  simulateLoss: boolean,
-  lossRatePercent: number
-): boolean {
-  return simulateLoss && Math.random() * 100 < lossRatePercent;
+export function shouldLose(lossRatePercent: number): boolean {
+  return Math.random() * 100 < lossRatePercent;
 }
