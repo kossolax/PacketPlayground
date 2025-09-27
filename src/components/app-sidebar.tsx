@@ -1,13 +1,14 @@
 import {
   FileOutput,
   Globe,
+  Handshake,
   IterationCw,
   Link2,
-  Monitor,
+  Play,
   Repeat2,
   Settings,
+  Square,
   Truck,
-  Users,
   Zap,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -59,6 +60,16 @@ const osiLayers: OSILayer[] = [
     icon: Truck,
     items: [
       {
+        title: 'TCP SYN',
+        url: '/tcp-syn',
+        icon: Play,
+      },
+      {
+        title: 'TCP FIN',
+        url: '/tcp-fin',
+        icon: Square,
+      },
+      {
         title: 'Go-Back-N',
         url: '/gobackn',
         icon: IterationCw,
@@ -69,16 +80,6 @@ const osiLayers: OSILayer[] = [
         icon: Repeat2,
       },
     ],
-  },
-  {
-    name: 'Session/Presentation',
-    icon: Users,
-    items: [],
-  },
-  {
-    name: 'Application',
-    icon: Monitor,
-    items: [],
   },
 ];
 
