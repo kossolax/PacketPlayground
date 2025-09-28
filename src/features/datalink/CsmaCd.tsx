@@ -35,7 +35,8 @@ export default function CsmaCd() {
 
   const legendItems: LegendItem[] = [
     { color: 'bg-blue-100 border-blue-400', label: 'Data on the bus' },
-    { color: 'bg-red-100 border-red-400', label: 'Collision/Jam' },
+    { color: 'bg-red-100 border-red-400', label: 'Collision' },
+    { color: 'bg-orange-100 border-orange-400', label: 'Jam' },
     { color: 'bg-yellow-100 border-yellow-400', label: 'Carrier sense' },
     { color: 'bg-purple-100 border-purple-400', label: '≈2·Tp listen window' },
   ];

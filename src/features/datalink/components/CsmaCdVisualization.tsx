@@ -38,13 +38,13 @@ export default function CsmaCdVisualization({
           style={{ left: busStartX, top: busY - 2, width: busPx, height: 4 }}
         />
 
-        {/* Data segments (blue) and Jam segments (red) */}
+        {/* Data segments (blue) and Jam segments (orange) */}
         {state.currentSegments.map((seg) => (
           <div
             key={`${seg.type}-${seg.originId}-${seg.startKm}-${seg.endKm}`}
             className={
               seg.type === 'jam'
-                ? 'absolute bg-red-300/80 border border-red-400 rounded'
+                ? 'absolute bg-orange-300/80 border border-orange-400 rounded'
                 : 'absolute bg-blue-300/80 border border-blue-400 rounded'
             }
             style={{
@@ -56,7 +56,7 @@ export default function CsmaCdVisualization({
           />
         ))}
 
-        {/* Collision overlays where two data segments overlap */}
+        {/* Collision overlays where two data segments overlap (red) */}
         {state.collisionSegments.map((c) => (
           <div
             key={`${c.startKm}-${c.endKm}`}
@@ -80,7 +80,7 @@ export default function CsmaCdVisualization({
             <div
               key={s.id}
               className="absolute"
-              style={{ left: x - 20, top: busY - 20 }}
+              style={{ left: x - 32, top: busY - 32 }}
             >
               {/* Label */}
               <div className="absolute left-1/2 -translate-x-1/2 -top-10">
@@ -103,7 +103,7 @@ export default function CsmaCdVisualization({
               )}
 
               {/* Node */}
-              <div className="w-10 h-10 bg-white border-2 border-gray-300 rounded-full flex items-center justify-center shadow-sm">
+              <div className="w-16 h-16 bg-white border-2 border-gray-300 rounded-full flex items-center justify-center shadow-sm">
                 <Radio className="h-4 w-4 text-gray-700" />
               </div>
 

@@ -17,6 +17,8 @@ export interface StationState {
   status: StationStatus;
   // Visuals
   carrierSense: boolean; // halo when any signal segment crosses this tap
+  // Whether this station has a frame pending to send (1-persistent CSMA intention)
+  hasFrame?: boolean;
   // Listening window: t0..t0+2*Tp (ms of simulated time)
   listenWindowStartMs?: number;
   listenWindowEndMs?: number;
@@ -99,7 +101,7 @@ export function createInitialCsmaCdState(): CsmaCdState {
   const packetSize = 8_000; // 1 KB
   const distance = 1000; // km
   const propagationSpeed = 200_000; // km/s
-  const timeScale = 250; // slow-motion
+  const timeScale = 500; // slow-motion
 
   const transmissionDelay = (packetSize / bandwidth) * 1000; // ms
   const propagationDelay = (distance / propagationSpeed) * 1000; // ms
@@ -113,6 +115,7 @@ export function createInitialCsmaCdState(): CsmaCdState {
       xKm: distance * 0.15,
       status: 'idle',
       carrierSense: false,
+      hasFrame: false,
       attempt: 0,
     },
     {
@@ -121,6 +124,7 @@ export function createInitialCsmaCdState(): CsmaCdState {
       xKm: distance * 0.5,
       status: 'idle',
       carrierSense: false,
+      hasFrame: false,
       attempt: 0,
     },
     {
@@ -129,6 +133,7 @@ export function createInitialCsmaCdState(): CsmaCdState {
       xKm: distance * 0.85,
       status: 'idle',
       carrierSense: false,
+      hasFrame: false,
       attempt: 0,
     },
   ];
@@ -223,6 +228,19 @@ export class CsmaCdSim extends Simulation<CsmaCdState> {
     this.emit();
   }
 
+  triggerManualTransmission(stationId: number): void {
+    if (!this.state.isRunning) return;
+
+    const station = this.state.stations.find((s) => s.id === stationId);
+    if (!station) return;
+    // Mark that this station wants to send a frame
+    this.state.stations = this.state.stations.map((s) =>
+      s.id === stationId ? { ...s, hasFrame: true } : s
+    );
+    // Try to start immediately if possible (1-persistent)
+    this.tryStartTransmission(stationId, this.state.simTimeMs);
+  }
+
   // ===== Internal =====
   private resetRuntime(): void {
     this.state.isCompleted = false;
@@ -233,6 +251,7 @@ export class CsmaCdSim extends Simulation<CsmaCdState> {
       ...s,
       status: 'idle',
       carrierSense: false,
+      hasFrame: false,
       attempt: 0,
       listenWindowStartMs: undefined,
       listenWindowEndMs: undefined,
@@ -267,6 +286,10 @@ export class CsmaCdSim extends Simulation<CsmaCdState> {
             (t) => t.stationId === sched.stationId && t.type === 'data'
           );
           if (!already) {
+            // Mark a frame pending for this station (1-persistent)
+            this.state.stations = this.state.stations.map((s) =>
+              s.id === sched.stationId ? { ...s, hasFrame: true } : s
+            );
             this.tryStartTransmission(sched.stationId, simNow);
           }
         });
@@ -275,6 +298,9 @@ export class CsmaCdSim extends Simulation<CsmaCdState> {
       const segments = this.computeAllSegments(simNow);
       this.state.currentSegments = segments;
       this.updateCarrierSense(segments);
+
+      // 2.5) Attempt to start any pending frames if their medium is idle (1-persistent)
+      this.runPendingStarts(simNow, segments);
 
       // 3) Collision detection at transmitters (while listening window active)
       this.detectAndHandleCollisions(simNow, segments);
@@ -287,7 +313,10 @@ export class CsmaCdSim extends Simulation<CsmaCdState> {
         segments.filter((s) => s.type === 'data')
       );
 
-      // 6) Emit frame
+      // 6) Check for completion (A & C successful -> stop simulation)
+      this.checkForCompletion();
+
+      // 7) Emit frame
       this.emit();
     }, tickMs);
   }
@@ -297,6 +326,23 @@ export class CsmaCdSim extends Simulation<CsmaCdState> {
       clearInterval(this.tickHandle);
       this.tickHandle = null;
     }
+  }
+
+  // Stop the simulation once stations A (id=1) and C (id=3) have succeeded
+  private checkForCompletion(): void {
+    if (this.state.isCompleted || !this.state.isRunning) return;
+
+    const a = this.state.stations.find((s) => s.id === 1);
+    const c = this.state.stations.find((s) => s.id === 3);
+    const aSuccess = a?.status === 'success';
+    const cSuccess = c?.status === 'success';
+    if (!(aSuccess && cSuccess)) return;
+
+    // Mark completion and stop timers
+    this.state.isCompleted = true;
+    this.state.isRunning = false;
+    this.stopTick();
+    this.stopTimer();
   }
 
   dispose(): void {
@@ -315,9 +361,9 @@ export class CsmaCdSim extends Simulation<CsmaCdState> {
     const localBusy = segments.some(
       (seg) => seg.startKm <= st.xKm && st.xKm <= seg.endKm
     );
-    if (localBusy) {
-      return; // defer implicitly; this simplistic demo does not re-queue deferred starts except backoff
-    }
+    // If no frame pending, do nothing
+    if (!st.hasFrame) return;
+    if (localBusy) return; // leave as pending; runPendingStarts will retry
 
     // Start data transmission
     const newId = this.nextTransmissionId;
@@ -336,6 +382,7 @@ export class CsmaCdSim extends Simulation<CsmaCdState> {
         ? {
             ...s,
             status: 'transmitting',
+            hasFrame: false,
             listenWindowStartMs: simNow,
             listenWindowEndMs: simNow + 2 * this.state.propagationDelay,
           }
@@ -347,6 +394,19 @@ export class CsmaCdSim extends Simulation<CsmaCdState> {
       st.id,
       simNow
     );
+  }
+
+  // Try to start any stations that have a pending frame and see idle medium locally
+  private runPendingStarts(simNow: number, segments: Segment[]): void {
+    this.state.stations.forEach((st) => {
+      if (!st.hasFrame || st.status !== 'idle') return;
+      const localBusy = segments.some(
+        (seg) => seg.startKm <= st.xKm && st.xKm <= seg.endKm
+      );
+      if (!localBusy) {
+        this.tryStartTransmission(st.id, simNow);
+      }
+    });
   }
 
   private computeAllSegments(simNow: number): Segment[] {
@@ -432,9 +492,12 @@ export class CsmaCdSim extends Simulation<CsmaCdState> {
       if (st.status !== 'transmitting') {
         return;
       }
-      const myWave = this.state.transmissions.find(
-        (t) => t.stationId === st.id && t.type === 'data'
-      );
+      // Use the latest non-aborted data transmission for this station
+      const myWave = this.state.transmissions
+        .filter(
+          (t) => t.stationId === st.id && t.type === 'data' && !t.abortedAtMs
+        )
+        .sort((a, b) => b.startMs - a.startMs)[0];
       if (!myWave) {
         return;
       }
@@ -450,8 +513,9 @@ export class CsmaCdSim extends Simulation<CsmaCdState> {
       // Abort data, mark collision
       if (!myWave.abortedAtMs) {
         myWave.abortedAtMs = simNow;
+        // Mark frame pending for retransmission
         this.state.stations = this.state.stations.map((s) =>
-          s.id === st.id ? { ...s, status: 'collision' } : s
+          s.id === st.id ? { ...s, status: 'collision', hasFrame: true } : s
         );
         this.addEvent(
           'tx_abort_collision',
@@ -557,24 +621,33 @@ export class CsmaCdSim extends Simulation<CsmaCdState> {
         );
         this.state.stations = this.state.stations.map((s) =>
           s.id === st.id
-            ? { ...s, status: 'idle', backoffUntilMs: undefined }
+            ? {
+                ...s,
+                status: 'idle',
+                backoffUntilMs: undefined,
+                hasFrame: true,
+              }
             : s
         );
         this.tryStartTransmission(st.id, simNow);
       }
     });
 
-    // Mark successful transmissions: when data wave trailing edges have left both ends
+    // Mark successful transmissions: when the latest non-aborted data wave's trailing edges have left both ends
     this.state.stations.forEach((st) => {
-      const myData = this.state.transmissions.find(
-        (t) => t.stationId === st.id && t.type === 'data'
+      // Pick the most recent (by startMs) non-aborted data transmission for this station
+      const candidates = this.state.transmissions.filter(
+        (t) => t.stationId === st.id && t.type === 'data' && !t.abortedAtMs
       );
+      const myData: Transmission | undefined =
+        candidates.length > 0
+          ? candidates.slice().sort((a, b) => b.startMs - a.startMs)[0]
+          : undefined;
+
       if (!myData) {
-        return;
+        return; // no active (non-aborted) transmission to consider
       }
-      if (myData.abortedAtMs) {
-        return;
-      }
+
       const tRel = simNow - myData.startMs;
       const dur = myData.durationMs;
       const x0 = st.xKm;

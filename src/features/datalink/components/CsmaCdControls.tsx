@@ -45,6 +45,13 @@ export default function CsmaCdControls({ state, simulation }: Props) {
   const handleStart = useCallback(() => simulation?.start(), [simulation]);
   const handleReset = useCallback(() => simulation?.reset(), [simulation]);
 
+  const handleManualTransmission = useCallback(
+    (stationId: number) => {
+      simulation?.triggerManualTransmission(stationId);
+    },
+    [simulation]
+  );
+
   return (
     <div className="space-y-4">
       <div className="flex gap-3 items-center">
@@ -114,9 +121,9 @@ export default function CsmaCdControls({ state, simulation }: Props) {
           <Slider
             value={[state.timeScale]}
             onValueChange={(v) => simulation?.setTimeScale(v[0])}
-            min={50}
-            max={500}
-            step={50}
+            min={250}
+            max={2500}
+            step={250}
             disabled={false}
           />
         </div>
@@ -129,7 +136,7 @@ export default function CsmaCdControls({ state, simulation }: Props) {
             {state.transmissionDelay.toFixed(1)}ms
           </div>
           <div className="text-muted-foreground text-xs">
-            Time to push bits onto bus
+            Time to push all bits onto link
           </div>
         </div>
         <div className="bg-muted p-3 rounded-lg">
@@ -138,7 +145,7 @@ export default function CsmaCdControls({ state, simulation }: Props) {
             {state.propagationDelay.toFixed(1)}ms
           </div>
           <div className="text-muted-foreground text-xs">
-            End-to-end signal travel
+            Time for signal to travel the distance
           </div>
         </div>
         <div className="bg-muted p-3 rounded-lg">
