@@ -18,7 +18,7 @@ import {
 } from '@/lib/draw';
 import { stateColor } from '@/lib/tcp-state-style';
 import TcpFinControls from './components/TcpFinControls';
-import TcpFinTimeline from './components/TcpFinTimeline';
+import Timeline from './components/Timeline';
 import { TcpFinSim, TcpFinState, createInitialState } from './lib/tcpfin';
 
 export default function TcpFin() {
@@ -260,7 +260,7 @@ export default function TcpFin() {
         <TcpFinControls state={vm} simulation={simRef.current} />
       </CardHeader>
       <CardContent>
-        <TcpFinTimeline
+        <Timeline
           layout={layout}
           clientChip={clientChip}
           serverChip={serverChip}

@@ -7,6 +7,7 @@ export interface TimelineLayout {
   topOffset: number;
   clientXPercent: number;
   serverXPercent: number;
+  firewallXPercent?: number; // optional middle lifeline
 }
 
 export interface TimelineChip {
@@ -70,7 +71,7 @@ interface TcpFinTimelineProps {
  * TCP FIN timeline (presentational): renders lifelines, segments, flying envelopes,
  * arrivals, and time-wait overlay based on a precomputed view model.
  */
-export default function TcpFinTimeline({
+export default function Timeline({
   layout,
   clientChip,
   serverChip,
@@ -80,7 +81,13 @@ export default function TcpFinTimeline({
   arrivals,
   timeWait,
 }: TcpFinTimelineProps) {
-  const { height, clientXPercent, serverXPercent, topOffset } = layout;
+  const {
+    height,
+    clientXPercent,
+    serverXPercent,
+    topOffset,
+    firewallXPercent,
+  } = layout;
 
   return (
     <div className="relative h-[500px] bg-gradient-to-r from-blue-50 via-background to-green-50 overflow-hidden rounded-md border">
@@ -99,6 +106,14 @@ export default function TcpFinTimeline({
       >
         <div className="w-[2px] h-full bg-border" />
       </div>
+      {firewallXPercent != null && (
+        <div
+          className="absolute -translate-x-1/2"
+          style={{ height, top: topOffset, left: `${firewallXPercent}%` }}
+        >
+          <div className="w-[2px] h-full bg-border" />
+        </div>
+      )}
 
       {/* Current states chips */}
       <div className="absolute left-4 top-10">
@@ -231,6 +246,19 @@ export default function TcpFinTimeline({
           Server
         </Badge>
       </div>
+      {firewallXPercent != null && (
+        <div
+          className="absolute -translate-x-1/2 top-10"
+          style={{ left: `${firewallXPercent}%` }}
+        >
+          <Badge
+            variant="outline"
+            className="bg-card shadow-sm text-base px-3 py-1.5"
+          >
+            Firewall
+          </Badge>
+        </div>
+      )}
     </div>
   );
 }

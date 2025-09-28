@@ -53,6 +53,7 @@ export interface TcpSynStateInterface {
     | 'syn_sent'
     | 'syn_ack_sent'
     | 'ack_sent'
+    | 'syn_to_server'
     | 'cookie_validated'
     | 'firewall_to_server'
     | 'server_syn_ack'
@@ -213,6 +214,24 @@ export class TcpSynSim extends Simulation<TcpSynStateInterface> {
     this.sendPacket(packet);
   }
 
+  private sendRstPacket(
+    from: 'client' | 'server' | 'firewall',
+    to: 'client' | 'server' | 'firewall'
+  ): void {
+    const packet: TcpSynPacket = {
+      seqNum: this.state.sentPackets.length,
+      type: 'RST',
+      from,
+      to,
+      synFlag: false,
+      ackFlag: false,
+      rstFlag: true,
+    };
+
+    this.state.sentPackets.push(packet);
+    this.sendPacket(packet);
+  }
+
   private sendPacket(packet: TcpSynPacket): void {
     if (!this.state.isRunning) return;
 
@@ -354,56 +373,63 @@ export class TcpSynSim extends Simulation<TcpSynStateInterface> {
       packet.from === 'client' &&
       packet.to === 'firewall'
     ) {
-      // Step 3: Firewall validates cookie and forwards to server
-      if (this.validateSynCookie()) {
-        this.state.firewallState = 'VALIDATED';
-        this.state.validatedConnections.push(`client-${Date.now()}`);
-        this.state.clientState = 'ESTABLISHED';
-        this.state.phase = 'cookie_validated';
-
-        // Step 4: Firewall initiates connection to server
-        setTimeout(() => {
-          this.sendSynPacket('firewall', 'server');
-          this.state.phase = 'firewall_to_server';
-        }, 100);
-      }
+      // Firewall received client's ACK -> respond with RST to close this pseudo-handshake
+      this.state.firewallState = 'RST_SENT';
+      setTimeout(() => {
+        this.sendRstPacket('firewall', 'client');
+        this.state.phase = 'rst_sent';
+      }, 100);
     } else if (
-      phase === 'firewall_to_server' &&
-      packet.type === 'SYN' &&
+      phase === 'rst_sent' &&
+      packet.type === 'RST' &&
       packet.from === 'firewall' &&
+      packet.to === 'client'
+    ) {
+      // Client received RST from firewall -> start real handshake with server directly
+      setTimeout(() => {
+        this.sendSynPacket('client', 'server');
+        this.state.clientState = 'SYN_SENT';
+        this.state.phase = 'syn_to_server';
+      }, 150);
+    } else if (
+      phase === 'syn_to_server' &&
+      packet.type === 'SYN' &&
+      packet.from === 'client' &&
       packet.to === 'server'
     ) {
-      // Step 5: Server receives SYN from firewall
+      // Server receives SYN from client
       this.state.serverState = 'SYN_RCVD';
       setTimeout(() => {
-        this.sendSynAckPacket('server', 'firewall');
+        this.sendSynAckPacket('server', 'client');
         this.state.phase = 'server_syn_ack';
       }, 100);
     } else if (
       phase === 'server_syn_ack' &&
       packet.type === 'SYN_ACK' &&
       packet.from === 'server' &&
-      packet.to === 'firewall'
+      packet.to === 'client'
     ) {
-      // Step 6: Firewall receives SYN-ACK from server
+      // Client receives SYN-ACK from server
       setTimeout(() => {
-        this.sendAckPacket('firewall', 'server');
-        this.state.serverState = 'ESTABLISHED';
-        this.state.phase = 'established';
+        this.sendAckPacket('client', 'server');
+        this.state.clientState = 'ESTABLISHED';
+        this.state.phase = 'ack_sent';
       }, 100);
     } else if (
-      phase === 'established' &&
+      phase === 'ack_sent' &&
       packet.type === 'ACK' &&
-      packet.from === 'firewall' &&
+      packet.from === 'client' &&
       packet.to === 'server'
     ) {
-      // Step 7: Server receives final ACK - connection fully established
+      // Server receives final ACK -> fully established
+      this.state.serverState = 'ESTABLISHED';
+      this.state.phase = 'established';
       setTimeout(() => {
         this.state.phase = 'completed';
         this.state.isRunning = false;
         this.stopTimer();
         this.emit();
-      }, 1000);
+      }, 800);
     }
   }
 

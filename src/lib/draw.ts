@@ -1,14 +1,18 @@
 // Small drawing primitives/helpers for timeline components
 
-export type Side = 'client' | 'server';
+export type Side = 'client' | 'server' | 'firewall';
 
 // Return lifeline X position given side and the two lifeline Xs (percent in the 0..100 viewBox)
 export function lifelineX(
   side: Side,
   clientX: number,
-  serverX: number
+  serverX: number,
+  firewallX?: number
 ): number {
-  return side === 'client' ? clientX : serverX;
+  if (side === 'client') return clientX;
+  if (side === 'server') return serverX;
+  // firewall
+  return firewallX ?? (clientX + serverX) / 2;
 }
 
 // Compute a vertical segment (y1->y2) for a wait overlay, ensuring a minimum visible size
@@ -70,6 +74,7 @@ export interface GeometryParams<T extends string = string> {
   // layout
   clientXPercent: number;
   serverXPercent: number;
+  firewallXPercent?: number;
   topOffset: number;
   segmentHeight: number;
   envelopeHeight: number;
@@ -138,8 +143,28 @@ export function assignFlightsAndSegments<T extends string = string>(
   sentPackets.forEach((pkt) => {
     const k = keyOf(pkt.type, pkt.from, pkt.to);
     const rowY = rowTop(pkt.seqNum);
-    const fromX = pkt.from === 'client' ? clientXPercent : serverXPercent;
-    const toX = pkt.to === 'client' ? clientXPercent : serverXPercent;
+    let fromX = clientXPercent;
+    if (pkt.from === 'server') {
+      fromX = serverXPercent;
+    } else if (pkt.from === 'firewall') {
+      fromX = lifelineX(
+        'firewall',
+        clientXPercent,
+        serverXPercent,
+        params.firewallXPercent
+      );
+    }
+    let toX = clientXPercent;
+    if (pkt.to === 'server') {
+      toX = serverXPercent;
+    } else if (pkt.to === 'firewall') {
+      toX = lifelineX(
+        'firewall',
+        clientXPercent,
+        serverXPercent,
+        params.firewallXPercent
+      );
+    }
     const lift = startLift(pkt.seqNum, pkt.type);
 
     const list = flyMap[k];
@@ -185,6 +210,7 @@ export function interpolateFlightPosition<T extends string = string>(
   layout: {
     clientXPercent: number;
     serverXPercent: number;
+    firewallXPercent?: number;
     topOffset: number;
     segmentHeight: number;
     startLiftFor?: StartLiftPolicy<T>;
@@ -197,12 +223,19 @@ export function interpolateFlightPosition<T extends string = string>(
   const startY =
     rowTopFor(opts.seqNum, layout.topOffset, layout.segmentHeight) - startLift;
   const yTop = startY + t * (layout.segmentHeight + startLift);
-  const isL2R = opts.from === 'client' && opts.to === 'server';
-  const xPercent = isL2R
-    ? layout.clientXPercent +
-      (layout.serverXPercent - layout.clientXPercent) * t
-    : layout.serverXPercent -
-      (layout.serverXPercent - layout.clientXPercent) * t;
+  const fromX = lifelineX(
+    opts.from,
+    layout.clientXPercent,
+    layout.serverXPercent,
+    layout.firewallXPercent
+  );
+  const toX = lifelineX(
+    opts.to,
+    layout.clientXPercent,
+    layout.serverXPercent,
+    layout.firewallXPercent
+  );
+  const xPercent = fromX + (toX - fromX) * t;
   return { xPercent, yTop };
 }
 
@@ -220,6 +253,7 @@ export function trailingLineFor<T extends string = string>(
   layout: {
     clientXPercent: number;
     serverXPercent: number;
+    firewallXPercent?: number;
     topOffset: number;
     segmentHeight: number;
     envelopeHeight: number;
@@ -235,8 +269,12 @@ export function trailingLineFor<T extends string = string>(
     rowTopFor(opts.seqNum, layout.topOffset, layout.segmentHeight) - startLift;
   const y1 = startY + layout.envelopeHeight; // line starts at bottom of chip at start
   const y2 = yTop + (1 - t) * layout.envelopeHeight; // ends under the moving chip
-  const x1 =
-    opts.from === 'client' ? layout.clientXPercent : layout.serverXPercent;
+  const x1 = lifelineX(
+    opts.from,
+    layout.clientXPercent,
+    layout.serverXPercent,
+    layout.firewallXPercent
+  );
   const x2 = xPercent;
   return { x1, y1, x2, y2 };
 }

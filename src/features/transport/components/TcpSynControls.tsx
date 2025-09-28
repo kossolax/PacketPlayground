@@ -3,28 +3,20 @@ import { useCallback } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
+import { Switch } from '@/components/ui/switch';
 
-import type { TcpFinSim, TcpFinState } from '../lib/tcpfin';
+import type { TcpSynSim, TcpSynStateInterface } from '../lib/tcpsyn';
 
-type Variant = 'client_closes_first' | 'server_closes_first';
-
-interface TcpFinControlsProps {
-  state: TcpFinState;
-  simulation: TcpFinSim | null;
+interface TcpSynControlsProps {
+  state: TcpSynStateInterface;
+  simulation: TcpSynSim | null;
 }
 
-export default function TcpFinControls({
+export default function TcpSynControls({
   state,
   simulation,
-}: TcpFinControlsProps) {
+}: TcpSynControlsProps) {
   const handleStart = useCallback(() => simulation?.start(), [simulation]);
   const handleReset = useCallback(() => simulation?.reset(), [simulation]);
 
@@ -32,14 +24,10 @@ export default function TcpFinControls({
     (ms: number) => simulation?.setSpeed(ms),
     [simulation]
   );
-  const handleTimeWait = useCallback(
-    (ms: number) => simulation?.setTimeWaitDuration(ms),
-    [simulation]
-  );
-  const handleVariantChange = useCallback(
-    (variant: Variant) => {
+  const handleFirewallToggle = useCallback(
+    (enabled: boolean) => {
       if (!simulation) return;
-      simulation.setVariant(variant);
+      simulation.setWithFirewall(enabled);
       simulation.reset();
     },
     [simulation]
@@ -78,39 +66,13 @@ export default function TcpFinControls({
         </div>
 
         <div className="space-y-1">
-          <Label className="text-sm">
-            Time-Wait: {state.timeWaitDuration / 1000}s
-          </Label>
-          <Slider
-            value={[state.timeWaitDuration]}
-            onValueChange={(v) => handleTimeWait(v[0])}
-            min={3000}
-            max={7000}
-            step={1000}
-            disabled={state.isRunning}
-          />
-        </div>
-
-        <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <Label className="text-sm">Connection Closure</Label>
-            <Select
-              value={state.variant}
-              onValueChange={handleVariantChange}
+            <Switch
+              checked={state.withFirewall}
+              onCheckedChange={handleFirewallToggle}
               disabled={state.isRunning}
-            >
-              <SelectTrigger className="w-auto">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="client_closes_first">
-                  Client initiates
-                </SelectItem>
-                <SelectItem value="server_closes_first">
-                  Server initiates
-                </SelectItem>
-              </SelectContent>
-            </Select>
+            />
+            <Label className="text-sm">Enable SYN firewall</Label>
           </div>
         </div>
       </div>
