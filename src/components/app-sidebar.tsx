@@ -6,6 +6,7 @@ import {
   Play,
   Radio,
   Repeat2,
+  Router,
   Settings,
   Square,
   Truck,
@@ -59,7 +60,13 @@ const osiLayers: OSILayer[] = [
   {
     name: 'Network',
     icon: Globe,
-    items: [],
+    items: [
+      {
+        title: 'Queuing and Loss',
+        url: '/network/queuing-and-loss',
+        icon: Router,
+      },
+    ],
   },
   {
     name: 'Transport',
