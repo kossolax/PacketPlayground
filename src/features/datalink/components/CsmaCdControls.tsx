@@ -45,13 +45,6 @@ export default function CsmaCdControls({ state, simulation }: Props) {
   const handleStart = useCallback(() => simulation?.start(), [simulation]);
   const handleReset = useCallback(() => simulation?.reset(), [simulation]);
 
-  const handleManualTransmission = useCallback(
-    (stationId: number) => {
-      simulation?.triggerManualTransmission(stationId);
-    },
-    [simulation]
-  );
-
   return (
     <div className="space-y-4">
       <div className="flex gap-3 items-center">
