@@ -292,3 +292,45 @@ export function progress01(
   const elapsed = Date.now() - startAt;
   return Math.max(0, Math.min(1, elapsed / durationMs));
 }
+
+// ======= Physical layer transmission primitives =======
+
+/**
+ * Compute the visual width of a transmission bar based on progress (0-100%)
+ */
+export function computeTransmissionBarWidth(
+  progress: number,
+  containerWidth: number
+): number {
+  const normalizedProgress = Math.max(0, Math.min(100, progress)) / 100;
+  return containerWidth * normalizedProgress;
+}
+
+/**
+ * Compute the position of a propagating signal along a medium
+ */
+export function computePropagationPosition(
+  progress: number,
+  startX: number,
+  endX: number
+): number {
+  const normalizedProgress = Math.max(0, Math.min(100, progress)) / 100;
+  return startX + (endX - startX) * normalizedProgress;
+}
+
+/**
+ * Generate timeline markers for transmission events
+ */
+export function generateTransmissionTimelineMarkers(
+  events: Array<{ timestamp: number; type: string; description: string }>,
+  totalDuration: number,
+  timelineWidth: number
+): Array<{ x: number; label: string; type: string }> {
+  if (totalDuration === 0) return [];
+
+  return events.map((event) => ({
+    x: (event.timestamp / totalDuration) * timelineWidth,
+    label: event.description,
+    type: event.type,
+  }));
+}

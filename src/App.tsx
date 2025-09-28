@@ -6,6 +6,7 @@ import Home from './pages/Home.tsx';
 
 const Theme = lazy(() => import('./pages/Theme'));
 const Transport = lazy(() => import('./features/transport/Transport'));
+const Physical = lazy(() => import('./features/physical/Physical'));
 
 export default function App() {
   return (
@@ -13,6 +14,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Layout />}>
           <Route index element={<Home />} />
+          <Route path="physical/*" element={<Physical />} />
           <Route path="transport/*" element={<Transport />} />
           <Route path="theme" element={<Theme />} />
         </Route>

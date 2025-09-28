@@ -4,7 +4,8 @@
       "Bash(npm run lint:*)",
       "Bash(npm run build:*)",
       "WebSearch",
-      "WebFetch(domain:ui.shadcn.com)"
+      "WebFetch(domain:ui.shadcn.com)",
+      "WebFetch(domain:computerscience.unicam.it)"
     ],
     "deny": [],
     "ask": []

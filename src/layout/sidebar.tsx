@@ -19,8 +19,8 @@ import {
 } from '@/components/ui/breadcrumb';
 import { Separator } from '@/components/ui/separator';
 import {
-  useBreadcrumb,
   BreadcrumbItem as BreadcrumbItemType,
+  useBreadcrumb,
 } from '@/hooks/use-breadcrumb';
 
 function renderBreadcrumbItem(item: BreadcrumbItemType, isLastItem: boolean) {

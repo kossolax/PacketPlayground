@@ -73,3 +73,97 @@ export function startFlightAnimation(
 export function shouldLose(lossRatePercent: number): boolean {
   return Math.random() * 100 < lossRatePercent;
 }
+
+// ======= Physical layer animation helpers =======
+
+export interface TransmissionAnimationOptions {
+  durationMs: number;
+  onProgress: (percentage: number) => void;
+  onComplete: () => void;
+}
+
+/**
+ * Start a smooth transmission bar animation
+ */
+export function startTransmissionAnimation(
+  options: TransmissionAnimationOptions
+): () => void {
+  const { durationMs, onProgress, onComplete } = options;
+
+  let running = true;
+  const start = Date.now();
+  const tickMs = 16; // ~60fps for smooth transmission bar
+
+  const intervalId = setInterval(() => {
+    if (!running) return;
+
+    const elapsed = Date.now() - start;
+    const percent = Math.min(100, (elapsed / durationMs) * 100);
+
+    if (percent >= 100) {
+      onProgress(100);
+      running = false;
+      clearInterval(intervalId);
+      onComplete();
+      return;
+    }
+
+    onProgress(percent);
+  }, tickMs);
+
+  return () => {
+    running = false;
+    clearInterval(intervalId);
+  };
+}
+
+export interface PropagationAnimationOptions {
+  delayMs: number; // delay before starting
+  durationMs: number;
+  onProgress: (percentage: number) => void;
+  onComplete: () => void;
+}
+
+/**
+ * Start a propagation signal animation with delay
+ */
+export function startPropagationAnimation(
+  options: PropagationAnimationOptions
+): () => void {
+  const { delayMs, durationMs, onProgress, onComplete } = options;
+
+  let running = true;
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  let intervalId: ReturnType<typeof setInterval> | null = null;
+
+  // Wait for delay, then start animation
+  timeoutId = setTimeout(() => {
+    if (!running) return;
+
+    const start = Date.now();
+    const tickMs = 16; // ~60fps
+
+    intervalId = setInterval(() => {
+      if (!running) return;
+
+      const elapsed = Date.now() - start;
+      const percent = Math.min(100, (elapsed / durationMs) * 100);
+
+      if (percent >= 100) {
+        onProgress(100);
+        running = false;
+        if (intervalId) clearInterval(intervalId);
+        onComplete();
+        return;
+      }
+
+      onProgress(percent);
+    }, tickMs);
+  }, delayMs);
+
+  return () => {
+    running = false;
+    if (timeoutId) clearTimeout(timeoutId);
+    if (intervalId) clearInterval(intervalId);
+  };
+}

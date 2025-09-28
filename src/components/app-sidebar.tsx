@@ -4,6 +4,7 @@ import {
   IterationCw,
   Link2,
   Play,
+  Radio,
   Repeat2,
   Settings,
   Square,
@@ -42,7 +43,13 @@ const osiLayers: OSILayer[] = [
   {
     name: 'Physical',
     icon: Zap,
-    items: [],
+    items: [
+      {
+        title: 'Transmission delay',
+        url: '/physical/transmission-vs-propagation',
+        icon: Radio,
+      },
+    ],
   },
   {
     name: 'Data Link',
