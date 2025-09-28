@@ -7,15 +7,15 @@ import {
   CardFooter,
   CardHeader,
 } from '@/components/ui/card';
-import TcpSynControls from '@/features/transport/components/TcpSynControls';
 import { useBreadcrumb } from '@/hooks/use-breadcrumb';
 import {
   assignFlightsAndSegments,
   interpolateFlightPosition,
   trailingLineFor,
 } from '@/lib/draw';
-import { stateColor } from '@/lib/tcp-state-style';
+import TcpSynControls from './components/TcpSynControls';
 import Timeline from './components/Timeline';
+import { stateColor } from './lib/tcp-state-style';
 import {
   TcpSynSim,
   TcpSynStateInterface,

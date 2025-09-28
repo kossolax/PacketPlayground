@@ -16,9 +16,9 @@ import {
   rowTopFor,
   trailingLineFor,
 } from '@/lib/draw';
-import { stateColor } from '@/lib/tcp-state-style';
 import TcpFinControls from './components/TcpFinControls';
 import Timeline from './components/Timeline';
+import { stateColor } from './lib/tcp-state-style';
 import { TcpFinSim, TcpFinState, createInitialState } from './lib/tcpfin';
 
 export default function TcpFin() {
