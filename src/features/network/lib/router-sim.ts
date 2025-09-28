@@ -55,7 +55,7 @@ export function createInitialRouterState(): RouterState {
 
 export class RouterSim extends Simulation<RouterState> {
   private animationCancel?: () => void;
- 
+
   private nextPacketId = 1;
 
   private lastInputTime = 0;

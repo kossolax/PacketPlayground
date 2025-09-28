@@ -24,9 +24,7 @@ export default function QueuingAndLoss() {
     setBreadcrumbs('Network', 'Queuing and Loss');
   }, [setBreadcrumbs]);
 
-  const [vm, setVm] = useState<RouterState>(() =>
-    createInitialRouterState()
-  );
+  const [vm, setVm] = useState<RouterState>(() => createInitialRouterState());
 
   const simRef = useRef<RouterSim | null>(null);
   if (!simRef.current) {
