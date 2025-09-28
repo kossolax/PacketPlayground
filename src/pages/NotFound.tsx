@@ -139,7 +139,7 @@ export default function NotFound() {
 
   return (
     <div className="bg-gradient-to-br from-background to-muted h-full flex items-center justify-center p-6">
-        <div className="max-w-2xl w-full">
+      <div className="max-w-2xl w-full">
         <Card className="p-8 text-center relative overflow-hidden">
           {/* Animated network background */}
           <div className="absolute inset-0 opacity-10">
@@ -339,7 +339,7 @@ export default function NotFound() {
             </div>
           </div>
         </Card>
-        </div>
+      </div>
     </div>
   );
 }
