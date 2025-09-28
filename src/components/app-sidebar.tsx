@@ -108,6 +108,11 @@ const developmentItems: SidebarItem[] = [
     url: '/theme',
     icon: FileOutput,
   },
+  {
+    title: 'Not Found',
+    url: '/not-found',
+    icon: FileOutput,
+  },
 ];
 
 export default function AppSidebar() {

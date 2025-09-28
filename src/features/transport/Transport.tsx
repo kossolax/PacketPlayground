@@ -1,5 +1,6 @@
 import { Route, Routes } from 'react-router-dom';
 
+import NotFound from '@/pages/NotFound';
 import GoBackN from './GoBackN';
 import SelectiveRepeat from './SelectiveRepeat';
 import TcpFin from './TcpFin';
@@ -13,10 +14,7 @@ export default function Transport() {
       <Route path="go-back-n" element={<GoBackN />} />
       <Route path="selective-repeat" element={<SelectiveRepeat />} />
 
-      <Route
-        path="*"
-        element={<div>Select a protocol from the sidebar.</div>}
-      />
+      <Route path="*" element={<NotFound />} />
     </Routes>
   );
 }

@@ -1,5 +1,6 @@
 import { Route, Routes } from 'react-router-dom';
 
+import NotFound from '@/pages/NotFound';
 import TransmissionVsPropagation from './TransmissionVsPropagation';
 
 export default function Physical() {
@@ -9,10 +10,7 @@ export default function Physical() {
         path="transmission-vs-propagation"
         element={<TransmissionVsPropagation />}
       />
-      <Route
-        path="*"
-        element={<div>Select a physical layer topic from the sidebar.</div>}
-      />
+      <Route path="*" element={<NotFound />} />
     </Routes>
   );
 }

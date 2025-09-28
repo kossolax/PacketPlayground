@@ -3,6 +3,7 @@ import { Route, Routes } from 'react-router-dom';
 
 import Layout from './layout/sidebar.tsx';
 import Home from './pages/Home.tsx';
+import NotFound from './pages/NotFound.tsx';
 
 const Theme = lazy(() => import('./pages/Theme'));
 const Physical = lazy(() => import('./features/physical/Physical'));
@@ -21,8 +22,8 @@ export default function App() {
           <Route path="network/*" element={<Network />} />
           <Route path="transport/*" element={<Transport />} />
           <Route path="theme" element={<Theme />} />
+          <Route path="*" element={<NotFound />} />
         </Route>
-        <Route path="*" element={<div>404</div>} />
       </Routes>
     </Suspense>
   );
