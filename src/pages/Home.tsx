@@ -18,9 +18,9 @@ export default function Home() {
             Net<span className="text-primary">Play</span>
           </h1>
           <p className="mt-6 text-lg leading-8 text-muted-foreground max-w-3xl mx-auto">
-            Explorez et comprenez les protocoles de transport réseau à travers
-            des simulations interactives. Trois étapes simples pour maîtriser
-            les protocoles réseau
+            Explorez et comprenez les protocoles réseau à travers des
+            simulations interactives et visuelles. Apprenez les concepts
+            fondamentaux des communications réseau de manière intuitive.
           </p>
         </div>
 
@@ -35,8 +35,8 @@ export default function Home() {
               Choisissez un protocole
             </h3>
             <p className="text-muted-foreground">
-              Sélectionnez Go-Back-N ou Selective Repeat selon ce que vous
-              souhaitez apprendre
+              Explorez différents protocoles : protocoles de fenêtre glissante,
+              établissement et fermeture de connexions TCP
             </p>
           </div>
 
@@ -50,8 +50,8 @@ export default function Home() {
               Configurez la simulation
             </h3>
             <p className="text-muted-foreground">
-              Ajustez les paramètres comme la taille de la fenêtre et le taux de
-              perte
+              Personnalisez les paramètres de simulation selon le protocole :
+              fenêtres, délais, pertes de paquets, et plus encore
             </p>
           </div>
 
@@ -65,8 +65,8 @@ export default function Home() {
               Observez et apprenez
             </h3>
             <p className="text-muted-foreground">
-              Lancez la simulation et observez le comportement des paquets en
-              temps réel
+              Visualisez les échanges de données, les timelines, et comprenez le
+              comportement des protocoles en action
             </p>
           </div>
         </div>

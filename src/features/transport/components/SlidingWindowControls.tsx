@@ -42,15 +42,15 @@ interface SimulationInstance<T extends SimulationState> extends Simulation<T> {
   getFormattedElapsedTime(): string;
 }
 
-interface SimulationControlsProps<T extends SimulationState> {
+interface SlidingWindowControlsProps<T extends SimulationState> {
   state: T;
   simulation: SimulationInstance<T> | null;
 }
 
-export default function SimulationControls<T extends SimulationState>({
+export default function SlidingWindowControls<T extends SimulationState>({
   state,
   simulation,
-}: SimulationControlsProps<T>) {
+}: SlidingWindowControlsProps<T>) {
   const handleStart = useCallback(() => {
     simulation?.start();
   }, [simulation]);

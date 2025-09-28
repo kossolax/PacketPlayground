@@ -12,7 +12,7 @@ import ReceiverTimeline, {
   ReceiverPacketInfo,
 } from './components/ReceiverTimeline';
 import SenderTimeline, { SenderPacket } from './components/SenderTimeline';
-import SimulationControls from './components/SimulationControls';
+import SlidingWindowControls from './components/SlidingWindowControls';
 import TransitZone from './components/TransitZone';
 import {
   SelectiveRepeatSim,
@@ -101,7 +101,7 @@ export default function SelectiveRepeat() {
   return (
     <Card>
       <CardHeader>
-        <SimulationControls state={vm} simulation={simRef.current} />
+        <SlidingWindowControls state={vm} simulation={simRef.current} />
       </CardHeader>
       <CardContent>
         <div className="border-1">
