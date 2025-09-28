@@ -55,7 +55,13 @@ const osiLayers: OSILayer[] = [
   {
     name: 'Data Link',
     icon: Link2,
-    items: [],
+    items: [
+      {
+        title: 'CSMA/CD',
+        url: '/datalink/csma-cd',
+        icon: Radio,
+      },
+    ],
   },
   {
     name: 'Network',

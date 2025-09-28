@@ -35,8 +35,8 @@ export default function Home() {
               Choisissez un protocole
             </h3>
             <p className="text-muted-foreground">
-              Explorez différents protocoles : protocoles de fenêtre glissante,
-              établissement et fermeture de connexions TCP
+              Découvrez une variété de protocoles réseau et leurs mécanismes :
+              de la couche physique aux protocoles de transport
             </p>
           </div>
 
