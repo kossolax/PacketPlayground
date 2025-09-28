@@ -55,6 +55,7 @@ export interface TcpFinState {
 
   // timers
   hasTimeWaitTimer: boolean;
+  timeWaitStartAt: number | null;
 }
 
 export function createInitialState(): TcpFinState {
@@ -70,6 +71,7 @@ export function createInitialState(): TcpFinState {
     sentPackets: [],
     flyingPackets: [],
     hasTimeWaitTimer: false,
+    timeWaitStartAt: null,
   };
 }
 
@@ -345,9 +347,11 @@ export class TcpFinSim extends Simulation<TcpFinState> {
 
   private startTimeWaitTimer(): void {
     this.state.hasTimeWaitTimer = true;
+    this.state.timeWaitStartAt = Date.now();
     this.emit();
     this.timeWaitTimer = setTimeout(() => {
       this.state.hasTimeWaitTimer = false;
+      this.state.timeWaitStartAt = null;
       if (this.state.variant === 'client_closes_first') {
         this.state.clientState = 'CLOSED';
       } else {

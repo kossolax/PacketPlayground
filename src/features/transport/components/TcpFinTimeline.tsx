@@ -1,5 +1,4 @@
 import { Mail } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { lifelineX } from '@/lib/draw';
@@ -15,169 +14,97 @@ interface TcpFinTimelineProps {
  * or right→left (ACK) with a slight downward slope to convey time.
  */
 export default function TcpFinTimeline({ state }: TcpFinTimelineProps) {
+  // Layout constants
   const height = 436; // vertical extent of the lifelines (keeps bottom within 500px container)
   const topOffset = 64; // space for headers
   const clientXPercent = 15; // lifeline x positions in %
   const serverXPercent = 85;
-  // Height of the envelope chip so lines meet its bottom edge
-  const envelopeHeight = 28;
-  // Simple offset to start the very first blue line just under the label
-  // This is the desired Y position for the BOTTOM of the first envelope, relative to the container top
-  const firstLineBottomOffset = 80; // px; tweak if needed
-
-  // Visual timeline state: progressive y cursor, completed segments, and stationary envelopes
+  const envelopeHeight = 28; // Height of the envelope chip so lines meet its bottom edge
   const segmentHeight = 90; // vertical step per message
-  const [segments, setSegments] = useState<
-    Array<{
-      id: number;
-      x1: number;
-      y1: number;
-      x2: number;
-      y2: number;
-      type: 'FIN' | 'ACK' | 'FIN_ACK';
-    }>
-  >([]);
-  const [arrivals, setArrivals] = useState<
-    Array<{ id: number; x: number; y: number; type: 'FIN' | 'ACK' | 'FIN_ACK' }>
-  >([]);
-  const cursorYRef = useRef<number>(topOffset);
-  const startYMapRef = useRef<Record<number, number>>({});
-  const dirMapRef = useRef<Record<number, 'L2R' | 'R2L'>>({});
-  const typeMapRef = useRef<Record<number, 'FIN' | 'ACK' | 'FIN_ACK'>>({});
 
-  // TIME_WAIT local animation (grow a vertical bar downwards)
-  const [waitProgress, setWaitProgress] = useState(0);
-  const waitStartRef = useRef<number | null>(null);
-  const waitRafRef = useRef<number | null>(null);
+  // Helper: compute base Y (top of a row) from seqNum
+  const rowTop = (seqNum: number) => topOffset + seqNum * segmentHeight;
+  // Apply a start-lift only to the very first FIN (seq 0) so its left start sits under the label,
+  // but keep the arrival aligned to the normal row to avoid right-side artifacts.
+  const firstRowLiftPx = 14;
+  const startLiftFor = (seqNum: number, type: 'FIN' | 'ACK' | 'FIN_ACK') =>
+    seqNum === 0 && type === 'FIN' ? firstRowLiftPx : 0;
 
-  // Reset visuals when simulation resets fully
-  useEffect(() => {
-    const isClean =
-      state.phase === 'waiting' &&
-      state.flyingPackets.length === 0 &&
-      state.sentPackets.length === 0;
-    if (isClean) {
-      cursorYRef.current = topOffset;
-      startYMapRef.current = {};
-      dirMapRef.current = {};
-      typeMapRef.current = {};
-      setSegments([]);
-      setArrivals([]);
-    }
-  }, [state.phase, state.flyingPackets.length, state.sentPackets.length]);
+  // Build a mapping from packet signature to the currently flying packets (FIFO by startTime)
+  type Key = `${'FIN' | 'ACK' | 'FIN_ACK'}:${'client' | 'server'}:${
+    | 'client'
+    | 'server'}`;
+  const keyOf = (
+    t: 'FIN' | 'ACK' | 'FIN_ACK',
+    f: 'client' | 'server',
+    to: 'client' | 'server'
+  ): Key => `${t}:${f}:${to}`;
 
-  // Track new/removed flying packets to assign start positions and finalize segments
-  const flyingIds = useMemo(
-    () => state.flyingPackets.map((p) => p.animId),
-    [state.flyingPackets]
+  const flyMap = state.flyingPackets.reduce(
+    (acc, p) => {
+      const k = keyOf(p.type, p.from, p.to);
+      if (!acc[k]) acc[k] = [];
+      acc[k].push(p);
+      return acc;
+    },
+    {} as Record<Key, typeof state.flyingPackets>
   );
-  const prevFlyingIdsRef = useRef<number[]>([]);
+  // Ensure FIFO order (oldest first)
+  Object.values(flyMap).forEach((arr) =>
+    arr.sort((a, b) => a.startTime - b.startTime)
+  );
 
-  useEffect(() => {
-    const prev = new Set(prevFlyingIdsRef.current);
-    const curr = new Set(flyingIds);
+  // Walk through sentPackets (by seqNum) and classify each as flying or arrived
+  const flightRowByAnimId = new Map<number, number>(); // animId -> seqNum
+  type Segment = {
+    seqNum: number;
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+    type: 'FIN' | 'ACK' | 'FIN_ACK';
+  };
+  type Arrival = {
+    seqNum: number;
+    to: 'client' | 'server';
+    x: number;
+    y: number;
+    type: 'FIN' | 'ACK' | 'FIN_ACK';
+  };
+  const segments: Segment[] = [];
+  const arrivals: Arrival[] = [];
 
-    // New packets started
-    state.flyingPackets.forEach((p) => {
-      if (!prev.has(p.animId)) {
-        // allocate start Y at current cursor (chain effect)
-        // For the very first packet, align start just under the proper label if measured
-        const isFirstPacket =
-          Object.keys(startYMapRef.current).length === 0 &&
-          segments.length === 0;
-        if (isFirstPacket && cursorYRef.current === topOffset) {
-          // Store startY as the TOP of the envelope; bottom should land at the configured offset
-          cursorYRef.current = Math.max(
-            0,
-            firstLineBottomOffset - envelopeHeight
-          );
-        }
-        startYMapRef.current[p.animId] = cursorYRef.current;
-        dirMapRef.current[p.animId] = p.from === 'client' ? 'L2R' : 'R2L';
-        typeMapRef.current[p.animId] = p.type;
-      }
-    });
+  state.sentPackets.forEach((pkt) => {
+    const k = keyOf(pkt.type, pkt.from, pkt.to);
+    const rowY = rowTop(pkt.seqNum);
+    const fromX = pkt.from === 'client' ? clientXPercent : serverXPercent;
+    const toX = pkt.to === 'client' ? clientXPercent : serverXPercent;
+    const startLift = startLiftFor(pkt.seqNum, pkt.type);
 
-    // Packets that just arrived (removed now)
-    prevFlyingIdsRef.current.forEach((id) => {
-      if (!curr.has(id)) {
-        const startY = startYMapRef.current[id] ?? topOffset;
-        const dir = dirMapRef.current[id] ?? 'L2R';
-        const type = typeMapRef.current[id] ?? 'FIN';
-        const x1 = dir === 'L2R' ? clientXPercent : serverXPercent;
-        const x2 = dir === 'L2R' ? serverXPercent : clientXPercent;
-        // Draw lines so they touch the bottom of the envelope at both ends
-        const envelopeTopAtArrival = startY + segmentHeight;
-        const y1 = startY + envelopeHeight;
-        const y2 = envelopeTopAtArrival;
-
-        // finalize segment and stationary envelope at arrival
-        setSegments((s) => [...s, { id, x1, y1, x2, y2, type }]);
-        // Store the top position for the stationary envelope (not the bottom)
-        setArrivals((a) => [
-          ...a,
-          { id, x: x2, y: envelopeTopAtArrival, type },
-        ]);
-
-        // advance cursor for next packet to start at the top of the next envelope
-        cursorYRef.current = envelopeTopAtArrival;
-        // cleanup maps for this id
-        delete startYMapRef.current[id];
-        delete dirMapRef.current[id];
-        delete typeMapRef.current[id];
-      }
-    });
-
-    prevFlyingIdsRef.current = flyingIds;
-  }, [
-    flyingIds,
-    state.flyingPackets,
-    clientXPercent,
-    serverXPercent,
-    segments.length,
-  ]);
-
-  // Drive WAIT progress animation as soon as TIME_WAIT starts on the initiator side
-  // Start when the client enters TIME_WAIT or as soon as the time-wait timer is armed,
-  // not only when phase === 'time_wait' (which flips after the final ACK arrives).
-  useEffect(() => {
-    const cancel = () => {
-      if (waitRafRef.current) cancelAnimationFrame(waitRafRef.current);
-      waitRafRef.current = null;
-    };
-
-    const timeWaitActive =
-      state.clientState === 'TIME_WAIT' ||
-      state.hasTimeWaitTimer ||
-      state.phase === 'time_wait';
-
-    if (timeWaitActive) {
-      waitStartRef.current = waitStartRef.current ?? Date.now();
-      const tick = () => {
-        const start = waitStartRef.current ?? Date.now();
-        const elapsed = Date.now() - start;
-        const p = Math.min(1, elapsed / state.timeWaitDuration);
-        setWaitProgress(p);
-        if (p < 1 && (state.hasTimeWaitTimer || state.phase === 'time_wait')) {
-          waitRafRef.current = requestAnimationFrame(tick);
-        }
-      };
-      cancel();
-      setWaitProgress((p) => (p === 0 ? 0 : p)); // keep progress if re-entering
-      waitRafRef.current = requestAnimationFrame(tick);
+    const list = flyMap[k];
+    if (list && list.length > 0) {
+      // This instance is currently flying; consume one and assign its row
+      const flight = list.shift()!;
+      flightRowByAnimId.set(flight.animId, pkt.seqNum);
     } else {
-      // If completed, ensure progress is full; otherwise reset
-      setWaitProgress(state.phase === 'completed' ? 1 : 0);
-      waitStartRef.current = null;
-      cancel();
+      // Consider it arrived; render full segment + stationary envelope at arrival
+      segments.push({
+        seqNum: pkt.seqNum,
+        x1: fromX,
+        y1: rowY + envelopeHeight - startLift,
+        x2: toX,
+        y2: rowY + segmentHeight,
+        type: pkt.type,
+      });
+      arrivals.push({
+        seqNum: pkt.seqNum,
+        to: pkt.to,
+        x: toX,
+        y: rowY + segmentHeight,
+        type: pkt.type,
+      });
     }
-    return () => cancel();
-  }, [
-    state.phase,
-    state.clientState,
-    state.hasTimeWaitTimer,
-    state.timeWaitDuration,
-  ]);
+  });
 
   // Map connection states to soft colors
   const stateColor = (s: string) => {
@@ -199,17 +126,49 @@ export default function TcpFinTimeline({ state }: TcpFinTimelineProps) {
     }
   };
 
-  // Determine a stable startY for a packet even on its very first frame
-  const getStartY = (id: number) => {
-    const mapped = startYMapRef.current[id];
-    if (mapped != null) return mapped;
-    // If it's the very first packet ever, use the configured offset
-    const isFirstEver =
-      segments.length === 0 && Object.keys(startYMapRef.current).length === 0;
-    if (isFirstEver) return Math.max(0, firstLineBottomOffset - envelopeHeight);
-    // Otherwise, fall back to current cursor position
-    return cursorYRef.current;
-  };
+  // TIME_WAIT indicator: static bar from the last ACK (by owner) down to bottom when active
+  const timeWaitOwner =
+    state.variant === 'client_closes_first' ? 'client' : 'server';
+  const shouldShowWait =
+    state.phase === 'time_wait' ||
+    state.hasTimeWaitTimer ||
+    state.clientState === 'TIME_WAIT' ||
+    state.serverState === 'TIME_WAIT' ||
+    state.phase === 'completed';
+
+  let timeWaitY1 = topOffset;
+  if (shouldShowWait) {
+    // Prefer the last ACK sent by the owner
+    const lastAckFromOwner = [...state.sentPackets]
+      .reverse()
+      .find((p) => p.type === 'ACK' && p.from === timeWaitOwner);
+    if (lastAckFromOwner) {
+      timeWaitY1 = rowTop(lastAckFromOwner.seqNum) + envelopeHeight;
+    } else {
+      // Fallback: last FIN received by the owner
+      const lastFinToOwner = [...state.sentPackets]
+        .reverse()
+        .find((p) => p.type === 'FIN' && p.to === timeWaitOwner);
+      if (lastFinToOwner) {
+        timeWaitY1 = rowTop(lastFinToOwner.seqNum) + segmentHeight;
+      } else if (segments.length > 0) {
+        timeWaitY1 = segments[segments.length - 1].y2;
+      }
+    }
+  }
+
+  // Progress of the TIME_WAIT bar: if we have a start timestamp, use it; if completed, full height
+  const yEnd = topOffset + height;
+  const timeWaitProgress = (() => {
+    if (state.phase === 'completed') return 1;
+    if (!state.timeWaitStartAt || !state.timeWaitDuration) return 0;
+    const elapsed = Date.now() - state.timeWaitStartAt;
+    return Math.max(0, Math.min(1, elapsed / state.timeWaitDuration));
+  })();
+  const timeWaitCurrentY = Math.min(
+    timeWaitY1 + (yEnd - timeWaitY1) * timeWaitProgress,
+    yEnd
+  );
 
   return (
     <div className="relative h-[500px] bg-gradient-to-r from-blue-50 via-background to-green-50 overflow-hidden rounded-md border">
@@ -245,7 +204,7 @@ export default function TcpFinTimeline({ state }: TcpFinTimelineProps) {
         </div>
       </div>
 
-      {/* Completed segments (drawn as lines + custom arrowheads + labels) */}
+      {/* Completed segments (drawn as lines) */}
       <svg
         className="absolute inset-0 pointer-events-none"
         width="100%"
@@ -253,102 +212,45 @@ export default function TcpFinTimeline({ state }: TcpFinTimelineProps) {
         viewBox="0 0 100 500"
         preserveAspectRatio="none"
       >
-        {segments.map((s) => (
-          // Group: line + polygon arrowhead + optional rotated label
-          <g key={s.id}>
-            {(() => {
-              const stroke =
-                s.type === 'FIN' ? 'rgb(147, 197, 253)' : 'rgb(134, 239, 172)';
-
-              return (
-                <line
-                  x1={s.x1}
-                  y1={s.y1}
-                  x2={s.x2}
-                  y2={s.y2}
-                  stroke={stroke}
-                  strokeWidth={2}
-                  strokeLinecap="round"
-                />
-              );
-            })()}
-          </g>
-        ))}
+        {segments.map((s) => {
+          const stroke =
+            s.type === 'FIN' ? 'rgb(147, 197, 253)' : 'rgb(134, 239, 172)';
+          return (
+            <line
+              key={`seg-${s.type}-${s.seqNum}-${s.x1}-${s.x2}-${s.y2}`}
+              x1={s.x1}
+              y1={s.y1}
+              x2={s.x2}
+              y2={s.y2}
+              stroke={stroke}
+              strokeWidth={2}
+              strokeLinecap="round"
+            />
+          );
+        })}
       </svg>
 
-      {/* WAIT indicator (purple) on the TIME_WAIT owner's lifeline during TIME_WAIT */}
-      {(() => {
-        const timeWaitOwner =
-          state.variant === 'client_closes_first' ? 'client' : 'server';
-        const ownerStateIsTimeWait =
-          timeWaitOwner === 'client'
-            ? state.clientState === 'TIME_WAIT'
-            : state.serverState === 'TIME_WAIT';
-        const shouldShowWait =
-          state.phase === 'time_wait' ||
-          ownerStateIsTimeWait ||
-          state.hasTimeWaitTimer ||
-          state.phase === 'completed';
-        if (!shouldShowWait) return null;
-
-        // Show WAIT on the owner's lifeline, progressing downward
-        const x = lifelineX(timeWaitOwner, clientXPercent, serverXPercent);
-        // Start at the exact moment TIME_WAIT begins:
-        // - Prefer the start Y of the in-flight final ACK (owner -> peer) if present
-        // - Else, prefer the start Y of the last ACK sent by the owner that has already completed
-        // - Else, fall back to the FIN arrival on the owner's lifeline
-        // - Else, use the end of last segment or topOffset
-        const ackFrom = timeWaitOwner;
-        const ackTo = timeWaitOwner === 'client' ? 'server' : 'client';
-        const ownerXPercent =
-          timeWaitOwner === 'client' ? clientXPercent : serverXPercent;
-        const clientAckFlying = state.flyingPackets.find(
-          (p) => p.type === 'ACK' && p.from === ackFrom && p.to === ackTo
-        );
-        const reversed = [...segments].reverse();
-        const ackFromClient = reversed.find(
-          (s) => s.type === 'ACK' && s.x1 === ownerXPercent
-        );
-        const finOnClient = reversed.find(
-          (s) => s.type === 'FIN' && s.x2 === ownerXPercent
-        );
-        let y1 = topOffset;
-        if (clientAckFlying) {
-          // In-flight envelope: start WAIT from the bottom of that envelope
-          y1 = getStartY(clientAckFlying.animId) + envelopeHeight;
-        } else if (ackFromClient) {
-          y1 = ackFromClient.y1;
-        } else if (finOnClient) {
-          y1 = finOnClient.y2;
-        } else if (segments.length > 0) {
-          y1 = segments[segments.length - 1].y2;
-        }
-
-        const yEnd = topOffset + height;
-        const currentY = Math.min(y1 + (yEnd - y1) * waitProgress, yEnd);
-        const stroke = 'rgb(192, 132, 252)';
-
-        return (
-          <svg
-            className="absolute inset-0 pointer-events-none"
-            width="100%"
-            height="100%"
-            viewBox="0 0 100 500"
-            preserveAspectRatio="none"
-          >
-            <line
-              x1={x}
-              y1={y1}
-              x2={x}
-              y2={currentY}
-              stroke={stroke}
-              strokeWidth={3}
-              strokeLinecap="round"
-              vectorEffect="non-scaling-stroke"
-            />
-          </svg>
-        );
-      })()}
+      {/* TIME_WAIT indicator (purple) on owner's lifeline when active; static (state-driven) */}
+      {shouldShowWait && (
+        <svg
+          className="absolute inset-0 pointer-events-none"
+          width="100%"
+          height="100%"
+          viewBox="0 0 100 500"
+          preserveAspectRatio="none"
+        >
+          <line
+            x1={lifelineX(timeWaitOwner, clientXPercent, serverXPercent)}
+            y1={timeWaitY1}
+            x2={lifelineX(timeWaitOwner, clientXPercent, serverXPercent)}
+            y2={timeWaitCurrentY}
+            stroke="rgb(192, 132, 252)"
+            strokeWidth={3}
+            strokeLinecap="round"
+            vectorEffect="non-scaling-stroke"
+          />
+        </svg>
+      )}
 
       {/* Trailing lines for flying packets (same coordinate system) */}
       <svg
@@ -359,11 +261,14 @@ export default function TcpFinTimeline({ state }: TcpFinTimelineProps) {
         preserveAspectRatio="none"
       >
         {state.flyingPackets.map((p) => {
+          const seqNum = flightRowByAnimId.get(p.animId);
+          if (seqNum == null) return null; // Shouldn't happen; safe-guard
           const t = p.position / 100;
-          const startY = getStartY(p.animId);
-          // trailing line end: interpolate from bottom (t=0) to top (t=1) to avoid flicker
-          const yTop = startY + t * segmentHeight;
-          const y = yTop + (1 - t) * envelopeHeight;
+          const startLift = startLiftFor(seqNum, p.type);
+          const startY = rowTop(seqNum) - startLift;
+          // Interpolate so that arrival lands on the normal row (no lift at the end)
+          const yTop = startY + t * (segmentHeight + startLift); // top of the moving envelope
+          const y = yTop + (1 - t) * envelopeHeight; // trailing line end meets the envelope bottom
           const isLeftToRight = p.from === 'client' && p.to === 'server';
           const x = isLeftToRight
             ? clientXPercent + (serverXPercent - clientXPercent) * t
@@ -388,10 +293,12 @@ export default function TcpFinTimeline({ state }: TcpFinTimelineProps) {
 
       {/* Flying packets with trailing line growing progressively */}
       {state.flyingPackets.map((p) => {
+        const seqNum = flightRowByAnimId.get(p.animId);
+        if (seqNum == null) return null;
         const t = p.position / 100;
-        const startY = getStartY(p.animId);
-        // Place the envelope by its top; we add height elsewhere when drawing lines
-        const y = startY + t * segmentHeight;
+        const startLift = startLiftFor(seqNum, p.type);
+        // Interpolate so arrival is aligned to the normal row top
+        const y = rowTop(seqNum) - startLift + t * (segmentHeight + startLift);
         const isLeftToRight = p.from === 'client' && p.to === 'server';
         const x = isLeftToRight
           ? clientXPercent + (serverXPercent - clientXPercent) * t
@@ -406,7 +313,6 @@ export default function TcpFinTimeline({ state }: TcpFinTimelineProps) {
             className="absolute z-10"
             style={{ left: `${x}%`, top: y }}
           >
-            {/* moving envelope */}
             <div
               className={`-translate-x-1/2 px-3 py-1 rounded-lg shadow border flex items-center gap-2 ${bg} ${border}`}
             >
@@ -420,7 +326,7 @@ export default function TcpFinTimeline({ state }: TcpFinTimelineProps) {
       {/* Stationary envelopes at arrival points */}
       {arrivals.map((a) => (
         <div
-          key={`arr-${a.id}`}
+          key={`arr-${a.type}-${a.to}-${a.seqNum}-${a.x}-${a.y}`}
           className="absolute"
           style={{ left: `${a.x}%`, top: a.y }}
         >
