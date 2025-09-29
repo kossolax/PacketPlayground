@@ -50,6 +50,11 @@ const osiLayers: OSILayer[] = [
         url: '/physical/transmission-vs-propagation',
         icon: Radio,
       },
+      {
+        title: 'Bit vs Baud',
+        url: '/physical/bit-vs-baud',
+        icon: Radio,
+      },
     ],
   },
   {

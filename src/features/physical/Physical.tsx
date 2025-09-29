@@ -1,6 +1,7 @@
 import { Route, Routes } from 'react-router-dom';
 
 import NotFound from '@/pages/NotFound';
+import BitVsBaud from './BitVsBaud';
 import TransmissionVsPropagation from './TransmissionVsPropagation';
 
 export default function Physical() {
@@ -10,6 +11,7 @@ export default function Physical() {
         path="transmission-vs-propagation"
         element={<TransmissionVsPropagation />}
       />
+      <Route path="bit-vs-baud" element={<BitVsBaud />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
