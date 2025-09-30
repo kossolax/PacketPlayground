@@ -12,12 +12,7 @@ import {
 } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 
-import {
-  BitBaudSim,
-  BitBaudState,
-  getModulationLabel,
-  ModulationType,
-} from '../lib/bit-baud-sim';
+import { BitBaudSim, BitBaudState, ModulationType } from '../lib/bit-baud-sim';
 
 interface BitBaudControlsProps {
   state: BitBaudState;
@@ -123,27 +118,26 @@ export default function BitBaudControls({
         </div>
       </div>
 
-      <div className="space-y-1">
-        <Label className="text-sm">Modulation Type</Label>
-        <Select
-          value={state.modulationType}
-          onValueChange={(v) => handleModulationChange(v as ModulationType)}
-          disabled={state.isRunning}
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">No modulation (1 bit/symbol)</SelectItem>
-            <SelectItem value="4qam">4-QAM (2 bits/symbol)</SelectItem>
-            <SelectItem value="16qam">16-QAM (4 bits/symbol)</SelectItem>
-            <SelectItem value="64qam">64-QAM (6 bits/symbol)</SelectItem>
-            <SelectItem value="256qam">256-QAM (8 bits/symbol)</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="space-y-1">
+          <Label className="text-sm">Modulation Type</Label>
+          <Select
+            value={state.modulationType}
+            onValueChange={(v) => handleModulationChange(v as ModulationType)}
+            disabled={state.isRunning}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">No modulation (1 bit/symbol)</SelectItem>
+              <SelectItem value="4qam">4-QAM (2 bits/symbol)</SelectItem>
+              <SelectItem value="16qam">16-QAM (4 bits/symbol)</SelectItem>
+              <SelectItem value="64qam">64-QAM (6 bits/symbol)</SelectItem>
+              <SelectItem value="256qam">256-QAM (8 bits/symbol)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         <div className="space-y-1">
           <Label className="text-sm">
             Bit Rate: {formatBitRate(state.bitRate)}bps
@@ -170,54 +164,6 @@ export default function BitBaudControls({
             step={5}
             disabled={state.isRunning}
           />
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-2 text-sm">
-        <div className="bg-muted p-3 rounded-lg">
-          <div className="font-medium text-blue-600">Bits per Symbol</div>
-          <div className="font-mono text-lg">{state.bitsPerSymbol}</div>
-          <div className="text-muted-foreground text-xs">
-            {getModulationLabel(state.modulationType)}
-          </div>
-        </div>
-
-        <div className="bg-muted p-3 rounded-lg">
-          <div className="font-medium text-green-600">Bit Rate</div>
-          <div className="font-mono text-lg">
-            {formatBitRate(state.bitRate)}bps
-          </div>
-          <div className="text-muted-foreground text-xs">16 bits per batch</div>
-        </div>
-
-        <div className="bg-muted p-3 rounded-lg">
-          <div className="font-medium text-orange-600">Symbols Transmitted</div>
-          <div className="font-mono text-lg">
-            {state.transmittedSymbols.length}
-          </div>
-          <div className="text-muted-foreground text-xs">
-            Total on constellation
-          </div>
-        </div>
-
-        <div className="bg-muted p-3 rounded-lg">
-          <div className="font-medium text-red-600">Bit Error Rate</div>
-          <div className="font-mono text-lg">
-            {state.transmittedSymbols.length > 0
-              ? (
-                  ((state.transmittedSymbols.filter((s) => s.hasError).length *
-                    state.bitsPerSymbol) /
-                    (state.transmittedSymbols.length * state.bitsPerSymbol)) *
-                  100
-                ).toFixed(1)
-              : '0.0'}
-            %
-          </div>
-          <div className="text-muted-foreground text-xs">
-            {state.transmittedSymbols.filter((s) => s.hasError).length *
-              state.bitsPerSymbol}{' '}
-            / {state.transmittedSymbols.length * state.bitsPerSymbol} bits
-          </div>
         </div>
       </div>
     </div>

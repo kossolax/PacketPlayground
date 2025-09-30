@@ -35,20 +35,24 @@ export default function BitVsBaud() {
 
   const legendItems: LegendItem[] = [
     {
-      color: 'bg-blue-100 border-blue-300',
-      label: 'Current bits/symbols being transmitted',
+      color: 'bg-blue-100 border-blue-400',
+      label: 'Transmitting',
     },
     {
-      color: 'bg-blue-500 border-blue-600',
-      label: 'Received symbols with noise (constellation)',
+      color: 'bg-gray-100 border-gray-400',
+      label: 'Transmitted',
     },
     {
-      color: 'bg-red-100 border-red-300',
-      label: 'Ideal constellation points (no noise)',
+      color: 'bg-green-100 border-green-400',
+      label: 'Ideal points',
     },
     {
-      color: 'bg-gray-300 border-gray-400',
-      label: 'Already transmitted (current batch)',
+      color: 'bg-blue-100 border-blue-400 opacity-60',
+      label: 'Correct decode',
+    },
+    {
+      color: 'bg-red-100 border-red-400 opacity-60',
+      label: 'Error decode',
     },
   ];
 
