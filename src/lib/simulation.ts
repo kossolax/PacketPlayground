@@ -6,10 +6,22 @@ export interface PacketBase {
   seqNum: number;
 }
 
+// Time provider interface for dependency injection
+export interface TimeProvider {
+  now(): number;
+}
+
+// Default time provider using Date.now()
+const defaultTimeProvider: TimeProvider = {
+  now: () => Date.now(),
+};
+
 export abstract class Simulation<TState> {
   protected state: TState;
 
   protected onUpdate?: UpdateCallback<TState>;
+
+  protected timeProvider: TimeProvider;
 
   // Simulation timing
   private startTime: number = 0;
@@ -18,9 +30,14 @@ export abstract class Simulation<TState> {
 
   private timerInterval: ReturnType<typeof setInterval> | null = null;
 
-  constructor(initialState: TState, onUpdate?: UpdateCallback<TState>) {
+  constructor(
+    initialState: TState,
+    onUpdate?: UpdateCallback<TState>,
+    timeProvider: TimeProvider = defaultTimeProvider
+  ) {
     this.state = Simulation.deepClone(initialState);
     this.onUpdate = onUpdate;
+    this.timeProvider = timeProvider;
   }
 
   getState(): TState {
@@ -35,9 +52,9 @@ export abstract class Simulation<TState> {
   // Simulation timer methods
   protected startTimer(): void {
     if (this.timerInterval) return; // Already running
-    this.startTime = Date.now();
+    this.startTime = this.timeProvider.now();
     this.timerInterval = setInterval(() => {
-      this.elapsedTime = Date.now() - this.startTime;
+      this.elapsedTime = this.timeProvider.now() - this.startTime;
       this.emit(); // Trigger UI update with new elapsed time
     }, 100); // Update every 100ms
   }

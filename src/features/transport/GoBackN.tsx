@@ -15,7 +15,11 @@ import ReceiverTimeline, {
 import SenderTimeline, { SenderPacket } from './components/SenderTimeline';
 import SlidingWindowControls from './components/SlidingWindowControls';
 import TransitZone from './components/TransitZone';
-import { GoBackNSim, GoBackNState, createInitialState } from './lib/gobackn';
+import {
+  GoBackNSim,
+  GoBackNState,
+  createInitialState,
+} from './lib/gobackn-sim';
 
 // Protocol simulation colors
 const PACKET_COLORS = {

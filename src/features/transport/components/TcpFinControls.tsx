@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 
-import type { TcpFinSim, TcpFinState } from '../lib/tcpfin';
+import type { TcpFinSim, TcpFinState } from '../lib/tcpfin-sim';
 
 type Variant = 'client_closes_first' | 'server_closes_first';
 

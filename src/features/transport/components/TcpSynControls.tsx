@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 
-import type { TcpSynSim, TcpSynStateInterface } from '../lib/tcpsyn';
+import type { TcpSynSim, TcpSynStateInterface } from '../lib/tcpsyn-sim';
 
 interface TcpSynControlsProps {
   state: TcpSynStateInterface;

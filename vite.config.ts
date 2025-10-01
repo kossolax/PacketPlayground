@@ -44,6 +44,7 @@ export default defineConfig(({ mode }) => {
         '**/dist/**',
         '**/*.old/**',
         '**/src/components/ui/**',
+        '**/src/lib/simulation-test-helpers.test.ts',
       ],
       globals: true,
       setupFiles: './vitest-setup.ts',

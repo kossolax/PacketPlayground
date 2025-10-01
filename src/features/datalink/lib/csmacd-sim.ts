@@ -1,4 +1,4 @@
-import { Simulation, UpdateCallback } from '@/lib/simulation';
+import { Simulation, UpdateCallback, TimeProvider } from '@/lib/simulation';
 
 // ===== Types =====
 export type StationStatus =
@@ -168,8 +168,14 @@ export class CsmaCdSim extends Simulation<CsmaCdState> {
   // scenario scheduling (simulated ms)
   private scenarioStarts: Array<{ atMs: number; stationId: number }> = [];
 
-  constructor({ onUpdate }: { onUpdate?: UpdateCallback<CsmaCdState> }) {
-    super(createInitialCsmaCdState(), onUpdate);
+  constructor({
+    onUpdate,
+    timeProvider,
+  }: {
+    onUpdate?: UpdateCallback<CsmaCdState>;
+    timeProvider?: TimeProvider;
+  }) {
+    super(createInitialCsmaCdState(), onUpdate, timeProvider);
   }
 
   // Public controls
@@ -272,9 +278,9 @@ export class CsmaCdSim extends Simulation<CsmaCdState> {
   private startTick(): void {
     this.stopTick();
     const tickMs = 16; // ~60fps
-    const startReal = Date.now();
+    const startReal = this.timeProvider.now();
     this.tickHandle = setInterval(() => {
-      const realElapsed = Date.now() - startReal;
+      const realElapsed = this.timeProvider.now() - startReal;
       const simNow = realElapsed / this.state.timeScale; // ms
       this.state.simTimeMs = simNow;
 

@@ -20,7 +20,7 @@ import {
   TcpSynSim,
   TcpSynStateInterface,
   createInitialSynState,
-} from './lib/tcpsyn';
+} from './lib/tcpsyn-sim';
 
 type SynPacketType = 'SYN' | 'SYN_ACK' | 'ACK' | 'RST';
 

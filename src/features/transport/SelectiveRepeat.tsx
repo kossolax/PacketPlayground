@@ -18,7 +18,7 @@ import {
   SelectiveRepeatSim,
   SelectiveRepeatState,
   createInitialState,
-} from './lib/selectiverepeat';
+} from './lib/selectiverepeat-sim';
 
 // Protocol simulation colors
 const PACKET_COLORS = {

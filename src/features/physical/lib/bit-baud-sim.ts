@@ -1,5 +1,5 @@
 import { startFlightAnimation } from '@/lib/animation';
-import { Simulation, UpdateCallback } from '@/lib/simulation';
+import { Simulation, UpdateCallback, TimeProvider } from '@/lib/simulation';
 
 export type ModulationType = 'none' | '4qam' | '16qam' | '64qam' | '256qam';
 
@@ -224,8 +224,14 @@ export function createInitialBitBaudState(): BitBaudState {
 export class BitBaudSim extends Simulation<BitBaudState> {
   private animationCancel?: () => void;
 
-  constructor({ onUpdate }: { onUpdate?: UpdateCallback<BitBaudState> }) {
-    super(createInitialBitBaudState(), onUpdate);
+  constructor({
+    onUpdate,
+    timeProvider,
+  }: {
+    onUpdate?: UpdateCallback<BitBaudState>;
+    timeProvider?: TimeProvider;
+  }) {
+    super(createInitialBitBaudState(), onUpdate, timeProvider);
   }
 
   start(): void {

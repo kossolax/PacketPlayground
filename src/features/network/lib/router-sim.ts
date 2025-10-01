@@ -1,5 +1,5 @@
 import { startFlightAnimation } from '@/lib/animation';
-import { Simulation, UpdateCallback } from '@/lib/simulation';
+import { Simulation, UpdateCallback, TimeProvider } from '@/lib/simulation';
 
 export interface Packet {
   id: string;
@@ -64,8 +64,14 @@ export class RouterSim extends Simulation<RouterState> {
 
   private lastOutputTime = 0;
 
-  constructor({ onUpdate }: { onUpdate?: UpdateCallback<RouterState> }) {
-    super(createInitialRouterState(), onUpdate);
+  constructor({
+    onUpdate,
+    timeProvider,
+  }: {
+    onUpdate?: UpdateCallback<RouterState>;
+    timeProvider?: TimeProvider;
+  }) {
+    super(createInitialRouterState(), onUpdate, timeProvider);
   }
 
   start(): void {

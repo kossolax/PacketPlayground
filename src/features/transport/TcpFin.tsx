@@ -19,7 +19,7 @@ import {
 import TcpFinControls from './components/TcpFinControls';
 import Timeline from './components/Timeline';
 import { stateColor } from './lib/tcp-state-style';
-import { TcpFinSim, TcpFinState, createInitialState } from './lib/tcpfin';
+import { TcpFinSim, TcpFinState, createInitialState } from './lib/tcpfin-sim';
 
 export default function TcpFin() {
   const { setBreadcrumbs } = useBreadcrumb();

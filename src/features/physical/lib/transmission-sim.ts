@@ -1,5 +1,5 @@
 import { startFlightAnimation } from '@/lib/animation';
-import { Simulation, UpdateCallback } from '@/lib/simulation';
+import { Simulation, UpdateCallback, TimeProvider } from '@/lib/simulation';
 
 export interface TransmissionState {
   // Configuration
@@ -60,8 +60,14 @@ export function createInitialTransmissionState(): TransmissionState {
 export class TransmissionSim extends Simulation<TransmissionState> {
   private animationCancel?: () => void;
 
-  constructor({ onUpdate }: { onUpdate?: UpdateCallback<TransmissionState> }) {
-    super(createInitialTransmissionState(), onUpdate);
+  constructor({
+    onUpdate,
+    timeProvider,
+  }: {
+    onUpdate?: UpdateCallback<TransmissionState>;
+    timeProvider?: TimeProvider;
+  }) {
+    super(createInitialTransmissionState(), onUpdate, timeProvider);
   }
 
   start(): void {
