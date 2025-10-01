@@ -6,7 +6,7 @@ import {
   createMockAnimationSystem,
   setupFakeTimers,
   SimulationTestHarness,
-} from '@/lib/simulation-test-helpers.test';
+} from '@/lib/simulation-test-helpers';
 import {
   BitBaudSim,
   createInitialBitBaudState,

@@ -58,4 +58,10 @@ export default [
       },
     },
   },
+  {
+    files: ['**/*.test.{ts,tsx}', '**/test-utils/**/*.{ts,tsx}', '**/*-test-helpers.{ts,tsx}'],
+    rules: {
+      'import/no-extraneous-dependencies': ['error', { devDependencies: true }],
+    },
+  },
 ];

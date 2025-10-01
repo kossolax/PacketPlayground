@@ -4,7 +4,7 @@ import {
   cleanupFakeTimers,
   createMockAnimationSystem,
   setupFakeTimers,
-} from '@/lib/simulation-test-helpers.test';
+} from '@/lib/simulation-test-helpers';
 import { CsmaCdSim, createInitialCsmaCdState } from './csmacd-sim';
 
 // Mock setInterval/clearInterval for the tick system

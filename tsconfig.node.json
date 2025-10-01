@@ -25,6 +25,10 @@
 
     "types": ["vitest/globals", "@testing-library/jest-dom", "vite/client"]
   },
-  "include": ["src/**/*.ts", "vite.config.ts"],
+  "include": [
+    "src/**/*.ts",
+    "vite.config.ts",
+    "src/lib/simulation-test-helpers.test.ts"
+  ],
   "exclude": ["node_modules", "src/**/*.test.ts", "src/**/*.test.tsx"]
 }

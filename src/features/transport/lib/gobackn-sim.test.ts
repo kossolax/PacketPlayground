@@ -6,7 +6,7 @@ import {
   cleanupFakeTimers,
   createMockAnimationSystem,
   setupFakeTimers,
-} from '@/lib/simulation-test-helpers.test';
+} from '@/lib/simulation-test-helpers';
 import { GoBackNSim, createInitialState } from './gobackn-sim';
 
 vi.mock('@/lib/animation', () => ({

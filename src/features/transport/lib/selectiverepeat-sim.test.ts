@@ -6,7 +6,7 @@ import {
   cleanupFakeTimers,
   createMockAnimationSystem,
   setupFakeTimers,
-} from '@/lib/simulation-test-helpers.test';
+} from '@/lib/simulation-test-helpers';
 import { SelectiveRepeatSim, createInitialState } from './selectiverepeat-sim';
 
 vi.mock('@/lib/animation', () => ({

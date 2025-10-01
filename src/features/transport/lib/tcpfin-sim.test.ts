@@ -6,7 +6,7 @@ import {
   cleanupFakeTimers,
   createMockAnimationSystem,
   setupFakeTimers,
-} from '@/lib/simulation-test-helpers.test';
+} from '@/lib/simulation-test-helpers';
 import { TcpFinSim, createInitialState } from './tcpfin-sim';
 
 vi.mock('@/lib/animation', () => ({
