@@ -20,19 +20,87 @@ export default function BitBaudVisualization({
     symbols.push(currentBatch.slice(i, i + bitsPerSymbol));
   }
 
-  // Constellation diagram size and scaling
+  // Constellation diagram size and dynamic scaling to better fill space across modulations
   const constellationSize = 500;
-  let scale = 80; // default for 4-QAM
-  if (modulationType === '16qam') scale = 50;
-  if (modulationType === '64qam') scale = 35;
-  if (modulationType === '256qam') scale = 25;
-  const centerX = constellationSize / 2;
-  const centerY = constellationSize / 2;
+  const padding = 24; // px margin inside the SVG
+  // Use half-pixel centers to align 1px strokes crisply and ensure perfect visual centering
+  const centerX = (constellationSize - 1) / 2;
+  const centerY = (constellationSize - 1) / 2;
 
-  // Calculate grid size for decision boundaries
-  const gridSize = Math.sqrt(2 ** bitsPerSymbol);
-  const gridRows = gridSize;
-  const gridCols = gridSize;
+  // Compute dynamic scale based on constellation extents and decision boundaries
+  let scale = 80; // fallback
+  if (modulationType !== 'none' && idealPoints.length > 0) {
+    const xs = idealPoints.map((p) => p.x).sort((a, b) => a - b);
+    const ys = idealPoints.map((p) => p.y).sort((a, b) => a - b);
+
+    // Determine step as the minimum positive delta between unique sorted coordinates
+    const unique = (arr: number[]) => Array.from(new Set(arr));
+    const minStep = (arr: number[]) => {
+      const uniq = unique(arr).sort((a, b) => a - b);
+      let step = Infinity;
+      for (let i = 1; i < uniq.length; i += 1) {
+        const d = uniq[i] - uniq[i - 1];
+        if (d > 1e-9) step = Math.min(step, d);
+      }
+      return Number.isFinite(step) ? step : 1; // default step=1 if degenerate
+    };
+
+    const stepX = minStep(xs);
+    const stepY = minStep(ys);
+    const minX = xs[0];
+    const maxX = xs[xs.length - 1];
+    const minY = ys[0];
+    const maxY = ys[ys.length - 1];
+
+    // Decision boundary extremes are half a step beyond the outermost points
+    const boundaryMinX = minX - stepX / 2;
+    const boundaryMaxX = maxX + stepX / 2;
+    const boundaryMinY = minY - stepY / 2;
+    const boundaryMaxY = maxY + stepY / 2;
+
+    const extentX = Math.max(Math.abs(boundaryMinX), Math.abs(boundaryMaxX));
+    const extentY = Math.max(Math.abs(boundaryMinY), Math.abs(boundaryMaxY));
+
+    const usableHalf = (constellationSize - padding * 2) / 2;
+    const scaleX = usableHalf / (extentX || 1);
+    const scaleY = usableHalf / (extentY || 1);
+    scale = Math.max(10, Math.min(scaleX, scaleY));
+  }
+
+  // Precompute decision boundary positions based on ideal points
+  const boundaryXs: number[] = [];
+  const boundaryYs: number[] = [];
+  if (modulationType !== 'none' && idealPoints.length > 0) {
+    const xs = idealPoints.map((p) => p.x).sort((a, b) => a - b);
+    const ys = idealPoints.map((p) => p.y).sort((a, b) => a - b);
+
+    const unique = (arr: number[]) => Array.from(new Set(arr));
+    const minStep = (arr: number[]) => {
+      const uniq = unique(arr).sort((a, b) => a - b);
+      let step = Infinity;
+      for (let i = 1; i < uniq.length; i += 1) {
+        const d = uniq[i] - uniq[i - 1];
+        if (d > 1e-9) step = Math.min(step, d);
+      }
+      return Number.isFinite(step) ? step : 1;
+    };
+
+    const stepX = minStep(xs);
+    const stepY = minStep(ys);
+    const minX = xs[0];
+    const maxX = xs[xs.length - 1];
+    const minY = ys[0];
+    const maxY = ys[ys.length - 1];
+
+    const startX = minX - stepX / 2;
+    const endX = maxX + stepX / 2;
+    const startY = minY - stepY / 2;
+    const endY = maxY + stepY / 2;
+
+    // Generate inclusive ranges accounting for floating precision
+    for (let x = startX; x <= endX + 1e-9; x += stepX) boundaryXs.push(x);
+    for (let y = startY; y <= endY + 1e-9; y += stepY) boundaryYs.push(y);
+  }
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -57,6 +125,9 @@ export default function BitBaudVisualization({
           <svg
             width={constellationSize}
             height={constellationSize}
+            viewBox={`0 0 ${constellationSize} ${constellationSize}`}
+            preserveAspectRatio="xMidYMid meet"
+            shapeRendering="crispEdges"
             className="border border-gray-300 bg-white rounded"
           >
             {/* Axes */}
@@ -78,64 +149,38 @@ export default function BitBaudVisualization({
             />
 
             {/* Draw decision boundaries (grid lines) */}
-            {modulationType !== 'none' && (
-              <>
-                {/* Vertical lines - placed between and around constellation points */}
-                {Array.from({ length: Math.ceil(gridCols) + 1 }).map((_, i) => {
-                  // For N columns, we need N+1 vertical lines (including extremes)
-                  let xPosition: number;
-                  if (modulationType === '4qam') {
-                    // Points at x = -1, 1 → boundaries at x = -2, 0, 2
-                    xPosition = (i - 1) * 2;
-                  } else if (modulationType === '16qam') {
-                    // Points at x = -3, -1, 1, 3 → boundaries at x = -4, -2, 0, 2, 4
-                    xPosition = (i - 2) * 2;
-                  } else {
-                    // For 64-QAM and 256-QAM (programmatic generation)
-                    xPosition = i - gridCols / 2;
-                  }
-                  return (
+            {modulationType !== 'none' &&
+              boundaryXs.length > 0 &&
+              boundaryYs.length > 0 && (
+                <>
+                  {/* Vertical lines based on computed decision boundaries */}
+                  {boundaryXs.map((x, i) => (
                     <line
                       key={`v-${i}`}
-                      x1={centerX + xPosition * scale}
+                      x1={centerX + x * scale}
                       y1={0}
-                      x2={centerX + xPosition * scale}
+                      x2={centerX + x * scale}
                       y2={constellationSize}
                       stroke="#ddd"
                       strokeWidth={1}
                       strokeDasharray="3,3"
                     />
-                  );
-                })}
-                {/* Horizontal lines - placed between and around constellation points */}
-                {Array.from({ length: Math.ceil(gridRows) + 1 }).map((_, i) => {
-                  // For N rows, we need N+1 horizontal lines (including extremes)
-                  let yPosition: number;
-                  if (modulationType === '4qam') {
-                    // Points at y = -1, 1 → boundaries at y = -2, 0, 2
-                    yPosition = (i - 1) * 2;
-                  } else if (modulationType === '16qam') {
-                    // Points at y = -3, -1, 1, 3 → boundaries at y = -4, -2, 0, 2, 4
-                    yPosition = (i - 2) * 2;
-                  } else {
-                    // For 64-QAM and 256-QAM (programmatic generation)
-                    yPosition = i - gridRows / 2;
-                  }
-                  return (
+                  ))}
+                  {/* Horizontal lines based on computed decision boundaries */}
+                  {boundaryYs.map((y, i) => (
                     <line
                       key={`h-${i}`}
                       x1={0}
-                      y1={centerY - yPosition * scale}
+                      y1={centerY - y * scale}
                       x2={constellationSize}
-                      y2={centerY - yPosition * scale}
+                      y2={centerY - y * scale}
                       stroke="#ddd"
                       strokeWidth={1}
                       strokeDasharray="3,3"
                     />
-                  );
-                })}
-              </>
-            )}
+                  ))}
+                </>
+              )}
 
             {/* Draw ideal constellation points (always visible) */}
             {idealPoints.map((point) => {
