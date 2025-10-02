@@ -19,34 +19,28 @@ interface BitBaudControlsProps {
   simulation: BitBaudSim | null;
 }
 
-// Pre-defined bit rate values (lower values for better visibility)
-const BIT_RATE_VALUES = [
-  100, // 100 bps
-  200, // 200 bps
-  400, // 400 bps
-  800, // 800 bps
-  1600, // 1.6 kbps
-  3200, // 3.2 kbps
-  6400, // 6.4 kbps
-  12800, // 12.8 kbps
-  25600, // 25.6 kbps
-  51200, // 51.2 kbps
-  102400, // 102.4 kbps
+// Pre-defined baud rate values (lower values for better visibility)
+const BAUD_RATE_VALUES = [
+  100, // 100 baud
+  200, // 200 baud
+  400, // 400 baud
+  800, // 800 baud
+  1600, // 1.6 kbaud
 ];
 
-function mapSliderToBitRate(sliderValue: number): number {
-  return BIT_RATE_VALUES[sliderValue] || BIT_RATE_VALUES[0];
+function mapSliderToBaudRate(sliderValue: number): number {
+  return BAUD_RATE_VALUES[sliderValue] || BAUD_RATE_VALUES[0];
 }
 
-function mapBitRateToSlider(bitRate: number): number {
-  const index = BIT_RATE_VALUES.findIndex((val) => val >= bitRate);
-  return index === -1 ? BIT_RATE_VALUES.length - 1 : index;
+function mapBaudRateToSlider(baudRate: number): number {
+  const index = BAUD_RATE_VALUES.findIndex((val) => val >= baudRate);
+  return index === -1 ? BAUD_RATE_VALUES.length - 1 : index;
 }
 
-function formatBitRate(bps: number): string {
-  if (bps >= 1000000) return `${bps / 1000000}M`;
-  if (bps >= 1000) return `${bps / 1000}K`;
-  return `${bps}`;
+function formatRate(rate: number): string {
+  if (rate >= 1000000) return `${rate / 1000000}M`;
+  if (rate >= 1000) return `${rate / 1000}K`;
+  return `${rate}`;
 }
 
 export default function BitBaudControls({
@@ -68,9 +62,9 @@ export default function BitBaudControls({
     [simulation]
   );
 
-  const handleBitRateChange = useCallback(
-    (bps: number) => {
-      simulation?.setBitRate(bps);
+  const handleBaudRateChange = useCallback(
+    (baudRate: number) => {
+      simulation?.setBaudRate(baudRate);
     },
     [simulation]
   );
@@ -140,13 +134,16 @@ export default function BitBaudControls({
         </div>
         <div className="space-y-1">
           <Label className="text-sm">
-            Bit Rate: {formatBitRate(state.bitRate)}bps
+            Baud rate: {formatRate(state.baudRate)} bauds | Bit rate:{' '}
+            {formatRate(state.bitRate)}bps
           </Label>
           <Slider
-            value={[mapBitRateToSlider(state.bitRate)]}
-            onValueChange={(v) => handleBitRateChange(mapSliderToBitRate(v[0]))}
+            value={[mapBaudRateToSlider(state.baudRate)]}
+            onValueChange={(v) =>
+              handleBaudRateChange(mapSliderToBaudRate(v[0]))
+            }
             min={0}
-            max={BIT_RATE_VALUES.length - 1}
+            max={BAUD_RATE_VALUES.length - 1}
             step={1}
             disabled={state.isRunning}
           />

@@ -196,11 +196,11 @@ function findClosestPoint(
 
 export function createInitialBitBaudState(): BitBaudState {
   const modulationType: ModulationType = 'none';
-  const bitRate = 800; // 800 bps (lower for visibility)
+  const baudRate = 200; // 200 baud (lower for visibility)
   const noiseLevel = 10; // Noise level 10/50 by default
 
   const bitsPerSymbol = getBitsPerSymbol(modulationType);
-  const baudRate = bitRate / bitsPerSymbol;
+  const bitRate = baudRate * bitsPerSymbol;
   const symbolCount = Math.ceil(16 / bitsPerSymbol); // 16 bits per batch
   const transmissionTime = (symbolCount / baudRate) * 1000; // ms
 
@@ -316,13 +316,25 @@ export class BitBaudSim extends Simulation<BitBaudState> {
   setModulationType(type: ModulationType): void {
     this.state.modulationType = type;
     this.state.transmittedSymbols = []; // Clear constellation when modulation changes
-    this.recalculateValues();
+    // Keep baud rate constant, recalculate bit rate
+    this.state.bitsPerSymbol = getBitsPerSymbol(type);
+    this.state.bitRate = this.state.baudRate * this.state.bitsPerSymbol;
+    const symbolCount = Math.ceil(16 / this.state.bitsPerSymbol);
+    this.state.transmissionTime = (symbolCount / this.state.baudRate) * 1000;
     this.emit();
   }
 
   setBitRate(bps: number): void {
     this.state.bitRate = bps;
     this.recalculateValues();
+    this.emit();
+  }
+
+  setBaudRate(baudRate: number): void {
+    this.state.baudRate = baudRate;
+    this.state.bitRate = baudRate * this.state.bitsPerSymbol;
+    const symbolCount = Math.ceil(16 / this.state.bitsPerSymbol);
+    this.state.transmissionTime = (symbolCount / this.state.baudRate) * 1000;
     this.emit();
   }
 
