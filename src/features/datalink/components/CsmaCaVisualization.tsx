@@ -120,8 +120,10 @@ export default function CsmaCaVisualization({
               </Badge>
             </div>
 
-            {/* Carrier sense halo */}
-            {s.carrierSense && (
+            {/* Carrier sense halo: show when sensing, waiting for ACK, OR actually sensing energy */}
+            {(s.carrierSense ||
+              s.status === 'sensing' ||
+              s.status === 'wait_ack') && (
               <div
                 className={`absolute -inset-4 rounded-full animate-pulse ${
                   s.hasCollision

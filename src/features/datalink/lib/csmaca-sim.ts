@@ -899,8 +899,9 @@ export class CsmaCaSim extends Simulation<CsmaCaState> {
         );
 
         if (hasCollision && unrespondedData.length > 0) {
-          // Collision detected, no ACK sent
-          this.updateStation(station.id, { hasCollision: true });
+          // Collision detected historically in reception windows; no ACK sent.
+          // We only log the event; hasCollision visualization should reflect live overlap,
+          // which is handled in updateCarrierSense.
           this.addEvent(
             'collision',
             `Station ${station.name} detects collision (overlapping frames)`,
@@ -971,11 +972,34 @@ export class CsmaCaSim extends Simulation<CsmaCaState> {
   private updateCarrierSense(simNow: number): void {
     this.state.stations = this.state.stations.map((station) => {
       const sensing = this.state.frames.some((f) => {
-        if (!this.inRange(station.id, f.fromId)) return false;
+        // A station senses the medium if it is within the TRANSMITTER'S range
+        // (i.e., can receive signal energy from the sender). The previous
+        // check inverted arguments and could under-detect/over-detect sensing,
+        // leading to spurious collisions in CSMA/CA without RTS/CTS.
+        if (!this.inRange(f.fromId, station.id)) return false;
         const { start, end } = getArrivalWindowMs(this.state, f, station.id);
         return simNow >= start && simNow <= end;
       });
-      return { ...station, carrierSense: sensing };
+      // Recompute if the station is currently experiencing a collision as a receiver
+      // Only DATA frames to this station matter for collision visualization in no-RTS mode
+      const activeIncomingData = this.state.frames.filter((f) => {
+        if (f.type !== 'data') return false;
+        if (f.toId !== station.id) return false;
+        if (!this.inRange(f.fromId, station.id)) return false;
+        const { start, end } = getArrivalWindowMs(this.state, f, station.id);
+        return simNow >= start && simNow <= end;
+      });
+      const collidingNow = activeIncomingData.length >= 2;
+      // Only override hasCollision dynamically in no-RTS mode; when RTS is enabled,
+      // keep the value managed by the RTS collision logic to avoid hiding RTS collisions.
+      const nextHasCollision = this.state.rtsEnabled
+        ? station.hasCollision
+        : collidingNow;
+      return {
+        ...station,
+        carrierSense: sensing,
+        hasCollision: nextHasCollision,
+      };
     });
   }
 

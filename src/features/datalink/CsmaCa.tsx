@@ -37,7 +37,7 @@ export default function CsmaCa() {
     { color: 'bg-green-100 border-green-400', label: 'RTS/CTS frames' },
     { color: 'bg-blue-100 border-blue-400', label: 'Data frame' },
     { color: 'bg-purple-100 border-purple-400', label: 'ACK frame' },
-    { color: 'bg-yellow-100 border-yellow-400', label: 'Carrier sense (busy)' },
+    { color: 'bg-yellow-100 border-yellow-400', label: 'Carrier sense' },
     { color: 'bg-red-100 border-red-500', label: 'Collision detected' },
   ];
 
