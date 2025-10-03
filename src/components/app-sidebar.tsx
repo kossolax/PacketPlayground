@@ -66,6 +66,11 @@ const osiLayers: OSILayer[] = [
         url: '/datalink/csma-cd',
         icon: Radio,
       },
+      {
+        title: 'CSMA/CA',
+        url: '/datalink/csma-ca',
+        icon: Radio,
+      },
     ],
   },
   {
