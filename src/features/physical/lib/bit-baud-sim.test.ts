@@ -46,10 +46,10 @@ describe('BitBaudSim', () => {
       const state = createInitialBitBaudState();
 
       expect(state.modulationType).toBe('none');
-      expect(state.bitRate).toBe(800);
+      expect(state.bitRate).toBe(200);
       expect(state.noiseLevel).toBe(10);
       expect(state.bitsPerSymbol).toBe(1);
-      expect(state.baudRate).toBe(800);
+      expect(state.baudRate).toBe(200);
       expect(state.isRunning).toBe(false);
       expect(state.isCompleted).toBe(false);
       expect(state.progress).toBe(0);
@@ -60,11 +60,11 @@ describe('BitBaudSim', () => {
     it('should calculate baud rate and transmission time correctly', () => {
       const state = createInitialBitBaudState();
 
-      // baudRate = bitRate / bitsPerSymbol = 800 / 1 = 800
-      expect(state.baudRate).toBe(800);
+      // baudRate = 200 baud by default
+      expect(state.baudRate).toBe(200);
       // symbolCount = ceil(16 / 1) = 16
-      // transmissionTime = (16 / 800) * 1000 = 20 ms
-      expect(state.transmissionTime).toBe(20);
+      // transmissionTime = (16 / 200) * 1000 = 80 ms
+      expect(state.transmissionTime).toBe(80);
     });
 
     it('should generate random 16-bit batch', () => {
@@ -76,11 +76,11 @@ describe('BitBaudSim', () => {
 
   describe('Modulation Types', () => {
     it.each<[ModulationType, number, number]>([
-      ['none', 1, 800],
-      ['4qam', 2, 400],
+      ['none', 1, 200],
+      ['4qam', 2, 200],
       ['16qam', 4, 200],
-      ['64qam', 6, 133.33333333333334],
-      ['256qam', 8, 100],
+      ['64qam', 6, 200],
+      ['256qam', 8, 200],
     ])(
       'should calculate correct values for %s modulation',
       (modType, expectedBitsPerSymbol, expectedBaudRate) => {
@@ -115,7 +115,7 @@ describe('BitBaudSim', () => {
 
       const state = harness.getState();
       expect(state.bitRate).toBe(1600);
-      expect(state.baudRate).toBe(1600); // 1600 / 1 for 'none' modulation
+      expect(state.baudRate).toBe(1600); // bitRate / bitsPerSymbol = 1600 / 1
       harness.expectEmitted();
     });
 
