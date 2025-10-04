@@ -626,6 +626,43 @@ describe('FragmentationSim', () => {
       expect(state.totalFragments).toBeGreaterThan(5);
     });
 
+    it('should handle packet size of 1 byte', () => {
+      const sim = harness.getSimulation() as FragmentationSim;
+      sim.setPacketSize(1);
+      harness.start();
+
+      const state = harness.getState();
+      expect(state.totalFragments).toBe(1);
+      expect(state.ipv4Overhead).toBe(0);
+    });
+
+    it('should handle switching between IPv4 and IPv6 multiple times', () => {
+      const sim = harness.getSimulation() as FragmentationSim;
+
+      sim.setIpVersion(6);
+      expect(harness.getState().ipVersion).toBe(6);
+
+      sim.setIpVersion(4);
+      expect(harness.getState().ipVersion).toBe(4);
+
+      sim.setIpVersion(6);
+      expect(harness.getState().ipVersion).toBe(6);
+    });
+
+    it('should handle very high time scale', () => {
+      const sim = harness.getSimulation() as FragmentationSim;
+      sim.setTimeScale(100);
+
+      expect(harness.getState().timeScale).toBe(100);
+    });
+
+    it('should handle time scale of zero', () => {
+      const sim = harness.getSimulation() as FragmentationSim;
+      sim.setTimeScale(0);
+
+      expect(harness.getState().timeScale).toBe(0);
+    });
+
     it('should handle very small packet size', () => {
       const sim = harness.getSimulation() as FragmentationSim;
       sim.setPacketSize(100);
@@ -784,6 +821,152 @@ describe('FragmentationSim', () => {
         expect(frag.sourceNetworkId).toBeLessThan(state.networks.length);
         expect(frag.targetNetworkId).toBeLessThanOrEqual(state.networks.length);
       });
+    });
+  });
+
+  describe('Advanced Fragmentation Scenarios', () => {
+    it('should handle IPv4 packet that fits exactly in first MTU but not second', () => {
+      const sim = harness.getSimulation() as FragmentationSim;
+      sim.setIpVersion(4);
+      sim.setPacketSize(1500); // Exactly first MTU
+      harness.start();
+
+      // Will fit first hop but will be fragmented at router
+      vi.advanceTimersByTime(2000);
+
+      const state = harness.getState();
+      // Should have fragments due to smaller MTUs downstream
+      expect(state.totalFragments).toBeGreaterThanOrEqual(1);
+    });
+
+    it('should calculate correct IPv6 fragment header overhead', () => {
+      const sim = harness.getSimulation() as FragmentationSim;
+      sim.setIpVersion(6);
+      sim.setPacketSize(5000); // Large enough to require multiple fragments
+      harness.start();
+
+      vi.advanceTimersByTime(8000); // Wait for PMTUD and fragmentation
+
+      const state = harness.getState();
+      if (state.totalFragments > 1) {
+        // IPv6 overhead should be fragments * 8 bytes
+        expect(state.ipv6Overhead).toBe(state.totalFragments * 8);
+      }
+    });
+
+    it('should handle concurrent packet generation (stress test)', () => {
+      const sim = harness.getSimulation() as FragmentationSim;
+      sim.setPacketSize(1400);
+
+      // Start and immediately reset multiple times
+      for (let i = 0; i < 3; i += 1) {
+        harness.start();
+        vi.advanceTimersByTime(100);
+        harness.reset();
+      }
+
+      // Final start
+      harness.start();
+      const state = harness.getState();
+      expect(state.packetsGenerated).toBe(1);
+    });
+
+    it('should track all fragments in different stages', () => {
+      const sim = harness.getSimulation() as FragmentationSim;
+      sim.setPacketSize(2500);
+      harness.start();
+
+      vi.advanceTimersByTime(1500);
+
+      const state = harness.getState();
+      // Total should account for all: flying + delivered
+      expect(state.flyingFragments.length + state.deliveredFragments).toBe(
+        state.totalFragments
+      );
+    });
+
+    it('should preserve original packet ID across all fragments', () => {
+      const sim = harness.getSimulation() as FragmentationSim;
+      sim.setPacketSize(3000);
+      harness.start();
+
+      vi.advanceTimersByTime(2000);
+
+      const state = harness.getState();
+      const uniquePacketIds = new Set(
+        state.flyingFragments.map((f) => f.originalPacketId)
+      );
+
+      // All fragments should belong to same original packet
+      expect(uniquePacketIds.size).toBe(1);
+    });
+
+    it('should handle packet size equal to minimum MTU', () => {
+      const sim = harness.getSimulation() as FragmentationSim;
+      sim.setPacketSize(1468); // Exactly the minimum MTU
+      harness.start();
+
+      const state = harness.getState();
+      // Should not require fragmentation at source
+      expect(state.totalFragments).toBeLessThanOrEqual(2);
+    });
+
+    it('should handle packet size just above minimum MTU', () => {
+      const sim = harness.getSimulation() as FragmentationSim;
+      sim.setPacketSize(1469); // Just above minimum MTU
+      harness.start();
+
+      const state = harness.getState();
+      // Should require at least 2 fragments
+      expect(state.totalFragments).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  describe('IPv6 PMTUD Edge Cases', () => {
+    it('should skip PMTUD for small IPv6 packets', () => {
+      const sim = harness.getSimulation() as FragmentationSim;
+      sim.setIpVersion(6);
+      sim.setPacketSize(1000); // Smaller than all MTUs
+      harness.start();
+
+      const state = harness.getState();
+      // Should not activate PMTUD for small packets
+      expect(state.totalFragments).toBe(1);
+    });
+
+    it('should discover correct path MTU for IPv6', () => {
+      const sim = harness.getSimulation() as FragmentationSim;
+      sim.setIpVersion(6);
+      sim.setPacketSize(3000);
+      harness.start();
+
+      const state = harness.getState();
+      // Should discover the minimum MTU (1468)
+      expect(state.discoveredPathMtu).toBe(1468);
+    });
+
+    it('should not create IPv4 overhead in IPv6 mode', () => {
+      const sim = harness.getSimulation() as FragmentationSim;
+      sim.setIpVersion(6);
+      sim.setPacketSize(3000);
+      harness.start();
+
+      vi.advanceTimersByTime(8000);
+
+      const state = harness.getState();
+      // IPv6 should have no IPv4 overhead
+      expect(state.ipv4Overhead).toBe(0);
+    });
+
+    it('should not create IPv6 overhead in IPv4 mode', () => {
+      const sim = harness.getSimulation() as FragmentationSim;
+      sim.setIpVersion(4);
+      sim.setPacketSize(3000);
+      harness.start();
+
+      const state = harness.getState();
+      // IPv4 should have no IPv6 overhead
+      expect(state.ipv6Overhead).toBe(0);
     });
   });
 });

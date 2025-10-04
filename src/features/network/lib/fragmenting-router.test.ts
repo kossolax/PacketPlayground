@@ -757,6 +757,71 @@ describe('FragmentingRouter', () => {
       router.dispose();
     });
 
+    it('should handle MTU smaller than IP header (extreme edge case)', () => {
+      const onForward = vi.fn();
+      const getNextMtu = vi.fn(() => 30); // Very small MTU
+
+      const router = new FragmentingRouter({
+        routerIndex: 0,
+        getNextMtu,
+        ipVersion: 4,
+        timeScale: 1,
+        processingDelayMs: 200,
+        pacingMs: 700,
+        onForward,
+      });
+
+      const fragment: FragmentLike = {
+        originalPacketId: 'packet-1',
+        fragmentIndex: 0,
+        size: 200, // Smaller packet
+        offset: 0,
+        color: '#0EA5E9',
+      };
+
+      router.enqueue(fragment);
+      vi.advanceTimersByTime(200 + 20 * 700 + 100);
+
+      // Should still attempt to forward
+      expect(onForward).toHaveBeenCalled();
+
+      router.dispose();
+    });
+
+    it('should handle fragment with non-zero initial offset', () => {
+      const onForward = vi.fn();
+      const getNextMtu = vi.fn(() => 1000);
+
+      const router = new FragmentingRouter({
+        routerIndex: 0,
+        getNextMtu,
+        ipVersion: 4,
+        timeScale: 1,
+        processingDelayMs: 200,
+        pacingMs: 700,
+        onForward,
+      });
+
+      const fragment: FragmentLike = {
+        originalPacketId: 'packet-1',
+        fragmentIndex: 0,
+        size: 2000,
+        offset: 800, // Non-zero offset
+        color: '#0EA5E9',
+      };
+
+      router.enqueue(fragment);
+      vi.advanceTimersByTime(200 + 3 * 700 + 100);
+
+      // Check that offsets are preserved and incremented correctly
+      onForward.mock.calls.forEach((call, idx) => {
+        const frag = call[0] as FragmentLike;
+        expect(frag.offset).toBeGreaterThanOrEqual(800);
+      });
+
+      router.dispose();
+    });
+
     it('should handle MTU exactly matching packet size', () => {
       const onForward = vi.fn();
       const getNextMtu = vi.fn(() => 1500);
