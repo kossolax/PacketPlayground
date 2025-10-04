@@ -46,10 +46,6 @@ export default function QueuingAndLoss() {
       color: 'bg-yellow-100 border-yellow-300',
       label: 'Switching fabric',
     },
-    {
-      color: 'bg-red-100 border-red-300',
-      label: 'Dropped packets',
-    },
   ];
 
   return (
