@@ -107,9 +107,7 @@ describe('FragmentingRouter', () => {
         onForward,
       });
 
-      expect(() =>
-        router.setDelays({ processingDelayMs: 300 })
-      ).not.toThrow();
+      expect(() => router.setDelays({ processingDelayMs: 300 })).not.toThrow();
       router.dispose();
     });
 

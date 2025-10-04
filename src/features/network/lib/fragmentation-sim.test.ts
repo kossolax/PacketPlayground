@@ -8,8 +8,8 @@ import {
   SimulationTestHarness,
 } from '@/lib/simulation-test-helpers';
 import {
-  FragmentationSim,
   createInitialFragmentationState,
+  FragmentationSim,
 } from './fragmentation-sim';
 
 vi.mock('@/lib/animation', () => ({
@@ -418,8 +418,6 @@ describe('FragmentationSim', () => {
       sim.setPacketSize(1400);
       harness.start();
 
-      const initialFragments = harness.getState().flyingFragments.length;
-
       // Advance just past arrival at router
       harness.advanceAnimationProgress(100);
       vi.advanceTimersByTime(100);
@@ -784,9 +782,7 @@ describe('FragmentationSim', () => {
       const state = harness.getState();
       state.flyingFragments.forEach((frag) => {
         expect(frag.sourceNetworkId).toBeLessThan(state.networks.length);
-        expect(frag.targetNetworkId).toBeLessThanOrEqual(
-          state.networks.length
-        );
+        expect(frag.targetNetworkId).toBeLessThanOrEqual(state.networks.length);
       });
     });
   });
