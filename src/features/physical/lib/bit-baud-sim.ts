@@ -1,5 +1,6 @@
 import { startFlightAnimation } from '@/lib/animation';
 import { Simulation, UpdateCallback, TimeProvider } from '@/lib/simulation';
+import { generateGaussianNoise, findClosestPoint2D } from '@/lib/utils';
 
 export type ModulationType = 'none' | '4qam' | '16qam' | '64qam' | '256qam';
 
@@ -156,15 +157,11 @@ function addNoise(
   // Convert noise level to standard deviation
   const noiseStdDev = noiseLevel / 50; // 0-1 range
 
-  // Box-Muller transform for Gaussian noise
-  const u1 = Math.random();
-  const u2 = Math.random();
-  const z1 = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
-  const z2 = Math.sqrt(-2 * Math.log(u1)) * Math.sin(2 * Math.PI * u2);
+  const { z1, z2 } = generateGaussianNoise(noiseStdDev);
 
   return {
-    x: x + z1 * noiseStdDev,
-    y: y + z2 * noiseStdDev,
+    x: x + z1,
+    y: y + z2,
   };
 }
 
@@ -176,22 +173,19 @@ function findClosestPoint(
 ): string {
   const bitsPerSymbol = getBitsPerSymbol(modulation);
   const totalPoints = 2 ** bitsPerSymbol;
-  let minDistance = Infinity;
-  let closestBits = '';
 
+  // Generate all constellation points with their bit labels
+  const candidatePoints: Array<{ x: number; y: number; bits: string }> = [];
   for (let i = 0; i < totalPoints; i += 1) {
     const bits = i.toString(2).padStart(bitsPerSymbol, '0');
     const point = getConstellationPoint(bits, modulation);
     if (point) {
-      const distance = (point.x - noisyX) ** 2 + (point.y - noisyY) ** 2;
-      if (distance < minDistance) {
-        minDistance = distance;
-        closestBits = bits;
-      }
+      candidatePoints.push({ ...point, bits });
     }
   }
 
-  return closestBits;
+  const closest = findClosestPoint2D({ x: noisyX, y: noisyY }, candidatePoints);
+  return closest?.bits || '';
 }
 
 export function createInitialBitBaudState(): BitBaudState {

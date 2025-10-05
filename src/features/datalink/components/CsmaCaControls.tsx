@@ -5,41 +5,20 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
+import {
+  BANDWIDTH_VALUES_STANDARD,
+  PACKET_SIZE_VALUES_STANDARD,
+  mapSliderToArray,
+  mapArrayToSlider,
+  formatBandwidth,
+  formatPacketSize,
+} from '@/lib/ui-helpers';
 
 import { CsmaCaSim, CsmaCaState } from '../lib/csmaca-sim';
 
 interface Props {
   state: CsmaCaState;
   simulation: CsmaCaSim | null;
-}
-
-const BANDWIDTH_VALUES = [
-  64_000, 128_000, 256_000, 512_000, 1_000_000, 2_000_000, 5_000_000,
-  10_000_000, 100_000_000, 1_000_000_000,
-];
-
-const PACKET_SIZE_VALUES = [
-  1_000, 8_000, 12_000, 40_000, 80_000, 400_000, 800_000, 4_000_000, 8_000_000,
-];
-
-function mapSliderTo(values: number[], idx: number): number {
-  return values[idx] ?? values[0];
-}
-function mapToSlider(values: number[], value: number): number {
-  const i = values.findIndex((v) => v >= value);
-  return i === -1 ? values.length - 1 : i;
-}
-function fmtBandwidth(bps: number): string {
-  if (bps >= 1_000_000_000) return `${bps / 1_000_000_000}G`;
-  if (bps >= 1_000_000) return `${bps / 1_000_000}M`;
-  if (bps >= 1_000) return `${bps / 1_000}K`;
-  return `${bps}`;
-}
-function fmtPacket(bits: number): string {
-  const bytes = bits / 8;
-  if (bytes >= 1_000_000) return `${bytes / 1_000_000}M`;
-  if (bytes >= 1_000) return `${bytes / 1_000}K`;
-  return `${bytes}B`;
 }
 
 export default function CsmaCaControls({ state, simulation }: Props) {
@@ -76,15 +55,19 @@ export default function CsmaCaControls({ state, simulation }: Props) {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="space-y-1">
           <Label className="text-sm">
-            Bandwidth: {fmtBandwidth(state.bandwidth)}bps
+            Bandwidth: {formatBandwidth(state.bandwidth)}bps
           </Label>
           <Slider
-            value={[mapToSlider(BANDWIDTH_VALUES, state.bandwidth)]}
+            value={[
+              mapArrayToSlider(BANDWIDTH_VALUES_STANDARD, state.bandwidth),
+            ]}
             onValueChange={(v) =>
-              simulation?.setBandwidth(mapSliderTo(BANDWIDTH_VALUES, v[0]))
+              simulation?.setBandwidth(
+                mapSliderToArray(BANDWIDTH_VALUES_STANDARD, v[0])
+              )
             }
             min={0}
-            max={BANDWIDTH_VALUES.length - 1}
+            max={BANDWIDTH_VALUES_STANDARD.length - 1}
             step={1}
             disabled={state.isRunning}
           />
@@ -92,15 +75,19 @@ export default function CsmaCaControls({ state, simulation }: Props) {
 
         <div className="space-y-1">
           <Label className="text-sm">
-            Packet: {fmtPacket(state.packetSize)}
+            Packet: {formatPacketSize(state.packetSize)}
           </Label>
           <Slider
-            value={[mapToSlider(PACKET_SIZE_VALUES, state.packetSize)]}
+            value={[
+              mapArrayToSlider(PACKET_SIZE_VALUES_STANDARD, state.packetSize),
+            ]}
             onValueChange={(v) =>
-              simulation?.setPacketSize(mapSliderTo(PACKET_SIZE_VALUES, v[0]))
+              simulation?.setPacketSize(
+                mapSliderToArray(PACKET_SIZE_VALUES_STANDARD, v[0])
+              )
             }
             min={0}
-            max={PACKET_SIZE_VALUES.length - 1}
+            max={PACKET_SIZE_VALUES_STANDARD.length - 1}
             step={1}
             disabled={state.isRunning}
           />

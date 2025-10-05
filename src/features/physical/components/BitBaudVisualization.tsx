@@ -1,4 +1,6 @@
 /* eslint-disable react/no-array-index-key */
+import { getMinimumStep } from '@/lib/utils';
+
 import { BitBaudState, getAllIdealPoints } from '../lib/bit-baud-sim';
 
 interface BitBaudVisualizationProps {
@@ -33,20 +35,8 @@ export default function BitBaudVisualization({
     const xs = idealPoints.map((p) => p.x).sort((a, b) => a - b);
     const ys = idealPoints.map((p) => p.y).sort((a, b) => a - b);
 
-    // Determine step as the minimum positive delta between unique sorted coordinates
-    const unique = (arr: number[]) => Array.from(new Set(arr));
-    const minStep = (arr: number[]) => {
-      const uniq = unique(arr).sort((a, b) => a - b);
-      let step = Infinity;
-      for (let i = 1; i < uniq.length; i += 1) {
-        const d = uniq[i] - uniq[i - 1];
-        if (d > 1e-9) step = Math.min(step, d);
-      }
-      return Number.isFinite(step) ? step : 1; // default step=1 if degenerate
-    };
-
-    const stepX = minStep(xs);
-    const stepY = minStep(ys);
+    const stepX = getMinimumStep(xs);
+    const stepY = getMinimumStep(ys);
     const minX = xs[0];
     const maxX = xs[xs.length - 1];
     const minY = ys[0];
@@ -74,19 +64,8 @@ export default function BitBaudVisualization({
     const xs = idealPoints.map((p) => p.x).sort((a, b) => a - b);
     const ys = idealPoints.map((p) => p.y).sort((a, b) => a - b);
 
-    const unique = (arr: number[]) => Array.from(new Set(arr));
-    const minStep = (arr: number[]) => {
-      const uniq = unique(arr).sort((a, b) => a - b);
-      let step = Infinity;
-      for (let i = 1; i < uniq.length; i += 1) {
-        const d = uniq[i] - uniq[i - 1];
-        if (d > 1e-9) step = Math.min(step, d);
-      }
-      return Number.isFinite(step) ? step : 1;
-    };
-
-    const stepX = minStep(xs);
-    const stepY = minStep(ys);
+    const stepX = getMinimumStep(xs);
+    const stepY = getMinimumStep(ys);
     const minX = xs[0];
     const maxX = xs[xs.length - 1];
     const minY = ys[0];

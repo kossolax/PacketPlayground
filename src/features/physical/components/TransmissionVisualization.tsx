@@ -1,6 +1,7 @@
 import { Radio, Router } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
+import { computePropagatingBar } from '@/lib/draw';
 
 import { TransmissionState } from '../lib/transmission-sim';
 
@@ -19,48 +20,32 @@ export default function TransmissionVisualization({
   const barHeight = 12;
   const squareSize = 96; // half of previous (w-24/h-24)
 
-  // Physics of the blue bar
-  // - The right edge (front) propagates at the medium speed and reaches the receiver after propagationDelay
-  // - The bar length represents bits currently on the wire (transmission in progress)
-  //   During transmission, the left edge (back) stays at the sender. Once transmission ends,
-  //   the back propagates too and reaches the receiver after an additional propagationDelay.
   // Use inner edges of the device squares so the medium line is flush with them
-  const halfSquare = squareSize / 2; // 96px for w-48/h-48
+  const halfSquare = squareSize / 2;
   const innerSenderX = senderX + halfSquare; // right edge of sender square
   const innerReceiverX = receiverX - halfSquare; // left edge of receiver square
-  const totalDistance = innerReceiverX - innerSenderX;
+
   const Tt = state.transmissionDelay; // transmission time (ms)
   const Tp = state.propagationDelay; // propagation time (ms)
   const T = Tt + Tp; // total animation time (ms)
   const p = state.progress / 100; // 0..1
-  const t = p * T; // simulated elapsed time (ms)
+  const elapsedMs = p * T; // simulated elapsed time (ms)
 
-  // Leading edge position (right side of the bar)
-  // Moves from sender to receiver over Tp; clamp when arrived
-  let frontX: number;
-  if (Tp <= 0) {
-    frontX = innerReceiverX; // instantaneous propagation edge case
-  } else {
-    const frontFrac = Math.min(Math.max(t / Tp, 0), 1);
-    frontX = innerSenderX + totalDistance * frontFrac;
-  }
+  // Compute bar geometry using centralized function
+  const barGeometry = computePropagatingBar(
+    { x: innerSenderX, y: mediumY },
+    { x: innerReceiverX, y: mediumY },
+    elapsedMs,
+    Tt,
+    Tp
+  );
 
-  // Trailing edge position (left side of the bar)
-  // - Stays at sender while transmitting (t <= Tt)
-  // - Then propagates to receiver over Tp
-  let backX: number;
-  if (t <= Tt) {
-    backX = innerSenderX;
-  } else if (Tp <= 0) {
-    backX = innerReceiverX;
-  } else {
-    const backFrac = Math.min(Math.max((t - Tt) / Tp, 0), 1);
-    backX = innerSenderX + totalDistance * backFrac;
-  }
-
-  // Ensure proper ordering and width
-  const barStart = Math.min(backX, frontX);
-  const barWidth = Math.max(frontX - backX, 0);
+  const barStart = barGeometry
+    ? Math.min(barGeometry.backX, barGeometry.frontX)
+    : innerSenderX;
+  const barWidth = barGeometry
+    ? Math.max(barGeometry.frontX - barGeometry.backX, 0)
+    : 0;
 
   return (
     <div className="relative bg-gradient-to-r from-blue-50 via-background to-green-50 rounded-md border overflow-hidden">

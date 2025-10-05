@@ -1,6 +1,7 @@
 import { Router } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
+import { interpolateFragmentPosition } from '@/lib/draw';
 
 import { Fragment, FragmentationState } from '../lib/fragmentation-sim';
 
@@ -33,33 +34,12 @@ export default function FragmentationVisualization({
     getRouterAnchorX(leftNetworkId);
 
   const getFragmentPosition = (fragment: Fragment) => {
-    // Determine start anchor
-    let startX: number;
-    // If it's a returning (back) fragment (ICMP), start from destination
-    if (fragment.direction === 'back') {
-      startX = getDestinationX();
-    } else if (fragment.startAtRightRouter) {
-      startX = getRouterAnchorX(fragment.sourceNetworkId);
-    } else if (fragment.startAtRouter) {
-      startX = getRouterAnchorX(fragment.sourceNetworkId - 1);
-    } else {
-      startX = getSourceX();
-    }
-
-    // Determine end anchor
-    let endX: number;
-    if (fragment.direction === 'back') {
-      endX = getSourceX();
-    } else if (fragment.endAtRouter) {
-      endX = getRouterAnchorX(fragment.sourceNetworkId);
-    } else if (fragment.targetNetworkId === state.networks.length - 1) {
-      endX = getDestinationX();
-    } else {
-      endX = getRouterAnchorX(fragment.sourceNetworkId + 1);
-    }
-
-    const x = startX + (endX - startX) * (fragment.position / 100);
-    return { x, y: networkY };
+    const pos = interpolateFragmentPosition(fragment, {
+      getSourceX,
+      getDestinationX,
+      getRouterX: getRouterAnchorX,
+    });
+    return { x: pos.x, y: networkY };
   };
 
   const renderFragmentNode = (fragment: Fragment) => {

@@ -1,4 +1,6 @@
+import { computePropagatingBar } from '@/lib/draw';
 import { Simulation, TimeProvider, UpdateCallback } from '@/lib/simulation';
+import { distanceBetweenPoints } from '@/lib/utils';
 
 // ===== Types =====
 export type StationStatus =
@@ -86,7 +88,7 @@ export function getPxDistance(
   const a = state.stations.find((s) => s.id === aId);
   const b = state.stations.find((s) => s.id === bId);
   if (!a || !b) return 0;
-  return Math.hypot(a.x - b.x, a.y - b.y);
+  return distanceBetweenPoints(a, b);
 }
 
 // Determine km per pixel using the baseline pair (1<->2) if available,
@@ -145,35 +147,24 @@ export function computeFrameBar(
   const tp = getPairPropagationDelayMs(state, frame.fromId, frame.toId);
   const elapsed = simNow - frame.startMs;
 
-  // Not yet started
-  if (elapsed < 0) return null;
+  // Use centralized propagating bar computation
+  const barGeometry = computePropagatingBar(
+    { x: from.x, y: from.y },
+    { x: to.x, y: to.y },
+    elapsed,
+    frame.durationMs,
+    tp
+  );
 
-  const Tt = frame.durationMs;
+  if (!barGeometry) return null;
 
-  // Leading edge progress: travels over tp to reach receiver
-  const frontProgress = Math.min(1, Math.max(0, elapsed / Math.max(1e-6, tp)));
-  const frontX = from.x + (to.x - from.x) * frontProgress;
-  const frontY = from.y + (to.y - from.y) * frontProgress;
-
-  // Trailing edge: starts moving after transmission ends, over tp
-  let backProgress = 0;
-  if (elapsed > Tt) {
-    backProgress = Math.min(
-      1,
-      Math.max(0, (elapsed - Tt) / Math.max(1e-6, tp))
-    );
-  }
-  const backX = from.x + (to.x - from.x) * backProgress;
-  const backY = from.y + (to.y - from.y) * backProgress;
-
-  const length = Math.hypot(frontX - backX, frontY - backY);
-  const angle = Math.atan2(to.y - from.y, to.x - from.x);
-  const x = (frontX + backX) / 2;
-  const y = (frontY + backY) / 2;
-
-  // Active while any portion of the bar exists between start and end arrival at receiver
-  const active = simNow >= frame.startMs && simNow <= frame.startMs + Tt + tp;
-  return { x, y, angle, length, active };
+  return {
+    x: barGeometry.centerX,
+    y: barGeometry.centerY,
+    angle: barGeometry.angle,
+    length: barGeometry.length,
+    active: barGeometry.isActive,
+  };
 }
 
 export function createInitialCsmaCaState(): CsmaCaState {

@@ -1,5 +1,6 @@
 import { startFlightAnimation } from '@/lib/animation';
 import { Simulation, TimeProvider, UpdateCallback } from '@/lib/simulation';
+import { getRandomColor } from '@/lib/utils';
 import { FragmentingRouter, FragmentLike } from './fragmenting-router';
 
 export interface Network {
@@ -245,7 +246,7 @@ export class FragmentationSim extends Simulation<FragmentationState> {
     this.nextPacketId += 1;
     this.state.packetsGenerated += 1;
     // Couleur aléatoire restaurée pour illustrer différents paquets
-    const color = FragmentationSim.getRandomColor();
+    const color = getRandomColor();
 
     if (this.state.ipVersion === 4) {
       // IPv4: fragments at each router when needed
@@ -767,19 +768,6 @@ export class FragmentationSim extends Simulation<FragmentationState> {
     this.activeAnimations.clear();
     this.animationCancel?.();
     this.animationCancel = undefined;
-  }
-
-  private static getRandomColor(): string {
-    const colors = [
-      '#0EA5E9', // sky
-      '#6366F1', // indigo
-      '#10B981', // green
-      '#F59E0B', // amber
-      '#8B5CF6', // purple
-      '#F97316', // orange
-      '#EF4444', // red
-    ];
-    return colors[Math.floor(Math.random() * colors.length)];
   }
 
   dispose(): void {

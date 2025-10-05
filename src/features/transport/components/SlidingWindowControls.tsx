@@ -6,21 +6,12 @@ import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Simulation } from '@/lib/simulation';
-
-// Non-linear loss rate mapping for more granular control at low values
-const LOSS_RATE_VALUES = [
-  0, 0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10, 12, 15, 20, 25, 30, 50,
-];
-const DEFAULT_LOSS_RATE = 2.5;
-
-function mapSliderToLossRate(sliderValue: number): number {
-  return LOSS_RATE_VALUES[sliderValue] || 0;
-}
-
-function mapLossRateToSlider(lossRate: number): number {
-  const index = LOSS_RATE_VALUES.findIndex((val) => val >= lossRate);
-  return index === -1 ? LOSS_RATE_VALUES.length - 1 : index;
-}
+import {
+  LOSS_RATE_VALUES_STANDARD,
+  DEFAULT_LOSS_RATE,
+  mapSliderToArray,
+  mapArrayToSlider,
+} from '@/lib/ui-helpers';
 
 // Generic interface for simulation state that has the required properties
 interface SimulationState {
@@ -149,12 +140,16 @@ export default function SlidingWindowControls<T extends SimulationState>({
             <Label className="text-sm">Loss {state.lossRate}%</Label>
           </div>
           <Slider
-            value={[mapLossRateToSlider(state.lossRate)]}
+            value={[
+              mapArrayToSlider(LOSS_RATE_VALUES_STANDARD, state.lossRate),
+            ]}
             onValueChange={(v) =>
-              handleLossRateChange(mapSliderToLossRate(v[0]))
+              handleLossRateChange(
+                mapSliderToArray(LOSS_RATE_VALUES_STANDARD, v[0])
+              )
             }
             min={0}
-            max={LOSS_RATE_VALUES.length - 1}
+            max={LOSS_RATE_VALUES_STANDARD.length - 1}
             step={1}
             disabled={state.isRunning}
             className={state.lossRate === 0 ? 'opacity-50' : ''}

@@ -11,6 +11,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
+import {
+  mapSliderToArray,
+  mapArrayToSlider,
+  formatBandwidth,
+} from '@/lib/ui-helpers';
 
 import { BitBaudSim, BitBaudState, ModulationType } from '../lib/bit-baud-sim';
 
@@ -26,22 +31,7 @@ const BAUD_RATE_VALUES = [
   400, // 400 baud
   800, // 800 baud
   1600, // 1.6 kbaud
-];
-
-function mapSliderToBaudRate(sliderValue: number): number {
-  return BAUD_RATE_VALUES[sliderValue] || BAUD_RATE_VALUES[0];
-}
-
-function mapBaudRateToSlider(baudRate: number): number {
-  const index = BAUD_RATE_VALUES.findIndex((val) => val >= baudRate);
-  return index === -1 ? BAUD_RATE_VALUES.length - 1 : index;
-}
-
-function formatRate(rate: number): string {
-  if (rate >= 1000000) return `${rate / 1000000}M`;
-  if (rate >= 1000) return `${rate / 1000}K`;
-  return `${rate}`;
-}
+] as const;
 
 export default function BitBaudControls({
   state,
@@ -134,13 +124,13 @@ export default function BitBaudControls({
         </div>
         <div className="space-y-1">
           <Label className="text-sm">
-            Baud rate: {formatRate(state.baudRate)} bauds | Bit rate:{' '}
-            {formatRate(state.bitRate)}bps
+            Baud rate: {formatBandwidth(state.baudRate)} bauds | Bit rate:{' '}
+            {formatBandwidth(state.bitRate)}bps
           </Label>
           <Slider
-            value={[mapBaudRateToSlider(state.baudRate)]}
+            value={[mapArrayToSlider(BAUD_RATE_VALUES, state.baudRate)]}
             onValueChange={(v) =>
-              handleBaudRateChange(mapSliderToBaudRate(v[0]))
+              handleBaudRateChange(mapSliderToArray(BAUD_RATE_VALUES, v[0]))
             }
             min={0}
             max={BAUD_RATE_VALUES.length - 1}

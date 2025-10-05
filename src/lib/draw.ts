@@ -1,5 +1,7 @@
 // Small drawing primitives/helpers for timeline components
 
+import { clamp, lerp } from './utils';
+
 export type Side = 'client' | 'server' | 'firewall';
 
 // Return lifeline X position given side and the two lifeline Xs (percent in the 0..100 viewBox)
@@ -216,7 +218,7 @@ export function interpolateFlightPosition<T extends string = string>(
     startLiftFor?: StartLiftPolicy<T>;
   }
 ) {
-  const t = Math.max(0, Math.min(1, opts.positionPercent / 100));
+  const t = clamp(opts.positionPercent / 100, 0, 1);
   const startLift = layout.startLiftFor
     ? layout.startLiftFor(opts.seqNum, opts.type)
     : 0;
@@ -235,7 +237,7 @@ export function interpolateFlightPosition<T extends string = string>(
     layout.serverXPercent,
     layout.firewallXPercent
   );
-  const xPercent = fromX + (toX - fromX) * t;
+  const xPercent = lerp(fromX, toX, t);
   return { xPercent, yTop };
 }
 
@@ -261,7 +263,7 @@ export function trailingLineFor<T extends string = string>(
   }
 ) {
   const { xPercent, yTop } = interpolateFlightPosition(opts, layout);
-  const t = Math.max(0, Math.min(1, opts.positionPercent / 100));
+  const t = clamp(opts.positionPercent / 100, 0, 1);
   const startLift = layout.startLiftFor
     ? layout.startLiftFor(opts.seqNum, opts.type)
     : 0;
@@ -290,7 +292,7 @@ export function progress01(
   if (isCompleted) return 1;
   if (!startAt || !durationMs) return 0;
   const elapsed = Date.now() - startAt;
-  return Math.max(0, Math.min(1, elapsed / durationMs));
+  return clamp(elapsed / durationMs, 0, 1);
 }
 
 // ======= Physical layer transmission primitives =======
@@ -302,7 +304,7 @@ export function computeTransmissionBarWidth(
   progress: number,
   containerWidth: number
 ): number {
-  const normalizedProgress = Math.max(0, Math.min(100, progress)) / 100;
+  const normalizedProgress = clamp(progress, 0, 100) / 100;
   return containerWidth * normalizedProgress;
 }
 
@@ -314,8 +316,8 @@ export function computePropagationPosition(
   startX: number,
   endX: number
 ): number {
-  const normalizedProgress = Math.max(0, Math.min(100, progress)) / 100;
-  return startX + (endX - startX) * normalizedProgress;
+  const normalizedProgress = clamp(progress, 0, 100) / 100;
+  return lerp(startX, endX, normalizedProgress);
 }
 
 /**
@@ -333,4 +335,140 @@ export function generateTransmissionTimelineMarkers(
     label: event.description,
     type: event.type,
   }));
+}
+
+/**
+ * Compute interpolated position for a fragment in flight.
+ * Handles complex routing scenarios with multiple anchors and directions.
+ *
+ * @param fragment - Fragment with position, direction, routing flags
+ * @param anchors - Object with getters for source, destination, and router positions
+ * @returns {x, y} position for rendering
+ */
+export function interpolateFragmentPosition<
+  T extends {
+    position: number; // 0..100
+    sourceNetworkId: number;
+    targetNetworkId: number;
+    direction?: 'forward' | 'back';
+    startAtRouter?: boolean;
+    endAtRouter?: boolean;
+    startAtRightRouter?: boolean;
+  },
+>(
+  fragment: T,
+  anchors: {
+    getSourceX: () => number;
+    getDestinationX: () => number;
+    getRouterX: (networkId: number) => number;
+  }
+): { x: number; y: number } {
+  const { position, sourceNetworkId, direction } = fragment;
+  const { getSourceX, getDestinationX, getRouterX } = anchors;
+
+  // Determine start anchor
+  let startX: number;
+  if (direction === 'back') {
+    startX = getDestinationX();
+  } else if (fragment.startAtRightRouter) {
+    startX = getRouterX(sourceNetworkId);
+  } else if (fragment.startAtRouter) {
+    startX = getRouterX(sourceNetworkId - 1);
+  } else {
+    startX = getSourceX();
+  }
+
+  // Determine end anchor
+  let endX: number;
+  if (direction === 'back') {
+    endX = getSourceX();
+  } else if (fragment.endAtRouter) {
+    endX = getRouterX(sourceNetworkId);
+  } else if (
+    fragment.targetNetworkId !== undefined &&
+    typeof anchors.getDestinationX === 'function'
+  ) {
+    endX = getDestinationX();
+  } else {
+    endX = getRouterX(sourceNetworkId + 1);
+  }
+
+  const x = lerp(startX, endX, position / 100);
+  return { x, y: 0 }; // y is provided by caller context (e.g., networkY)
+}
+
+/**
+ * Compute the geometry of a propagating transmission bar.
+ * Models a physical transmission where:
+ * - The leading edge (front) propagates from sender to receiver over propagationDelay
+ * - The bar length represents bits currently on the wire
+ * - During transmission, the trailing edge (back) stays at sender
+ * - Once transmission ends, the back propagates too
+ *
+ * @param from - Starting position {x, y}
+ * @param to - Ending position {x, y}
+ * @param elapsedMs - Time elapsed since transmission start
+ * @param transmissionDelayMs - Time to transmit all bits
+ * @param propagationDelayMs - Time for signal to travel from sender to receiver
+ * @returns Bar geometry or null if not yet started
+ */
+export function computePropagatingBar(
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+  elapsedMs: number,
+  transmissionDelayMs: number,
+  propagationDelayMs: number
+): {
+  frontX: number;
+  frontY: number;
+  backX: number;
+  backY: number;
+  centerX: number;
+  centerY: number;
+  length: number;
+  angle: number;
+  isActive: boolean;
+} | null {
+  // Not yet started
+  if (elapsedMs < 0) return null;
+
+  const Tt = transmissionDelayMs;
+  const Tp = propagationDelayMs;
+
+  // Leading edge progress (travels from sender to receiver over Tp)
+  const frontProgress =
+    Tp <= 0 ? 1 : clamp(elapsedMs / Math.max(1e-6, Tp), 0, 1);
+  const frontX = lerp(from.x, to.x, frontProgress);
+  const frontY = lerp(from.y, to.y, frontProgress);
+
+  // Trailing edge progress
+  // - Stays at sender while transmitting (elapsedMs <= Tt)
+  // - Then propagates to receiver over Tp
+  let backProgress = 0;
+  if (elapsedMs > Tt) {
+    backProgress =
+      Tp <= 0 ? 1 : clamp((elapsedMs - Tt) / Math.max(1e-6, Tp), 0, 1);
+  }
+  const backX = lerp(from.x, to.x, backProgress);
+  const backY = lerp(from.y, to.y, backProgress);
+
+  const length = Math.hypot(frontX - backX, frontY - backY);
+  const angle = Math.atan2(to.y - from.y, to.x - from.x);
+  const centerX = (frontX + backX) / 2;
+  const centerY = (frontY + backY) / 2;
+
+  // Active while any portion of the bar exists
+  const isActive = elapsedMs >= 0 && elapsedMs <= Tt + Tp;
+
+  return {
+    frontX,
+    frontY,
+    backX,
+    backY,
+    centerX,
+    centerY,
+    length,
+    angle,
+    isActive,
+  };
 }

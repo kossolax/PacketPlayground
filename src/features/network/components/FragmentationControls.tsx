@@ -5,30 +5,16 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
+import {
+  TIME_SCALE_VALUES,
+  mapSliderToArray,
+  mapArrayToSlider,
+  formatTimeScale,
+} from '@/lib/ui-helpers';
 
 import { FragmentationSim, FragmentationState } from '../lib/fragmentation-sim';
 
 // Time scale values: /10, /5, /2, 1, *2, *5, *10
-const TIME_SCALE_VALUES = [0.1, 0.2, 0.5, 1, 2, 5, 10];
-
-function mapSliderToTimeScale(sliderValue: number): number {
-  return TIME_SCALE_VALUES[sliderValue] || 1;
-}
-
-function mapTimeScaleToSlider(timeScale: number): number {
-  const index = TIME_SCALE_VALUES.findIndex((val) => val === timeScale);
-  return index === -1 ? 3 : index; // Default to 1x (index 3)
-}
-
-function getTimeScaleLabel(timeScale: number): string {
-  if (timeScale < 1) {
-    return `${Math.round(1 / timeScale)}x slower`;
-  }
-  if (timeScale > 1) {
-    return `${timeScale}x faster`;
-  }
-  return `${timeScale}x`;
-}
 
 interface FragmentationControlsProps {
   state: FragmentationState;
@@ -131,12 +117,12 @@ export default function FragmentationControls({
 
         <div className="space-y-1">
           <Label className="text-sm">
-            Time Scale: {getTimeScaleLabel(state.timeScale)}
+            Time Scale: {formatTimeScale(state.timeScale)}
           </Label>
           <Slider
-            value={[mapTimeScaleToSlider(state.timeScale)]}
+            value={[mapArrayToSlider(TIME_SCALE_VALUES, state.timeScale)]}
             onValueChange={(v) =>
-              handleTimeScaleChange(mapSliderToTimeScale(v[0]))
+              handleTimeScaleChange(mapSliderToArray(TIME_SCALE_VALUES, v[0]))
             }
             min={0}
             max={6}

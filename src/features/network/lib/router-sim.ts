@@ -1,5 +1,6 @@
 import { startFlightAnimation } from '@/lib/animation';
 import { Simulation, TimeProvider, UpdateCallback } from '@/lib/simulation';
+import { getRandomColor } from '@/lib/utils';
 
 export interface Packet {
   id: string;
@@ -182,7 +183,7 @@ export class RouterSim extends Simulation<RouterState> {
       const packet: Packet = {
         id: `packet-${this.nextPacketId}`,
         arrivalTime: now,
-        color: RouterSim.getRandomColor(),
+        color: getRandomColor(),
       };
 
       this.nextPacketId += 1;
@@ -241,19 +242,6 @@ export class RouterSim extends Simulation<RouterState> {
   private stopAnimation(): void {
     this.animationCancel?.();
     this.animationCancel = undefined;
-  }
-
-  private static getRandomColor(): string {
-    const colors = [
-      '#3B82F6', // blue
-      '#6366F1', // indigo
-      '#10B981', // green
-      '#F59E0B', // amber
-      '#8B5CF6', // purple
-      '#F97316', // orange
-      '#EF4444', // red
-    ];
-    return colors[Math.floor(Math.random() * colors.length)];
   }
 
   dispose(): void {

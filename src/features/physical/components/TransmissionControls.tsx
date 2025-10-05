@@ -4,70 +4,20 @@ import { useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
+import {
+  BANDWIDTH_VALUES_STANDARD,
+  PACKET_SIZE_VALUES_STANDARD,
+  mapSliderToArray,
+  mapArrayToSlider,
+  formatBandwidth,
+  formatPacketSize,
+} from '@/lib/ui-helpers';
 
 import { TransmissionSim, TransmissionState } from '../lib/transmission-sim';
 
 interface TransmissionControlsProps {
   state: TransmissionState;
   simulation: TransmissionSim | null;
-}
-
-// Pre-defined bandwidth values for better UX
-const BANDWIDTH_VALUES = [
-  64000, // 64 Kbps
-  128000, // 128 Kbps
-  256000, // 256 Kbps
-  512000, // 512 Kbps
-  1000000, // 1 Mbps
-  2000000, // 2 Mbps
-  5000000, // 5 Mbps
-  10000000, // 10 Mbps
-  100000000, // 100 Mbps
-  1000000000, // 1 Gbps
-];
-
-const PACKET_SIZE_VALUES = [
-  1000, // 125 bytes
-  8000, // 1 KB
-  12000, // 1.5 KB
-  40000, // 5 KB
-  80000, // 10 KB
-  400000, // 50 KB
-  800000, // 100 KB
-  4000000, // 500 KB
-  8000000, // 1 MB
-];
-
-function mapSliderToBandwidth(sliderValue: number): number {
-  return BANDWIDTH_VALUES[sliderValue] || BANDWIDTH_VALUES[0];
-}
-
-function mapBandwidthToSlider(bandwidth: number): number {
-  const index = BANDWIDTH_VALUES.findIndex((val) => val >= bandwidth);
-  return index === -1 ? BANDWIDTH_VALUES.length - 1 : index;
-}
-
-function mapSliderToPacketSize(sliderValue: number): number {
-  return PACKET_SIZE_VALUES[sliderValue] || PACKET_SIZE_VALUES[0];
-}
-
-function mapPacketSizeToSlider(packetSize: number): number {
-  const index = PACKET_SIZE_VALUES.findIndex((val) => val >= packetSize);
-  return index === -1 ? PACKET_SIZE_VALUES.length - 1 : index;
-}
-
-function formatBandwidth(bps: number): string {
-  if (bps >= 1000000000) return `${bps / 1000000000}G`;
-  if (bps >= 1000000) return `${bps / 1000000}M`;
-  if (bps >= 1000) return `${bps / 1000}K`;
-  return `${bps}`;
-}
-
-function formatPacketSize(bits: number): string {
-  const bytes = bits / 8;
-  if (bytes >= 1000000) return `${bytes / 1000000}M`;
-  if (bytes >= 1000) return `${bytes / 1000}K`;
-  return `${bytes}B`;
 }
 
 export default function TransmissionControls({
@@ -83,14 +33,16 @@ export default function TransmissionControls({
   }, [simulation]);
 
   const handleBandwidthChange = useCallback(
-    (bps: number) => {
+    (value: number[]) => {
+      const bps = mapSliderToArray(BANDWIDTH_VALUES_STANDARD, value[0]);
       simulation?.setBandwidth(bps);
     },
     [simulation]
   );
 
   const handlePacketSizeChange = useCallback(
-    (bits: number) => {
+    (value: number[]) => {
+      const bits = mapSliderToArray(PACKET_SIZE_VALUES_STANDARD, value[0]);
       simulation?.setPacketSize(bits);
     },
     [simulation]
@@ -134,12 +86,12 @@ export default function TransmissionControls({
             Bandwidth: {formatBandwidth(state.bandwidth)}bps
           </Label>
           <Slider
-            value={[mapBandwidthToSlider(state.bandwidth)]}
-            onValueChange={(v) =>
-              handleBandwidthChange(mapSliderToBandwidth(v[0]))
-            }
+            value={[
+              mapArrayToSlider(BANDWIDTH_VALUES_STANDARD, state.bandwidth),
+            ]}
+            onValueChange={handleBandwidthChange}
             min={0}
-            max={BANDWIDTH_VALUES.length - 1}
+            max={BANDWIDTH_VALUES_STANDARD.length - 1}
             step={1}
             disabled={state.isRunning}
           />
@@ -150,12 +102,12 @@ export default function TransmissionControls({
             Packet: {formatPacketSize(state.packetSize)}
           </Label>
           <Slider
-            value={[mapPacketSizeToSlider(state.packetSize)]}
-            onValueChange={(v) =>
-              handlePacketSizeChange(mapSliderToPacketSize(v[0]))
-            }
+            value={[
+              mapArrayToSlider(PACKET_SIZE_VALUES_STANDARD, state.packetSize),
+            ]}
+            onValueChange={handlePacketSizeChange}
             min={0}
-            max={PACKET_SIZE_VALUES.length - 1}
+            max={PACKET_SIZE_VALUES_STANDARD.length - 1}
             step={1}
             disabled={state.isRunning}
           />

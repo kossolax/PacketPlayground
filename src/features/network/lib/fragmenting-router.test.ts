@@ -814,7 +814,7 @@ describe('FragmentingRouter', () => {
       vi.advanceTimersByTime(200 + 3 * 700 + 100);
 
       // Check that offsets are preserved and incremented correctly
-      onForward.mock.calls.forEach((call, idx) => {
+      onForward.mock.calls.forEach((call) => {
         const frag = call[0] as FragmentLike;
         expect(frag.offset).toBeGreaterThanOrEqual(800);
       });
