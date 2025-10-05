@@ -97,6 +97,47 @@ export const rowTopFor = (
   segmentHeight: number
 ) => topOffset + seqNum * segmentHeight;
 
+// Internal shared computation for flight geometry (not exported)
+function baseFlightGeometry<T extends string = string>(
+  opts: {
+    seqNum: number;
+    type: T;
+    from: Side;
+    to: Side;
+    positionPercent: number;
+  },
+  layout: {
+    clientXPercent: number;
+    serverXPercent: number;
+    firewallXPercent?: number;
+    topOffset: number;
+    segmentHeight: number;
+    startLiftFor?: StartLiftPolicy<T>;
+  }
+) {
+  const t = clamp(opts.positionPercent / 100, 0, 1);
+  const startLift = layout.startLiftFor
+    ? layout.startLiftFor(opts.seqNum, opts.type)
+    : 0;
+  const startY =
+    rowTopFor(opts.seqNum, layout.topOffset, layout.segmentHeight) - startLift;
+  const yTop = startY + t * (layout.segmentHeight + startLift);
+  const fromX = lifelineX(
+    opts.from,
+    layout.clientXPercent,
+    layout.serverXPercent,
+    layout.firewallXPercent
+  );
+  const toX = lifelineX(
+    opts.to,
+    layout.clientXPercent,
+    layout.serverXPercent,
+    layout.firewallXPercent
+  );
+  const xPercent = lerp(fromX, toX, t);
+  return { t, xPercent, yTop, fromX, toX, startY, startLift } as const;
+}
+
 // Build a mapping from packet signature to the currently flying packets (FIFO by startTime)
 function buildFlyMap<T extends string = string>(
   flying: ReadonlyArray<FlyingPacketLike<T>>
@@ -218,27 +259,8 @@ export function interpolateFlightPosition<T extends string = string>(
     startLiftFor?: StartLiftPolicy<T>;
   }
 ) {
-  const t = clamp(opts.positionPercent / 100, 0, 1);
-  const startLift = layout.startLiftFor
-    ? layout.startLiftFor(opts.seqNum, opts.type)
-    : 0;
-  const startY =
-    rowTopFor(opts.seqNum, layout.topOffset, layout.segmentHeight) - startLift;
-  const yTop = startY + t * (layout.segmentHeight + startLift);
-  const fromX = lifelineX(
-    opts.from,
-    layout.clientXPercent,
-    layout.serverXPercent,
-    layout.firewallXPercent
-  );
-  const toX = lifelineX(
-    opts.to,
-    layout.clientXPercent,
-    layout.serverXPercent,
-    layout.firewallXPercent
-  );
-  const xPercent = lerp(fromX, toX, t);
-  return { xPercent, yTop };
+  const g = baseFlightGeometry(opts, layout);
+  return { xPercent: g.xPercent, yTop: g.yTop };
 }
 
 /**
@@ -262,39 +284,45 @@ export function trailingLineFor<T extends string = string>(
     startLiftFor?: StartLiftPolicy<T>;
   }
 ) {
-  const { xPercent, yTop } = interpolateFlightPosition(opts, layout);
-  const t = clamp(opts.positionPercent / 100, 0, 1);
-  const startLift = layout.startLiftFor
-    ? layout.startLiftFor(opts.seqNum, opts.type)
-    : 0;
-  const startY =
-    rowTopFor(opts.seqNum, layout.topOffset, layout.segmentHeight) - startLift;
-  const y1 = startY + layout.envelopeHeight; // line starts at bottom of chip at start
-  const y2 = yTop + (1 - t) * layout.envelopeHeight; // ends under the moving chip
-  const x1 = lifelineX(
-    opts.from,
-    layout.clientXPercent,
-    layout.serverXPercent,
-    layout.firewallXPercent
-  );
-  const x2 = xPercent;
-  return { x1, y1, x2, y2 };
+  const g = baseFlightGeometry(opts, layout);
+  const y1 = g.startY + layout.envelopeHeight;
+  const y2 = g.yTop + (1 - g.t) * layout.envelopeHeight;
+  return { x1: g.fromX, y1, x2: g.xPercent, y2 };
 }
 
 /**
- * Small helper to compute normalized progress [0..1] from timeWait timestamps.
+ * Combined helper returning both the moving envelope top position and its trailing line geometry.
+ * Useful to avoid recomputing interpolation twice in UI layers.
  */
-export function progress01(
-  startAt: number | null,
-  durationMs: number | null | undefined,
-  isCompleted: boolean
+export function computeFlightAndTrail<T extends string = string>(
+  opts: {
+    seqNum: number;
+    type: T;
+    from: Side;
+    to: Side;
+    positionPercent: number; // 0..100
+  },
+  layout: {
+    clientXPercent: number;
+    serverXPercent: number;
+    firewallXPercent?: number;
+    topOffset: number;
+    segmentHeight: number;
+    envelopeHeight: number;
+    startLiftFor?: StartLiftPolicy<T>;
+  }
 ) {
-  if (isCompleted) return 1;
-  if (!startAt || !durationMs) return 0;
-  const elapsed = Date.now() - startAt;
-  return clamp(elapsed / durationMs, 0, 1);
+  const g = baseFlightGeometry(opts, layout);
+  const trail = {
+    x1: g.fromX,
+    y1: g.startY + layout.envelopeHeight,
+    x2: g.xPercent,
+    y2: g.yTop + (1 - g.t) * layout.envelopeHeight,
+  };
+  return { xPercent: g.xPercent, yTop: g.yTop, trail };
 }
 
+// progress01 moved to utils.ts (import from '@/lib/utils')
 // ======= Physical layer transmission primitives =======
 
 /**

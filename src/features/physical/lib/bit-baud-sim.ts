@@ -1,6 +1,10 @@
 import { startFlightAnimation } from '@/lib/animation';
 import { Simulation, UpdateCallback, TimeProvider } from '@/lib/simulation';
-import { generateGaussianNoise, findClosestPoint2D } from '@/lib/utils';
+import {
+  generateGaussianNoise,
+  findClosestPoint2D,
+  generateRandomBits,
+} from '@/lib/utils';
 
 export type ModulationType = 'none' | '4qam' | '16qam' | '64qam' | '256qam';
 
@@ -83,15 +87,6 @@ function getModulationLabel(modulation: ModulationType): string {
 }
 
 export { getModulationLabel };
-
-// Generate random 16-bit string
-function generateRandomBits(): string {
-  let bits = '';
-  for (let i = 0; i < 16; i += 1) {
-    bits += Math.random() < 0.5 ? '0' : '1';
-  }
-  return bits;
-}
 
 // Get constellation point coordinates
 function getConstellationPoint(

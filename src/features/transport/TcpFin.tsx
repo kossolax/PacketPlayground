@@ -8,14 +8,9 @@ import {
   CardHeader,
 } from '@/components/ui/card';
 import { useBreadcrumb } from '@/hooks/use-breadcrumb';
-import {
-  assignFlightsAndSegments,
-  interpolateFlightPosition,
-  lifelineX,
-  progress01,
-  rowTopFor,
-  trailingLineFor,
-} from '@/lib/draw';
+import { assignFlightsAndSegments, lifelineX, rowTopFor } from '@/lib/draw';
+import { useFlightGeometry } from '@/lib/use-flight-geometry';
+import { progress01 } from '@/lib/utils';
 import TcpFinControls from './components/TcpFinControls';
 import Timeline from './components/Timeline';
 import { stateColor } from './lib/tcp-state-style';
@@ -138,100 +133,34 @@ export default function TcpFin() {
     [geometry.segments]
   );
 
-  // Trails VM
-  const trailsVM = useMemo(
-    () =>
-      vm.flyingPackets
-        .map((p) => {
-          const seqNum = geometry.flightRowByAnimId.get(p.animId);
-          if (seqNum == null) return null;
-          const t = trailingLineFor(
-            {
-              seqNum,
-              type: p.type,
-              from: p.from,
-              to: p.to,
-              positionPercent: p.position,
-            },
-            {
-              clientXPercent: layout.clientXPercent,
-              serverXPercent: layout.serverXPercent,
-              topOffset: layout.topOffset,
-              segmentHeight,
-              envelopeHeight,
-              startLiftFor,
-            }
-          );
-          return {
-            key: `trail-${p.animId}`,
-            x1: t.x1,
-            y1: t.y1,
-            x2: t.x2,
-            y2: t.y2,
-            stroke:
-              p.type === 'FIN' ? 'rgb(147, 197, 253)' : 'rgb(134, 239, 172)',
-          };
-        })
-        .filter(Boolean) as Array<{
-        key: string;
-        x1: number;
-        y1: number;
-        x2: number;
-        y2: number;
-        stroke: string;
-      }>,
-    [
-      vm.flyingPackets,
-      geometry.flightRowByAnimId,
-      layout,
+  const { trails: trailsVM, flying: flyingVM } = useFlightGeometry({
+    packets: vm.flyingPackets.map((p) => ({
+      animId: p.animId,
+      type: p.type,
+      from: p.from,
+      to: p.to,
+      position: p.position,
+    })),
+    flightRowByAnimId: geometry.flightRowByAnimId,
+    layout: {
+      clientXPercent: layout.clientXPercent,
+      serverXPercent: layout.serverXPercent,
+      topOffset: layout.topOffset,
       segmentHeight,
       envelopeHeight,
-    ]
-  );
-
-  // Flying VM
-  const flyingVM = useMemo(
-    () =>
-      vm.flyingPackets
-        .map((p) => {
-          const seqNum = geometry.flightRowByAnimId.get(p.animId);
-          if (seqNum == null) return null;
-          const pos = interpolateFlightPosition(
-            {
-              seqNum,
-              type: p.type,
-              from: p.from,
-              to: p.to,
-              positionPercent: p.position,
-            },
-            {
-              clientXPercent: layout.clientXPercent,
-              serverXPercent: layout.serverXPercent,
-              topOffset: layout.topOffset,
-              segmentHeight,
-              startLiftFor,
-            }
-          );
-          const isFin = p.type === 'FIN';
-          return {
-            key: `fly-${p.animId}`,
-            xPercent: pos.xPercent,
-            yTop: pos.yTop,
-            label: isFin ? 'FIN' : 'FIN+ACK',
-            bg: isFin ? 'bg-blue-100' : 'bg-green-100',
-            border: isFin ? 'border-blue-300' : 'border-green-300',
-          };
-        })
-        .filter(Boolean) as Array<{
-        key: string;
-        xPercent: number;
-        yTop: number;
-        label: string;
-        bg: string;
-        border: string;
-      }>,
-    [vm.flyingPackets, geometry.flightRowByAnimId, layout, segmentHeight]
-  );
+      startLiftFor,
+    },
+    labelFor: (t: 'FIN' | 'ACK' | 'FIN_ACK') => {
+      const isFin = t === 'FIN';
+      return {
+        label: isFin ? 'FIN' : 'FIN+ACK',
+        bg: isFin ? 'bg-blue-100' : 'bg-green-100',
+        border: isFin ? 'border-blue-300' : 'border-green-300',
+      };
+    },
+    strokeFor: (t: 'FIN' | 'ACK' | 'FIN_ACK') =>
+      t === 'FIN' ? 'rgb(147, 197, 253)' : 'rgb(134, 239, 172)',
+  });
 
   // Arrivals VM
   const arrivalsVM = useMemo(

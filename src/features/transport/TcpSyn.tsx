@@ -8,11 +8,8 @@ import {
   CardHeader,
 } from '@/components/ui/card';
 import { useBreadcrumb } from '@/hooks/use-breadcrumb';
-import {
-  assignFlightsAndSegments,
-  interpolateFlightPosition,
-  trailingLineFor,
-} from '@/lib/draw';
+import { assignFlightsAndSegments } from '@/lib/draw';
+import { useFlightGeometry } from '@/lib/use-flight-geometry';
 import TcpSynControls from './components/TcpSynControls';
 import Timeline from './components/Timeline';
 import { stateColor } from './lib/tcp-state-style';
@@ -175,113 +172,31 @@ export default function TcpSyn() {
     [geometry.segments]
   );
 
-  // Trails VM
-  const trailsVM = useMemo(
-    () =>
-      flyingPackets
-        .map((p) => {
-          const seqNum = geometry.flightRowByAnimId.get(p.animId);
-          if (seqNum == null) return null;
-          const t = trailingLineFor(
-            {
-              seqNum,
-              type: p.type,
-              from: p.from,
-              to: p.to,
-              positionPercent: p.position,
-            },
-            {
-              clientXPercent: layout.clientXPercent,
-              serverXPercent: layout.serverXPercent,
-              topOffset: layout.topOffset,
-              segmentHeight,
-              envelopeHeight,
-              startLiftFor,
-              firewallXPercent: vm.withFirewall ? 50 : undefined,
-            }
-          );
-          return {
-            key: `trail-${p.animId}`,
-            x1: t.x1,
-            y1: t.y1,
-            x2: t.x2,
-            y2: t.y2,
-            stroke: segmentStrokeFor(p.type),
-          };
-        })
-        .filter(Boolean) as Array<{
-        key: string;
-        x1: number;
-        y1: number;
-        x2: number;
-        y2: number;
-        stroke: string;
-      }>,
-    [
-      flyingPackets,
-      geometry.flightRowByAnimId,
-      layout.clientXPercent,
-      layout.serverXPercent,
-      layout.topOffset,
+  const { trails: trailsVM, flying: flyingVM } = useFlightGeometry({
+    packets: flyingPackets.map((p) => ({
+      animId: p.animId,
+      type: p.type,
+      from: p.from,
+      to: p.to,
+      position: p.position,
+    })),
+    flightRowByAnimId: geometry.flightRowByAnimId,
+    layout: {
+      clientXPercent: layout.clientXPercent,
+      serverXPercent: layout.serverXPercent,
+      topOffset: layout.topOffset,
       segmentHeight,
       envelopeHeight,
-      vm.withFirewall,
-    ]
-  );
-
-  // Flying VM
-  const flyingVM = useMemo(
-    () =>
-      flyingPackets
-        .map((p) => {
-          const seqNum = geometry.flightRowByAnimId.get(p.animId);
-          if (seqNum == null) return null;
-          const pos = interpolateFlightPosition(
-            {
-              seqNum,
-              type: p.type,
-              from: p.from,
-              to: p.to,
-              positionPercent: p.position,
-            },
-            {
-              clientXPercent: layout.clientXPercent,
-              serverXPercent: layout.serverXPercent,
-              topOffset: layout.topOffset,
-              segmentHeight,
-              startLiftFor,
-              firewallXPercent: vm.withFirewall ? 50 : undefined,
-            }
-          );
-          const label = p.type === 'SYN_ACK' ? 'SYN+ACK' : p.type;
-          const chip = chipStyleFor(p.type);
-          return {
-            key: `fly-${p.animId}`,
-            xPercent: pos.xPercent,
-            yTop: pos.yTop,
-            label,
-            bg: chip.bg,
-            border: chip.border,
-          };
-        })
-        .filter(Boolean) as Array<{
-        key: string;
-        xPercent: number;
-        yTop: number;
-        label: string;
-        bg: string;
-        border: string;
-      }>,
-    [
-      flyingPackets,
-      geometry.flightRowByAnimId,
-      layout.clientXPercent,
-      layout.serverXPercent,
-      layout.topOffset,
-      segmentHeight,
-      vm.withFirewall,
-    ]
-  );
+      startLiftFor,
+      firewallXPercent: vm.withFirewall ? 50 : undefined,
+    },
+    labelFor: (t: SynPacketType) => {
+      const label = t === 'SYN_ACK' ? 'SYN+ACK' : t;
+      const chip = chipStyleFor(t);
+      return { label, bg: chip.bg, border: chip.border };
+    },
+    strokeFor: (t: SynPacketType) => segmentStrokeFor(t),
+  });
 
   // Arrivals VM
   const arrivalsVM = useMemo(

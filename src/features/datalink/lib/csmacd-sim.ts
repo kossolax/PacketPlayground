@@ -1,4 +1,9 @@
-import { Simulation, UpdateCallback, TimeProvider } from '@/lib/simulation';
+import { Simulation, TimeProvider, UpdateCallback } from '@/lib/simulation';
+import {
+  computeBidirectionalWaveSegments,
+  WaveSegmentsResult,
+} from '@/lib/wave';
+import { computeCollisionOverlaps } from '@/lib/wave-collision';
 
 // ===== Types =====
 export type StationStatus =
@@ -315,7 +320,7 @@ export class CsmaCdSim extends Simulation<CsmaCdState> {
       this.progressLifecycle(simNow);
 
       // 5) Collision overlays for visualization (zones where >=2 data segments overlap)
-      this.state.collisionSegments = CsmaCdSim.computeCollisionOverlaps(
+      this.state.collisionSegments = computeCollisionOverlaps(
         segments.filter((s) => s.type === 'data')
       );
 
@@ -418,67 +423,31 @@ export class CsmaCdSim extends Simulation<CsmaCdState> {
   private computeAllSegments(simNow: number): Segment[] {
     const L = this.state.distance; // km
     const v = this.state.propagationSpeed; // km/s
-    const toSec = (ms: number) => ms / 1000;
     const segs: Segment[] = [];
-
     this.state.transmissions.forEach((t) => {
       const st = this.state.stations.find((s) => s.id === t.stationId);
-      if (!st) {
-        return;
-      }
-      const x0 = st.xKm;
-      const tStart = t.startMs;
-      const effectiveEnd = t.abortedAtMs ?? t.startMs + t.durationMs;
-      const dur = Math.max(0, Math.min(t.durationMs, effectiveEnd - t.startMs));
-      const tRel = simNow - tStart;
-      if (tRel < 0) {
-        return; // not yet started
-      }
-
-      // End of activity for this wave when both trailing edges have left the bus
-      const maxToLeft = x0; // km
-      const maxToRight = L - x0; // km
-      const totalFinishSec = toSec(dur) + Math.max(maxToLeft, maxToRight) / v;
-      if (tRel / 1000 > totalFinishSec) {
-        // wave finished; keep it but no segments now
-        return;
-      }
-
-      // Leading distances
-      const leadDist = Math.min(v * toSec(tRel), L); // km traveled by leading fronts
-      const leadRight = Math.min(x0 + leadDist, L);
-      const leadLeft = Math.max(x0 - leadDist, 0);
-
-      // Trailing distances (after duration)
-      const tRelAfter = tRel - dur;
-      let trailRightKm = x0;
-      let trailLeftKm = x0;
-      if (tRelAfter > 0) {
-        const trailDist = Math.min(v * toSec(tRelAfter), L);
-        trailRightKm = Math.min(x0 + trailDist, L);
-        trailLeftKm = Math.max(x0 - trailDist, 0);
-      }
-
-      // Right segment
-      if (trailRightKm < leadRight) {
+      if (!st) return;
+      const res: WaveSegmentsResult = computeBidirectionalWaveSegments({
+        startMs: t.startMs,
+        durationMs: t.durationMs,
+        abortedAtMs: t.abortedAtMs,
+        originKm: st.xKm,
+        simNowMs: simNow,
+        mediumLengthKm: L,
+        propagationSpeedKmPerSec: v,
+        type: t.type,
+        originId: t.stationId,
+      });
+      if (!res.active) return; // finished or not started
+      res.segments.forEach((s) =>
         segs.push({
-          startKm: trailRightKm,
-          endKm: leadRight,
-          type: t.type,
-          originId: t.stationId,
-        });
-      }
-      // Left segment
-      if (leadLeft < trailLeftKm) {
-        segs.push({
-          startKm: leadLeft,
-          endKm: trailLeftKm,
-          type: t.type,
-          originId: t.stationId,
-        });
-      }
+          startKm: s.startKm,
+          endKm: s.endKm,
+          type: (s.type as WaveType) ?? 'data',
+          originId: s.originId ?? t.stationId,
+        })
+      );
     });
-
     return segs;
   }
 
@@ -674,36 +643,7 @@ export class CsmaCdSim extends Simulation<CsmaCdState> {
     });
   }
 
-  private static computeCollisionOverlaps(
-    dataSegs: Segment[]
-  ): Array<{ startKm: number; endKm: number }> {
-    if (dataSegs.length <= 1) return [];
-    // Sweep line over combined segments
-    type Edge = { x: number; delta: number };
-    const edges: Edge[] = [];
-    dataSegs.forEach((s) => {
-      edges.push({ x: s.startKm, delta: +1 });
-      edges.push({ x: s.endKm, delta: -1 });
-    });
-    edges.sort((a, b) => a.x - b.x);
-    const overlaps: Array<{ startKm: number; endKm: number }> = [];
-    let active = 0;
-    let curStart: number | null = null;
-    for (let i = 0; i < edges.length; i += 1) {
-      const e = edges[i];
-      const prev = active;
-      active += e.delta;
-      if (prev < 2 && active >= 2) {
-        curStart = e.x;
-      } else if (prev >= 2 && active < 2) {
-        if (curStart !== null && e.x > curStart) {
-          overlaps.push({ startKm: curStart, endKm: e.x });
-        }
-        curStart = null;
-      }
-    }
-    return overlaps;
-  }
+  // collision overlap computation moved to generic helper in wave-collision.ts
 
   private addEvent(
     type: CsmaCdState['events'][number]['type'],

@@ -1,4 +1,40 @@
-// Small, reusable flight animation helper used by GoBackN page
+// Small, reusable animation helpers
+
+interface BaseAnimatorOptions {
+  durationMs: number; // total duration for 0->100
+  tickMs: number; // interval granularity
+  onProgress: (percentage: number) => void;
+  onDone: () => void;
+  stopAtPercent?: number; // optional cutoff percent (<100) where we stop and call onDone
+}
+
+function createIntervalAnimator({
+  durationMs,
+  tickMs,
+  onProgress,
+  onDone,
+  stopAtPercent,
+}: BaseAnimatorOptions): () => void {
+  let running = true;
+  const start = Date.now();
+  const cutoff = stopAtPercent ?? 100;
+  const id = setInterval(() => {
+    if (!running) return;
+    const elapsed = Date.now() - start;
+    const percent = Math.min(100, (elapsed / durationMs) * 100);
+    const clamped = Math.min(percent, cutoff);
+    onProgress(clamped);
+    if (clamped >= cutoff) {
+      running = false;
+      clearInterval(id);
+      onDone();
+    }
+  }, tickMs);
+  return () => {
+    running = false;
+    clearInterval(id);
+  };
+}
 
 export interface FlightAnimationOptions {
   // Total duration to reach 100%
@@ -30,40 +66,22 @@ export function startFlightAnimation(
     onLost,
     onArrived,
   } = options;
-
-  let running = true;
-  const start = Date.now();
-  const tickMs = 50; // match original animation cadence
-  const intervalId = setInterval(() => {
-    if (!running) return;
-    const elapsed = Date.now() - start;
-    const percent = Math.min(100, (elapsed / durationMs) * 100);
-
-    if (willBeLost) {
-      if (percent >= lossCutoffPercent) {
-        onProgress(lossCutoffPercent);
-        running = false;
-        clearInterval(intervalId);
-        onLost?.();
-        return;
-      }
-      onProgress(percent);
-    } else {
-      if (percent >= 100) {
-        onProgress(100);
-        running = false;
-        clearInterval(intervalId);
-        onArrived();
-        return;
-      }
-      onProgress(percent);
-    }
-  }, tickMs);
-
-  return () => {
-    running = false;
-    clearInterval(intervalId);
-  };
+  if (willBeLost) {
+    // Use cutoff as stopAtPercent and invoke onLost when cutoff reached
+    return createIntervalAnimator({
+      durationMs,
+      tickMs: 50,
+      onProgress,
+      stopAtPercent: lossCutoffPercent,
+      onDone: () => onLost?.(),
+    });
+  }
+  return createIntervalAnimator({
+    durationMs,
+    tickMs: 50,
+    onProgress,
+    onDone: () => onArrived(),
+  });
 }
 
 /**
@@ -89,32 +107,12 @@ export function startTransmissionAnimation(
   options: TransmissionAnimationOptions
 ): () => void {
   const { durationMs, onProgress, onComplete } = options;
-
-  let running = true;
-  const start = Date.now();
-  const tickMs = 16; // ~60fps for smooth transmission bar
-
-  const intervalId = setInterval(() => {
-    if (!running) return;
-
-    const elapsed = Date.now() - start;
-    const percent = Math.min(100, (elapsed / durationMs) * 100);
-
-    if (percent >= 100) {
-      onProgress(100);
-      running = false;
-      clearInterval(intervalId);
-      onComplete();
-      return;
-    }
-
-    onProgress(percent);
-  }, tickMs);
-
-  return () => {
-    running = false;
-    clearInterval(intervalId);
-  };
+  return createIntervalAnimator({
+    durationMs,
+    tickMs: 16,
+    onProgress,
+    onDone: () => onComplete(),
+  });
 }
 
 export interface PropagationAnimationOptions {
@@ -131,39 +129,20 @@ export function startPropagationAnimation(
   options: PropagationAnimationOptions
 ): () => void {
   const { delayMs, durationMs, onProgress, onComplete } = options;
-
-  let running = true;
-  let timeoutId: ReturnType<typeof setTimeout> | null = null;
-  let intervalId: ReturnType<typeof setInterval> | null = null;
-
-  // Wait for delay, then start animation
-  timeoutId = setTimeout(() => {
-    if (!running) return;
-
-    const start = Date.now();
-    const tickMs = 16; // ~60fps
-
-    intervalId = setInterval(() => {
-      if (!running) return;
-
-      const elapsed = Date.now() - start;
-      const percent = Math.min(100, (elapsed / durationMs) * 100);
-
-      if (percent >= 100) {
-        onProgress(100);
-        running = false;
-        if (intervalId) clearInterval(intervalId);
-        onComplete();
-        return;
-      }
-
-      onProgress(percent);
-    }, tickMs);
+  let cancelled = false;
+  let cancelInner: (() => void) | null = null;
+  const timeoutId = setTimeout(() => {
+    if (cancelled) return;
+    cancelInner = createIntervalAnimator({
+      durationMs,
+      tickMs: 16,
+      onProgress,
+      onDone: () => onComplete(),
+    });
   }, delayMs);
-
   return () => {
-    running = false;
-    if (timeoutId) clearTimeout(timeoutId);
-    if (intervalId) clearInterval(intervalId);
+    cancelled = true;
+    clearTimeout(timeoutId);
+    cancelInner?.();
   };
 }

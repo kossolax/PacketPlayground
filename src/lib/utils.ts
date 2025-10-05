@@ -133,3 +133,34 @@ export function getMinimumStep(arr: readonly number[]): number {
   }
   return Number.isFinite(step) ? step : 1;
 }
+
+// ======= Time/progress helpers =======
+
+/**
+ * Normalized progress in [0,1] given a start timestamp and a duration.
+ * Returns 1 if completed flag is true, 0 if start/duration are missing.
+ */
+export function progress01(
+  startAt: number | null,
+  durationMs: number | null | undefined,
+  isCompleted: boolean
+): number {
+  if (isCompleted) return 1;
+  if (!startAt || !durationMs) return 0;
+  const elapsed = Date.now() - startAt;
+  return clamp(elapsed / durationMs, 0, 1);
+}
+
+/**
+ * Compute arrival window (start/end) of a signal/frame at a receiver given
+ * original emission start time, its own duration, and one-way propagation delay.
+ */
+export function arrivalWindow(
+  startMs: number,
+  durationMs: number,
+  propagationDelayMs: number
+): { start: number; end: number } {
+  const start = startMs + propagationDelayMs;
+  const end = start + durationMs;
+  return { start, end };
+}

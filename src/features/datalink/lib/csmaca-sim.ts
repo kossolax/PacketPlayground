@@ -1,6 +1,6 @@
 import { computePropagatingBar } from '@/lib/draw';
 import { Simulation, TimeProvider, UpdateCallback } from '@/lib/simulation';
-import { distanceBetweenPoints } from '@/lib/utils';
+import { arrivalWindow, distanceBetweenPoints } from '@/lib/utils';
 
 // ===== Types =====
 export type StationStatus =
@@ -123,9 +123,8 @@ export function getArrivalWindowMs(
   stationId: number
 ): { start: number; end: number } {
   const tp = getPairPropagationDelayMs(state, frame.fromId, stationId);
-  const start = frame.startMs + tp;
-  const end = start + frame.durationMs;
-  return { start, end };
+  // Delegates to generic arrivalWindow helper (start + tp, then + duration)
+  return arrivalWindow(frame.startMs, frame.durationMs, tp);
 }
 
 // Compute current bar geometry for a frame traveling from -> to at time simNow
