@@ -2,6 +2,7 @@ import { Route, Routes } from 'react-router-dom';
 
 import NotFound from '@/pages/NotFound';
 import BitVsBaud from './BitVsBaud';
+import CastingDemo from './CastingDemo';
 import NetworkTopologyDemo from './NetworkTopologyDemo';
 import TransmissionVsPropagation from './TransmissionVsPropagation';
 
@@ -14,6 +15,7 @@ export default function Physical() {
       />
       <Route path="bit-vs-baud" element={<BitVsBaud />} />
       <Route path="topology" element={<NetworkTopologyDemo />} />
+      <Route path="casting" element={<CastingDemo />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

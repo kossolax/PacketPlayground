@@ -1,12 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-import ProtocolLegend, { LegendItem } from '@/components/ProtocolLegend';
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-} from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { useBreadcrumb } from '@/hooks/use-breadcrumb';
 
 import TransmissionControls from './components/TransmissionControls';
@@ -35,13 +29,6 @@ export default function TransmissionVsPropagation() {
 
   useEffect(() => () => simRef.current?.dispose(), []);
 
-  const legendItems: LegendItem[] = [
-    {
-      color: 'bg-blue-100 border-blue-300',
-      label: 'Bits on the cable',
-    },
-  ];
-
   return (
     <Card>
       <CardHeader>
@@ -50,9 +37,6 @@ export default function TransmissionVsPropagation() {
       <CardContent>
         <TransmissionVisualization state={vm} />
       </CardContent>
-      <CardFooter>
-        <ProtocolLegend items={legendItems} />
-      </CardFooter>
     </Card>
   );
 }
