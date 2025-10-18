@@ -329,7 +329,7 @@ export class VlanSim extends Simulation<VlanState> {
     fresh.trunkMode = preservedTrunkMode;
 
     // Apply trunk mode configuration
-    this.configureTrunkMode(fresh, preservedTrunkMode);
+    VlanSim.configureTrunkMode(fresh, preservedTrunkMode);
 
     this.state = fresh;
     this.emit();
@@ -354,14 +354,14 @@ export class VlanSim extends Simulation<VlanState> {
    */
   setTrunkMode(mode: TrunkMode): void {
     this.state.trunkMode = mode;
-    this.configureTrunkMode(this.state, mode);
+    VlanSim.configureTrunkMode(this.state, mode);
     this.reset();
   }
 
   /**
    * Configure inter-switch link based on trunk mode
    */
-  private configureTrunkMode(state: VlanState, mode: TrunkMode): void {
+  private static configureTrunkMode(state: VlanState, mode: TrunkMode): void {
     // Find trunk link between switches
     const trunkLink = state.links.find(
       (l) =>
@@ -405,6 +405,15 @@ export class VlanSim extends Simulation<VlanState> {
         sw2Port.mode = 'access';
         sw2Port.allowedVlans = [20];
         trunkLink.isTrunk = false;
+        break;
+
+      default:
+        // Default to trunk mode
+        sw1Port.mode = 'trunk';
+        sw1Port.allowedVlans = [10, 20];
+        sw2Port.mode = 'trunk';
+        sw2Port.allowedVlans = [10, 20];
+        trunkLink.isTrunk = true;
         break;
     }
   }

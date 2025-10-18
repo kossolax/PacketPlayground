@@ -169,6 +169,173 @@ export default function ArpVisualization({ state }: Props) {
       {/* Legend */}
       <ProtocolLegend items={legendItems} />
 
+      {/* CAM Tables (Switch MAC Learning) */}
+      <div className="grid grid-cols-2 gap-4">
+        {/* Left column: SW1 */}
+        {['sw1'].map((switchId) => {
+          const camTable = state.camTables[switchId] || {};
+          const switchDevice = state.devices.find((d) => d.id === switchId);
+          const entries = Object.entries(camTable);
+
+          if (!switchDevice || switchDevice.type !== 'switch') return null;
+
+          return (
+            <div key={switchId} className="rounded-md border">
+              <div className="bg-muted px-4 py-2 font-medium flex items-center gap-2">
+                <Network className="h-4 w-4 text-green-600" />
+                {switchDevice.label} CAM Table ({entries.length} entries)
+              </div>
+              <div className="p-2">
+                {entries.length === 0 ? (
+                  <div className="text-center text-muted-foreground text-sm py-4">
+                    No learned MAC addresses
+                  </div>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left p-2 font-medium">
+                          MAC Address
+                        </th>
+                        <th className="text-left p-2 font-medium">Port</th>
+                        <th className="text-right p-2 font-medium">TTL (s)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {entries.map(([mac, entry]) => {
+                        const age = Math.floor(
+                          state.currentTime - entry.timestamp
+                        );
+                        const timeRemaining = Math.max(
+                          0,
+                          state.agingTimeoutSec - age
+                        );
+                        const portDevice = state.devices.find(
+                          (d) => d.id === entry.port
+                        );
+                        const macDevice = state.devices.find(
+                          (d) => d.mac === mac
+                        );
+
+                        let ttlColor = 'text-foreground';
+                        if (timeRemaining < 5) {
+                          ttlColor = 'text-red-600 font-bold';
+                        } else if (timeRemaining < 10) {
+                          ttlColor = 'text-orange-600';
+                        }
+
+                        return (
+                          <tr key={mac} className="border-b last:border-0">
+                            <td className="p-2 font-mono text-xs">
+                              {mac.slice(-8)}{' '}
+                              {macDevice && (
+                                <span className="text-muted-foreground font-normal">
+                                  ({macDevice.label})
+                                </span>
+                              )}
+                            </td>
+                            <td className="p-2">
+                              {portDevice?.label || entry.port}
+                            </td>
+                            <td
+                              className={`p-2 text-right font-mono ${ttlColor}`}
+                            >
+                              {timeRemaining}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Right column: SW2 */}
+        {['sw2'].map((switchId) => {
+          const camTable = state.camTables[switchId] || {};
+          const switchDevice = state.devices.find((d) => d.id === switchId);
+          const entries = Object.entries(camTable);
+
+          if (!switchDevice || switchDevice.type !== 'switch') return null;
+
+          return (
+            <div key={switchId} className="rounded-md border">
+              <div className="bg-muted px-4 py-2 font-medium flex items-center gap-2">
+                <Network className="h-4 w-4 text-green-600" />
+                {switchDevice.label} CAM Table ({entries.length} entries)
+              </div>
+              <div className="p-2">
+                {entries.length === 0 ? (
+                  <div className="text-center text-muted-foreground text-sm py-4">
+                    No learned MAC addresses
+                  </div>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left p-2 font-medium">
+                          MAC Address
+                        </th>
+                        <th className="text-left p-2 font-medium">Port</th>
+                        <th className="text-right p-2 font-medium">TTL (s)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {entries.map(([mac, entry]) => {
+                        const age = Math.floor(
+                          state.currentTime - entry.timestamp
+                        );
+                        const timeRemaining = Math.max(
+                          0,
+                          state.agingTimeoutSec - age
+                        );
+                        const portDevice = state.devices.find(
+                          (d) => d.id === entry.port
+                        );
+                        const macDevice = state.devices.find(
+                          (d) => d.mac === mac
+                        );
+
+                        let ttlColor = 'text-foreground';
+                        if (timeRemaining < 5) {
+                          ttlColor = 'text-red-600 font-bold';
+                        } else if (timeRemaining < 10) {
+                          ttlColor = 'text-orange-600';
+                        }
+
+                        return (
+                          <tr key={mac} className="border-b last:border-0">
+                            <td className="p-2 font-mono text-xs">
+                              {mac.slice(-8)}{' '}
+                              {macDevice && (
+                                <span className="text-muted-foreground font-normal">
+                                  ({macDevice.label})
+                                </span>
+                              )}
+                            </td>
+                            <td className="p-2">
+                              {portDevice?.label || entry.port}
+                            </td>
+                            <td
+                              className={`p-2 text-right font-mono ${ttlColor}`}
+                            >
+                              {timeRemaining}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
       {/* ARP Cache Tables */}
       <div className="grid grid-cols-2 gap-4">
         {/* Left column: PC1, PC2 */}
@@ -374,173 +541,6 @@ export default function ArpVisualization({ state }: Props) {
             );
           })}
         </div>
-      </div>
-
-      {/* CAM Tables (Switch MAC Learning) */}
-      <div className="grid grid-cols-2 gap-4">
-        {/* Left column: SW1 */}
-        {['sw1'].map((switchId) => {
-          const camTable = state.camTables[switchId] || {};
-          const switchDevice = state.devices.find((d) => d.id === switchId);
-          const entries = Object.entries(camTable);
-
-          if (!switchDevice || switchDevice.type !== 'switch') return null;
-
-          return (
-            <div key={switchId} className="rounded-md border">
-              <div className="bg-muted px-4 py-2 font-medium flex items-center gap-2">
-                <Network className="h-4 w-4 text-green-600" />
-                {switchDevice.label} CAM Table ({entries.length} entries)
-              </div>
-              <div className="p-2">
-                {entries.length === 0 ? (
-                  <div className="text-center text-muted-foreground text-sm py-4">
-                    No learned MAC addresses
-                  </div>
-                ) : (
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="text-left p-2 font-medium">
-                          MAC Address
-                        </th>
-                        <th className="text-left p-2 font-medium">Port</th>
-                        <th className="text-right p-2 font-medium">TTL (s)</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {entries.map(([mac, entry]) => {
-                        const age = Math.floor(
-                          state.currentTime - entry.timestamp
-                        );
-                        const timeRemaining = Math.max(
-                          0,
-                          state.agingTimeoutSec - age
-                        );
-                        const portDevice = state.devices.find(
-                          (d) => d.id === entry.port
-                        );
-                        const macDevice = state.devices.find(
-                          (d) => d.mac === mac
-                        );
-
-                        let ttlColor = 'text-foreground';
-                        if (timeRemaining < 5) {
-                          ttlColor = 'text-red-600 font-bold';
-                        } else if (timeRemaining < 10) {
-                          ttlColor = 'text-orange-600';
-                        }
-
-                        return (
-                          <tr key={mac} className="border-b last:border-0">
-                            <td className="p-2 font-mono text-xs">
-                              {mac.slice(-8)}{' '}
-                              {macDevice && (
-                                <span className="text-muted-foreground font-normal">
-                                  ({macDevice.label})
-                                </span>
-                              )}
-                            </td>
-                            <td className="p-2">
-                              {portDevice?.label || entry.port}
-                            </td>
-                            <td
-                              className={`p-2 text-right font-mono ${ttlColor}`}
-                            >
-                              {timeRemaining}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            </div>
-          );
-        })}
-
-        {/* Right column: SW2 */}
-        {['sw2'].map((switchId) => {
-          const camTable = state.camTables[switchId] || {};
-          const switchDevice = state.devices.find((d) => d.id === switchId);
-          const entries = Object.entries(camTable);
-
-          if (!switchDevice || switchDevice.type !== 'switch') return null;
-
-          return (
-            <div key={switchId} className="rounded-md border">
-              <div className="bg-muted px-4 py-2 font-medium flex items-center gap-2">
-                <Network className="h-4 w-4 text-green-600" />
-                {switchDevice.label} CAM Table ({entries.length} entries)
-              </div>
-              <div className="p-2">
-                {entries.length === 0 ? (
-                  <div className="text-center text-muted-foreground text-sm py-4">
-                    No learned MAC addresses
-                  </div>
-                ) : (
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="text-left p-2 font-medium">
-                          MAC Address
-                        </th>
-                        <th className="text-left p-2 font-medium">Port</th>
-                        <th className="text-right p-2 font-medium">TTL (s)</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {entries.map(([mac, entry]) => {
-                        const age = Math.floor(
-                          state.currentTime - entry.timestamp
-                        );
-                        const timeRemaining = Math.max(
-                          0,
-                          state.agingTimeoutSec - age
-                        );
-                        const portDevice = state.devices.find(
-                          (d) => d.id === entry.port
-                        );
-                        const macDevice = state.devices.find(
-                          (d) => d.mac === mac
-                        );
-
-                        let ttlColor = 'text-foreground';
-                        if (timeRemaining < 5) {
-                          ttlColor = 'text-red-600 font-bold';
-                        } else if (timeRemaining < 10) {
-                          ttlColor = 'text-orange-600';
-                        }
-
-                        return (
-                          <tr key={mac} className="border-b last:border-0">
-                            <td className="p-2 font-mono text-xs">
-                              {mac.slice(-8)}{' '}
-                              {macDevice && (
-                                <span className="text-muted-foreground font-normal">
-                                  ({macDevice.label})
-                                </span>
-                              )}
-                            </td>
-                            <td className="p-2">
-                              {portDevice?.label || entry.port}
-                            </td>
-                            <td
-                              className={`p-2 text-right font-mono ${ttlColor}`}
-                            >
-                              {timeRemaining}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            </div>
-          );
-        })}
       </div>
     </div>
   );

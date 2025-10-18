@@ -121,33 +121,6 @@ export default function SwitchLearningControls({ state, simulation }: Props) {
           />
         </div>
       </div>
-
-      <div className="grid grid-cols-4 gap-4 pt-2 text-sm">
-        <div className="bg-muted p-3 rounded-lg">
-          <div className="font-medium text-blue-600">Total Packets</div>
-          <div className="font-mono text-lg">{state.totalPackets}</div>
-          <div className="text-muted-foreground text-xs">Packets sent</div>
-        </div>
-        <div className="bg-muted p-3 rounded-lg">
-          <div className="font-medium text-yellow-600">Flooded</div>
-          <div className="font-mono text-lg">{state.floodedPackets}</div>
-          <div className="text-muted-foreground text-xs">
-            Unknown destination
-          </div>
-        </div>
-        <div className="bg-muted p-3 rounded-lg">
-          <div className="font-medium text-green-600">Forwarded</div>
-          <div className="font-mono text-lg">{state.forwardedPackets}</div>
-          <div className="text-muted-foreground text-xs">Known destination</div>
-        </div>
-        <div className="bg-muted p-3 rounded-lg">
-          <div className="font-medium text-purple-600">CAM Table Size</div>
-          <div className="font-mono text-lg">
-            {simulation?.getTotalCamSize() ?? 0}
-          </div>
-          <div className="text-muted-foreground text-xs">Total entries</div>
-        </div>
-      </div>
     </div>
   );
 }

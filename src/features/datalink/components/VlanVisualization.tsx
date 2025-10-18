@@ -23,6 +23,19 @@ export default function VlanVisualization({ state }: Props) {
     { color: 'bg-red-100 border-red-500', label: 'Blocked (inter-VLAN)' },
   ];
 
+  // Helper functions to avoid nested ternaries
+  const getTrunkLabelColor = (trunkMode: string): string => {
+    if (trunkMode === 'trunk') return 'fill-purple-600';
+    if (trunkMode === 'vlan10') return 'fill-blue-600';
+    return 'fill-green-600';
+  };
+
+  const getTrunkLabelText = (trunkMode: string): string => {
+    if (trunkMode === 'trunk') return 'TRUNK';
+    if (trunkMode === 'vlan10') return 'VLAN 10';
+    return 'VLAN 20';
+  };
+
   // Get link color and style based on state and trunk mode
   const getLinkStyle = (link: {
     state: string;
@@ -59,6 +72,12 @@ export default function VlanVisualization({ state }: Props) {
             color:
               link.state === 'idle' ? 'stroke-green-400' : 'stroke-green-600',
             width: 'stroke-2',
+          };
+        default:
+          return {
+            color:
+              link.state === 'idle' ? 'stroke-purple-400' : 'stroke-purple-600',
+            width: 'stroke-[4px]',
           };
       }
     }
@@ -119,19 +138,9 @@ export default function VlanVisualization({ state }: Props) {
                       x={(from.x + to.x) / 2}
                       y={(from.y + to.y) / 2 - 10}
                       textAnchor="middle"
-                      className={`text-[10px] font-bold ${
-                        state.trunkMode === 'trunk'
-                          ? 'fill-purple-600'
-                          : state.trunkMode === 'vlan10'
-                            ? 'fill-blue-600'
-                            : 'fill-green-600'
-                      }`}
+                      className={`text-[10px] font-bold ${getTrunkLabelColor(state.trunkMode)}`}
                     >
-                      {state.trunkMode === 'trunk'
-                        ? 'TRUNK'
-                        : state.trunkMode === 'vlan10'
-                          ? 'VLAN 10'
-                          : 'VLAN 20'}
+                      {getTrunkLabelText(state.trunkMode)}
                     </text>
                   )}
                 </g>
