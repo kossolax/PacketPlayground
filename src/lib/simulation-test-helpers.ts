@@ -40,6 +40,7 @@ export interface MockAnimationSystem {
   triggerProgress: (percentage: number) => void;
   triggerArrived: () => void;
   triggerTick: () => void;
+  triggerAllFlights: () => void;
   cancelFunctions: (() => void)[];
   intervalCallbacks: Map<NodeJS.Timeout, () => void>;
 }
@@ -50,8 +51,10 @@ export interface MockAnimationSystem {
 export function createMockAnimationSystem(): MockAnimationSystem {
   const cancelFunctions: (() => void)[] = [];
   const intervalCallbacks = new Map<NodeJS.Timeout, () => void>();
-  let onProgressCallback: ((percentage: number) => void) | null = null;
-  let onArrivedCallback: (() => void) | null = null;
+  const activeFlights: Array<{
+    onProgress: (percentage: number) => void;
+    onArrived: () => void;
+  }> = [];
 
   const mockTimeProvider = createMockTimeProvider(0);
 
@@ -64,10 +67,13 @@ export function createMockAnimationSystem(): MockAnimationSystem {
       onProgress: (percentage: number) => void;
       onArrived: () => void;
     }) => {
-      onProgressCallback = onProgress;
-      onArrivedCallback = onArrived;
+      const flight = { onProgress, onArrived };
+      activeFlights.push(flight);
 
-      const cancel = vi.fn();
+      const cancel = vi.fn(() => {
+        const index = activeFlights.indexOf(flight);
+        if (index > -1) activeFlights.splice(index, 1);
+      });
       cancelFunctions.push(cancel);
       return cancel;
     }
@@ -89,13 +95,24 @@ export function createMockAnimationSystem(): MockAnimationSystem {
     mockClearInterval,
     mockTimeProvider,
     triggerProgress: (percentage: number) => {
-      if (onProgressCallback) onProgressCallback(percentage);
+      // Trigger progress for all active flights
+      activeFlights.forEach((flight) => flight.onProgress(percentage));
     },
     triggerArrived: () => {
-      if (onArrivedCallback) onArrivedCallback();
+      // Trigger arrived for all active flights (and remove them)
+      const flightsToComplete = [...activeFlights];
+      activeFlights.length = 0;
+      flightsToComplete.forEach((flight) => flight.onArrived());
     },
     triggerTick: () => {
       intervalCallbacks.forEach((callback) => callback());
+    },
+    triggerAllFlights: () => {
+      // Trigger all flight animations to completion
+      activeFlights.forEach((flight) => flight.onProgress(100));
+      const flightsToComplete = [...activeFlights];
+      activeFlights.length = 0;
+      flightsToComplete.forEach((flight) => flight.onArrived());
     },
     cancelFunctions,
     intervalCallbacks,

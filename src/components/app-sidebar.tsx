@@ -62,6 +62,11 @@ const osiLayers: OSILayer[] = [
         url: '/physical/topology',
         icon: Network,
       },
+      {
+        title: 'Cast Types',
+        url: '/physical/casting',
+        icon: Radio,
+      },
     ],
   },
   {
@@ -77,6 +82,21 @@ const osiLayers: OSILayer[] = [
         title: 'CSMA/CA',
         url: '/datalink/csma-ca',
         icon: Radio,
+      },
+      {
+        title: 'Switch Learning',
+        url: '/datalink/switch-learning',
+        icon: Network,
+      },
+      {
+        title: 'ARP',
+        url: '/datalink/arp',
+        icon: Network,
+      },
+      {
+        title: 'VLAN & Trunk',
+        url: '/datalink/vlan',
+        icon: Network,
       },
     ],
   },
@@ -128,11 +148,6 @@ const developmentItems: SidebarItem[] = [
   {
     title: 'Theme',
     url: '/theme',
-    icon: FileOutput,
-  },
-  {
-    title: 'Not Found',
-    url: '/not-found',
     icon: FileOutput,
   },
 ];

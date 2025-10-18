@@ -190,17 +190,15 @@ export function getBroadcastDomain(
     const current = queue.shift()!;
 
     // Don't traverse through routers (they segment broadcast domains)
-    if (routerSet.has(current) && current !== nodeId) {
-      continue;
+    if (!routerSet.has(current) || current === nodeId) {
+      const neighbors = adj.get(current) || [];
+      neighbors.forEach((neighbor) => {
+        if (!visited.has(neighbor)) {
+          visited.add(neighbor);
+          queue.push(neighbor);
+        }
+      });
     }
-
-    const neighbors = adj.get(current) || [];
-    neighbors.forEach((neighbor) => {
-      if (!visited.has(neighbor)) {
-        visited.add(neighbor);
-        queue.push(neighbor);
-      }
-    });
   }
 
   // Remove source node from result

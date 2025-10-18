@@ -49,9 +49,7 @@ describe('network-simulation', () => {
         ];
         const adj = buildAdjacencyList(links);
 
-        expect(adj.get('A')).toEqual(
-          expect.arrayContaining(['B', 'C', 'D'])
-        );
+        expect(adj.get('A')).toEqual(expect.arrayContaining(['B', 'C', 'D']));
       });
     });
 

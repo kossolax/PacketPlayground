@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import { Link, Outlet } from 'react-router-dom';
+
+import LoadingAnimation from '@/components/LoadingAnimation';
 
 import {
   SidebarInset,
@@ -95,7 +97,9 @@ export default function Layout() {
         </header>
         <main className="flex-1 overflow-auto">
           <div className="max-w-6xl mx-auto p-6 space-y-6">
-            <Outlet />
+            <Suspense fallback={<LoadingAnimation fullScreen={false} />}>
+              <Outlet />
+            </Suspense>
           </div>
         </main>
       </SidebarInset>
