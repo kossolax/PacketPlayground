@@ -9,6 +9,7 @@ import {
   Background,
   Controls,
   ConnectionMode,
+  useReactFlow,
   type Node,
   type Edge,
   type OnNodesChange,
@@ -45,6 +46,8 @@ export default function NetworkCanvas({
   selectedDevice,
   onDeviceAdded,
 }: NetworkCanvasProps) {
+  const { screenToFlowPosition } = useReactFlow();
+
   const nodeTypes = useMemo(
     () => ({
       customNode: CustomNode,
@@ -66,15 +69,23 @@ export default function NetworkCanvas({
       const target = event.target as HTMLElement;
       if (!target.classList.contains('react-flow__pane')) return;
 
-      const bounds = target.getBoundingClientRect();
-      const x = event.clientX - bounds.left;
-      const y = event.clientY - bounds.top;
+      // Convert screen coordinates to flow coordinates (accounts for zoom/pan)
+      const position = screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      });
 
-      const device = createDevice(selectedDevice, { x, y });
+      // Center the device on cursor position (icon is 48px, so offset by 24px)
+      const centeredPosition = {
+        x: position.x - 24,
+        y: position.y - 24,
+      };
+
+      const device = createDevice(selectedDevice, centeredPosition);
       onAddDevice(device);
       onDeviceAdded();
     },
-    [selectedDevice, onAddDevice, onDeviceAdded]
+    [selectedDevice, onAddDevice, onDeviceAdded, screenToFlowPosition]
   );
 
   return (
