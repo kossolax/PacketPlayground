@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b tsconfig.app.json && vite build",
-    "lint": "eslint --cache --cache-location ./node_modules/.cache/eslint \"src/**/*.{js,jsx,ts,tsx}\"",
-    "lint:fix": "eslint --cache --cache-location ./node_modules/.cache/eslint \"src/**/*.{js,jsx,ts,tsx}\" --fix",
+    "lint": "eslint --cache --cache-location /tmp/eslint \"src/**/*.{js,jsx,ts,tsx}\"",
+    "lint:fix": "eslint --cache --cache-location /tmp/eslint \"src/**/*.{js,jsx,ts,tsx}\" --fix",
     "test": "vitest run",
     "test:ui": "vitest --ui",
     "coverage": "vitest run --coverage",

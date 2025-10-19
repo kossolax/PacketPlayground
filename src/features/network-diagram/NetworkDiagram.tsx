@@ -3,10 +3,11 @@
  * Main page for network topology visualization and editing
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ReactFlowProvider } from '@xyflow/react';
 import { toast } from 'sonner';
 import { useBreadcrumb } from '@/hooks/use-breadcrumb';
+import { useSidebar } from '@/components/ui/sidebar';
 import FileUploader from './components/FileUploader';
 import DeviceToolbar from './components/DeviceToolbar';
 import NetworkCanvas from './components/NetworkCanvas';
@@ -17,6 +18,8 @@ import type { DeviceType } from '@/lib/network-simulator';
 export default function NetworkDiagram() {
   const [selectedDevice, setSelectedDevice] = useState<DeviceType | null>(null);
   const { setBreadcrumbs } = useBreadcrumb();
+  const { setOpen, isMobile } = useSidebar();
+  const hasCollapsedSidebar = useRef(false);
 
   useEffect(() => {
     setBreadcrumbs('Development', 'Network Diagram');
@@ -39,8 +42,17 @@ export default function NetworkDiagram() {
     if (topology) {
       loadTopology(topology);
       toast.success(`Loaded: ${filename}`);
+
+      // Collapse sidebar on desktop when topology is loaded (only once)
+      if (!isMobile && !hasCollapsedSidebar.current) {
+        setOpen(false);
+        hasCollapsedSidebar.current = true;
+      }
+    } else {
+      // Reset when returning to upload state
+      hasCollapsedSidebar.current = false;
     }
-  }, [topology, filename, loadTopology]);
+  }, [topology, filename, loadTopology, isMobile, setOpen]);
 
   useEffect(() => {
     if (error) {
