@@ -773,13 +773,17 @@ describe('ArpSim', () => {
         timeProvider: mockAnimation.mockTimeProvider,
       });
 
-      // Manually start timer without auto-scenarios
-      testSim.getState().isRunning = true;
+      // Manually set isRunning without auto-scenarios
+      // Must access internal state directly since getState() returns a clone
+      // eslint-disable-next-line @typescript-eslint/dot-notation
+      testSim['state'].isRunning = true;
       testSim.startTimer();
 
       const initialRequests = testSim.getState().totalRequests;
       testSim.sendArpRequest('pc1', '192.168.99.99');
 
+      // Advance timers to execute the setTimeout
+      vi.advanceTimersByTime(100);
       mockAnimation.mockTimeProvider.advance(10000);
       vi.advanceTimersByTime(10000);
       mockAnimation.triggerTick();
