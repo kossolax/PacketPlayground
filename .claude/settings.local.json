@@ -5,7 +5,21 @@
       "Bash(npm run build:*)",
       "WebSearch",
       "WebFetch(domain:ui.shadcn.com)",
-      "WebFetch(domain:computerscience.unicam.it)"
+      "WebFetch(domain:computerscience.unicam.it)",
+      "Bash(npx prettier:*)",
+      "WebFetch(domain:lucide.dev)",
+      "Bash(npx eslint:*)",
+      "Bash(npm test:*)",
+      "Bash(npm run test:coverage:*)",
+      "Bash(npm run coverage:*)",
+      "Bash(source:*)",
+      "Bash(nvm exec:*)",
+      "Bash(npx vitest run:*)",
+      "WebFetch(domain:cours.zaretti.be)",
+      "Bash(npm run lint:fix)",
+      "WebFetch(domain:datatracker.ietf.org)",
+      "Bash(cat node_modules/twofish-ts/package.json)",
+      "Bash(cat node_modules/twofish-ts/bin/index.d.ts)"
     ],
     "deny": [],
     "ask": []
