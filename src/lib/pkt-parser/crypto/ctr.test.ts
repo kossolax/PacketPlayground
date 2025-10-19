@@ -5,7 +5,6 @@
 import { describe, it, expect } from 'vitest';
 import { ctr } from './ctr';
 import { TwofishCipher } from './twofish';
-import { hexToBytes } from './utils';
 
 describe('CTR Mode', () => {
   describe('encrypt/decrypt', () => {
@@ -40,7 +39,7 @@ describe('CTR Mode', () => {
     it('should produce different ciphertext for different nonces', () => {
       const key = new Uint8Array(16).fill(0x00);
       const nonce1 = new Uint8Array(16).fill(0x00);
-      const nonce2 = new Uint8Array(16).fill(0xFF);
+      const nonce2 = new Uint8Array(16).fill(0xff);
       const plaintext = new Uint8Array([1, 2, 3, 4, 5]);
 
       const cipher = new TwofishCipher(key);
@@ -53,7 +52,7 @@ describe('CTR Mode', () => {
 
     it('should produce different ciphertext for different keys', () => {
       const key1 = new Uint8Array(16).fill(0x00);
-      const key2 = new Uint8Array(16).fill(0xFF);
+      const key2 = new Uint8Array(16).fill(0xff);
       const nonce = new Uint8Array(16).fill(0x00);
       const plaintext = new Uint8Array([1, 2, 3, 4, 5]);
 
@@ -71,7 +70,7 @@ describe('CTR Mode', () => {
     it('should handle single block (16 bytes)', () => {
       const key = new Uint8Array(16).fill(0x00);
       const nonce = new Uint8Array(16).fill(0x00);
-      const plaintext = new Uint8Array(16).fill(0xAA);
+      const plaintext = new Uint8Array(16).fill(0xaa);
 
       const cipher = new TwofishCipher(key);
 
@@ -85,7 +84,7 @@ describe('CTR Mode', () => {
     it('should handle multi-block data (50 bytes)', () => {
       const key = new Uint8Array(16).fill(0x00);
       const nonce = new Uint8Array(16).fill(0x00);
-      const plaintext = new Uint8Array(50).fill(0xBB);
+      const plaintext = new Uint8Array(50).fill(0xbb);
 
       const cipher = new TwofishCipher(key);
 
@@ -99,7 +98,7 @@ describe('CTR Mode', () => {
     it('should handle partial last block', () => {
       const key = new Uint8Array(16).fill(0x00);
       const nonce = new Uint8Array(16).fill(0x00);
-      const plaintext = new Uint8Array(17).fill(0xCC); // 1 full + 1 partial
+      const plaintext = new Uint8Array(17).fill(0xcc); // 1 full + 1 partial
 
       const cipher = new TwofishCipher(key);
 
@@ -127,7 +126,7 @@ describe('CTR Mode', () => {
     it('should handle large data (1 KB)', () => {
       const key = new Uint8Array(16).fill(0x00);
       const nonce = new Uint8Array(16).fill(0x00);
-      const plaintext = new Uint8Array(1024).fill(0xDD);
+      const plaintext = new Uint8Array(1024).fill(0xdd);
 
       const cipher = new TwofishCipher(key);
 
@@ -186,12 +185,12 @@ describe('CTR Mode', () => {
       const nonce = new Uint8Array(16).fill(0x00);
       const cipher = new TwofishCipher(key);
 
-      for (const length of [0, 1, 15, 16, 17, 31, 32, 33, 100]) {
-        const plaintext = new Uint8Array(length).fill(0xEE);
+      [0, 1, 15, 16, 17, 31, 32, 33, 100].forEach((length) => {
+        const plaintext = new Uint8Array(length).fill(0xee);
         const ciphertext = ctr(cipher, nonce, plaintext);
 
         expect(ciphertext.length).toBe(length);
-      }
+      });
     });
   });
 });

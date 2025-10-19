@@ -6,7 +6,8 @@ import { describe, it, expect } from 'vitest';
 import { decryptPacketTracer5, encryptPacketTracer5 } from './decoder-old';
 
 describe('Packet Tracer 5.x Decoder', () => {
-  const sampleXML = '<PACKETTRACER5><VERSION>5.0.0.0000</VERSION><NETWORK></NETWORK></PACKETTRACER5>';
+  const sampleXML =
+    '<PACKETTRACER5><VERSION>5.0.0.0000</VERSION><NETWORK></NETWORK></PACKETTRACER5>';
 
   describe('decryptPacketTracer5', () => {
     it('should decrypt a synthetic PT 5.x file', () => {
@@ -29,8 +30,9 @@ describe('Packet Tracer 5.x Decoder', () => {
 
     it('should handle large XML', () => {
       // Create a larger XML (> 1 KB)
-      const devices = Array.from({ length: 100 }, (_, i) =>
-        `<DEVICE><NAME>Device${i}</NAME></DEVICE>`
+      const devices = Array.from(
+        { length: 100 },
+        (_, i) => `<DEVICE><NAME>Device${i}</NAME></DEVICE>`
       ).join('');
 
       const largeXML = `<PACKETTRACER5><DEVICES>${devices}</DEVICES></PACKETTRACER5>`;
@@ -70,12 +72,12 @@ describe('Packet Tracer 5.x Decoder', () => {
         '<PACKETTRACER5><NETWORK><DEVICES></DEVICES></NETWORK></PACKETTRACER5>',
       ];
 
-      for (const xml of testCases) {
+      testCases.forEach((xml) => {
         const encrypted = encryptPacketTracer5(xml);
         const decrypted = decryptPacketTracer5(encrypted);
 
         expect(decrypted).toBe(xml);
-      }
+      });
     });
 
     it('should handle XML with special characters', () => {

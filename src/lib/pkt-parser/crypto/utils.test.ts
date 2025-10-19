@@ -17,10 +17,12 @@ describe('Crypto Utils', () => {
   describe('xor', () => {
     it('should XOR two equal-length buffers', () => {
       const a = new Uint8Array([0x12, 0x34, 0x56]);
-      const b = new Uint8Array([0xAB, 0xCD, 0xEF]);
+      const b = new Uint8Array([0xab, 0xcd, 0xef]);
       const result = xor(a, b);
 
-      expect(result).toEqual(new Uint8Array([0x12 ^ 0xAB, 0x34 ^ 0xCD, 0x56 ^ 0xEF]));
+      expect(result).toEqual(
+        new Uint8Array([0x12 ^ 0xab, 0x34 ^ 0xcd, 0x56 ^ 0xef])
+      );
     });
 
     it('should throw error for different-length buffers', () => {
@@ -73,7 +75,9 @@ describe('Crypto Utils', () => {
       // Input: 0x0102030405060708090a0b0c0d0e0f10
       // MSB = 0, so no XOR with 0x87
       const input = hexToBytes('0102030405060708090a0b0c0d0e0f10');
-      const expected = hexToBytes('02040608 0a0c0e10 12141618 1a1c1e20'.replace(/\s/g, ''));
+      const expected = hexToBytes(
+        '02040608 0a0c0e10 12141618 1a1c1e20'.replace(/\s/g, '')
+      );
 
       const result = doubleGF128(input);
 
@@ -83,7 +87,9 @@ describe('Crypto Utils', () => {
     it('should double with reduction polynomial when MSB=1', () => {
       // Input starts with 0x80 (MSB = 1)
       // After shift: last byte must be XORed with 0x87
-      const input = hexToBytes('800000000000000000000000000000 00'.replace(/\s/g, ''));
+      const input = hexToBytes(
+        '800000000000000000000000000000 00'.replace(/\s/g, '')
+      );
 
       const result = doubleGF128(input);
 
@@ -112,7 +118,7 @@ describe('Crypto Utils', () => {
     it('should handle carry correctly', () => {
       const counter = new Uint8Array(16);
       counter[14] = 0x01;
-      counter[15] = 0xFF;
+      counter[15] = 0xff;
 
       incrementCounter(counter);
 
@@ -122,7 +128,7 @@ describe('Crypto Utils', () => {
 
     it('should handle multiple carries', () => {
       const counter = new Uint8Array(16);
-      counter.fill(0xFF);
+      counter.fill(0xff);
 
       incrementCounter(counter);
 
@@ -167,12 +173,14 @@ describe('Crypto Utils', () => {
       const bytes = hexToBytes(hex);
 
       expect(bytes).toEqual(
-        new Uint8Array([0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF])
+        new Uint8Array([0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef])
       );
     });
 
     it('should convert bytes to hex string', () => {
-      const bytes = new Uint8Array([0x01, 0x23, 0x45, 0x67, 0x89, 0xAB, 0xCD, 0xEF]);
+      const bytes = new Uint8Array([
+        0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef,
+      ]);
       const hex = bytesToHex(bytes);
 
       expect(hex).toBe('0123456789abcdef');

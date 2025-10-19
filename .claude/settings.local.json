@@ -19,7 +19,13 @@
       "Bash(npm run lint:fix)",
       "WebFetch(domain:datatracker.ietf.org)",
       "Bash(cat node_modules/twofish-ts/package.json)",
-      "Bash(cat node_modules/twofish-ts/bin/index.d.ts)"
+      "Bash(cat node_modules/twofish-ts/bin/index.d.ts)",
+      "Bash(sed -i \"s/import { hexToBytes } from ''.\\/utils'';//g\" src/lib/pkt-parser/crypto/ctr.test.ts src/lib/pkt-parser/crypto/eax.test.ts src/lib/pkt-parser/crypto/twofish.test.ts)",
+      "Bash(sed -i \"s/import { hexToBytes, bytesToHex } from ''.\\/utils'';/import { hexToBytes } from ''.\\/utils'';/g\" src/lib/pkt-parser/crypto/twofish.test.ts)",
+      "Bash(find src/lib/pkt-parser -name \"*.ts\" -not -name \"*.test.ts\" -exec sed -i 's/i++/i += 1/g; s/i--/i -= 1/g' {} ;)",
+      "Bash(find src/lib/pkt-parser -name \"*.ts\" -not -name \"*.test.ts\" -exec sed -i 's/counter\\[i\\]++/counter[i] += 1/g; s/length++/length += 1/g' {} ;)",
+      "Bash(find src/lib/pkt-parser -name \"*.ts\" -not -name \"*.test.ts\" -exec grep -l \"j++\" {} ;)",
+      "Bash(find src/lib/pkt-parser -name \"*.ts\" -not -name \"*.test.ts\" -exec sed -i 's/j++/j += 1/g; s/j--/j -= 1/g' {} ;)"
     ],
     "deny": [],
     "ask": []

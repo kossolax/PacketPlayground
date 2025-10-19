@@ -5,7 +5,6 @@
 import { describe, it, expect } from 'vitest';
 import { eaxEncrypt, eaxDecrypt } from './eax';
 import { TwofishCipher } from './twofish';
-import { hexToBytes } from './utils';
 
 describe('EAX Mode', () => {
   describe('encrypt/decrypt', () => {
@@ -56,12 +55,12 @@ describe('EAX Mode', () => {
 
       const cipher = new TwofishCipher(key);
 
-      for (const length of [0, 1, 16, 17, 50, 100]) {
-        const plaintext = new Uint8Array(length).fill(0xAA);
+      [0, 1, 16, 17, 50, 100].forEach((length) => {
+        const plaintext = new Uint8Array(length).fill(0xaa);
         const { ciphertext } = eaxEncrypt(cipher, nonce, plaintext);
 
         expect(ciphertext.length).toBe(length);
-      }
+      });
     });
   });
 
@@ -76,7 +75,7 @@ describe('EAX Mode', () => {
       const { ciphertext, tag } = eaxEncrypt(cipher, nonce, plaintext);
 
       // Tamper with ciphertext
-      ciphertext[0] ^= 0xFF;
+      ciphertext[0] ^= 0xff;
 
       const decrypted = eaxDecrypt(cipher, nonce, ciphertext, tag);
 
@@ -93,7 +92,7 @@ describe('EAX Mode', () => {
       const { ciphertext, tag } = eaxEncrypt(cipher, nonce, plaintext);
 
       // Tamper with tag
-      tag[0] ^= 0xFF;
+      tag[0] ^= 0xff;
 
       const decrypted = eaxDecrypt(cipher, nonce, ciphertext, tag);
 
@@ -103,7 +102,7 @@ describe('EAX Mode', () => {
     it('should detect wrong nonce', () => {
       const key = new Uint8Array(16).fill(0x00);
       const nonce1 = new Uint8Array(16).fill(0x00);
-      const nonce2 = new Uint8Array(16).fill(0xFF);
+      const nonce2 = new Uint8Array(16).fill(0xff);
       const plaintext = new Uint8Array([1, 2, 3, 4, 5]);
 
       const cipher = new TwofishCipher(key);
@@ -270,7 +269,9 @@ describe('EAX Mode', () => {
 
       const cipher = new TwofishCipher(key);
 
-      expect(() => eaxEncrypt(cipher, nonce, plaintext)).toThrow('nonce must be');
+      expect(() => eaxEncrypt(cipher, nonce, plaintext)).toThrow(
+        'nonce must be'
+      );
     });
 
     it('should throw error for invalid tag length in decrypt', () => {
@@ -281,7 +282,9 @@ describe('EAX Mode', () => {
 
       const cipher = new TwofishCipher(key);
 
-      expect(() => eaxDecrypt(cipher, nonce, ciphertext, tag)).toThrow('tag must be');
+      expect(() => eaxDecrypt(cipher, nonce, ciphertext, tag)).toThrow(
+        'tag must be'
+      );
     });
   });
 });

@@ -37,7 +37,7 @@ export function eaxEncrypt(
   plaintext: Uint8Array,
   header: Uint8Array = new Uint8Array(0)
 ): EAXResult {
-  const blockSize = cipher.blockSize;
+  const { blockSize } = cipher;
 
   if (nonce.length !== blockSize) {
     throw new Error(
@@ -96,7 +96,7 @@ export function eaxDecrypt(
   tag: Uint8Array,
   header: Uint8Array = new Uint8Array(0)
 ): Uint8Array | null {
-  const blockSize = cipher.blockSize;
+  const { blockSize } = cipher;
 
   if (nonce.length !== blockSize) {
     throw new Error(
@@ -105,9 +105,7 @@ export function eaxDecrypt(
   }
 
   if (tag.length !== blockSize) {
-    throw new Error(
-      `EAX tag must be ${blockSize} bytes (got ${tag.length})`
-    );
+    throw new Error(`EAX tag must be ${blockSize} bytes (got ${tag.length})`);
   }
 
   // Step 1: Recompute N' = CMAC(K, [0]₁₂₈ || N)

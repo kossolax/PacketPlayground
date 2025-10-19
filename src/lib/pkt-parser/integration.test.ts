@@ -5,14 +5,12 @@
 
 import { describe, it, expect } from 'vitest';
 import { readFile } from 'fs/promises';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { join } from 'path';
 import { decryptPacketTracer7, detectPacketTracerVersion } from './decoder';
 import { decryptPacketTracer5 } from './decoder-old';
 
 // Path to sample PKT files (relative to this test file)
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const PKT_DIR = join(__dirname, 'samples');
+const PKT_DIR = join(import.meta.dirname, 'samples');
 
 /**
  * List of real PKT files to test
@@ -35,9 +33,7 @@ const PKT_FILES = [
 /**
  * List of real PKA (activity) files to test
  */
-const PKA_FILES = [
-  'debug_connectivity.pka',
-];
+const PKA_FILES = ['debug_connectivity.pka'];
 
 /**
  * Basic XML validation
@@ -64,7 +60,8 @@ function isValidXML(xml: string): boolean {
  */
 function hasPacketTracerStructure(xml: string): boolean {
   // PT files use PACKETTRACER5 or PACKETTRACER5_ACTIVITY (for .pka files)
-  const hasRootTag = xml.includes('<PACKETTRACER5') || xml.includes('<PACKETTRACER');
+  const hasRootTag =
+    xml.includes('<PACKETTRACER5') || xml.includes('<PACKETTRACER');
 
   // Should contain VERSION (either as tag or attribute)
   const hasVersion = xml.includes('<VERSION>') || xml.includes('VERSION=');
@@ -201,21 +198,23 @@ describe('Integration Tests - Real PKT Files', () => {
     it('should decrypt files of various sizes', async () => {
       const sizes: Record<string, number> = {};
 
-      for (const filename of PKT_FILES) {
-        const filepath = join(PKT_DIR, filename);
-        const data = await readFile(filepath);
-        const buffer = new Uint8Array(data);
+      await Promise.all(
+        PKT_FILES.map(async (filename) => {
+          const filepath = join(PKT_DIR, filename);
+          const data = await readFile(filepath);
+          const buffer = new Uint8Array(data);
 
-        const version = detectPacketTracerVersion(buffer);
-        const xml =
-          version === '5.x'
-            ? decryptPacketTracer5(buffer)
-            : decryptPacketTracer7(buffer);
+          const version = detectPacketTracerVersion(buffer);
+          const xml =
+            version === '5.x'
+              ? decryptPacketTracer5(buffer)
+              : decryptPacketTracer7(buffer);
 
-        expect(xml).not.toBeNull();
+          expect(xml).not.toBeNull();
 
-        sizes[filename] = xml!.length;
-      }
+          sizes[filename] = xml!.length;
+        })
+      );
 
       // All files should decrypt to non-empty XML
       Object.values(sizes).forEach((size) => {
@@ -242,24 +241,26 @@ describe('Integration Tests - Real PKT Files', () => {
       // Most recent PT files should be 7+
       const recentFiles = ['train_1.pkt', 'security.pkt', 'dhcp.pkt'];
 
-      for (const filename of recentFiles) {
-        const filepath = join(PKT_DIR, filename);
-        const data = await readFile(filepath);
-        const buffer = new Uint8Array(data);
+      await Promise.all(
+        recentFiles.map(async (filename) => {
+          const filepath = join(PKT_DIR, filename);
+          const data = await readFile(filepath);
+          const buffer = new Uint8Array(data);
 
-        const version = detectPacketTracerVersion(buffer);
+          const version = detectPacketTracerVersion(buffer);
 
-        // Files should be detected as a valid version
-        expect(version).toMatch(/^(5\.x|7\+)$/);
+          // Files should be detected as a valid version
+          expect(version).toMatch(/^(5\.x|7\+)$/);
 
-        // Should decrypt successfully regardless of version
-        const xml =
-          version === '5.x'
-            ? decryptPacketTracer5(buffer)
-            : decryptPacketTracer7(buffer);
+          // Should decrypt successfully regardless of version
+          const xml =
+            version === '5.x'
+              ? decryptPacketTracer5(buffer)
+              : decryptPacketTracer7(buffer);
 
-        expect(xml).not.toBeNull();
-      }
+          expect(xml).not.toBeNull();
+        })
+      );
     });
   });
 
@@ -292,10 +293,11 @@ describe('Integration Tests - Real PKT Files', () => {
 
       // Decryption should fail gracefully (not crash)
       expect(() => {
-        const xml =
-          version === '5.x'
-            ? decryptPacketTracer5(empty)
-            : decryptPacketTracer7(empty);
+        if (version === '5.x') {
+          decryptPacketTracer5(empty);
+        } else {
+          decryptPacketTracer7(empty);
+        }
       }).toThrow();
     });
   });
@@ -327,31 +329,30 @@ describe('Integration Tests - Real PKT Files', () => {
     });
 
     it('should handle solution files correctly', async () => {
-      const baseFiles = [
-        'vlan_and_routing.pkt',
-        'vlan_and_routing2.pkt',
-      ];
+      const baseFiles = ['vlan_and_routing.pkt', 'vlan_and_routing2.pkt'];
       const solutionFiles = [
         'vlan_and_routing_solution.pkt',
         'vlan_and_routing2_solution.pkt',
       ];
 
       // Both base and solution files should decrypt successfully
-      for (const filename of [...baseFiles, ...solutionFiles]) {
-        const filepath = join(PKT_DIR, filename);
-        const data = await readFile(filepath);
-        const buffer = new Uint8Array(data);
+      await Promise.all(
+        [...baseFiles, ...solutionFiles].map(async (filename) => {
+          const filepath = join(PKT_DIR, filename);
+          const data = await readFile(filepath);
+          const buffer = new Uint8Array(data);
 
-        const version = detectPacketTracerVersion(buffer);
-        const xml =
-          version === '5.x'
-            ? decryptPacketTracer5(buffer)
-            : decryptPacketTracer7(buffer);
+          const version = detectPacketTracerVersion(buffer);
+          const xml =
+            version === '5.x'
+              ? decryptPacketTracer5(buffer)
+              : decryptPacketTracer7(buffer);
 
-        expect(xml).not.toBeNull();
-        expect(isValidXML(xml!)).toBe(true);
-        expect(hasPacketTracerStructure(xml!)).toBe(true);
-      }
+          expect(xml).not.toBeNull();
+          expect(isValidXML(xml!)).toBe(true);
+          expect(hasPacketTracerStructure(xml!)).toBe(true);
+        })
+      );
     });
   });
 });

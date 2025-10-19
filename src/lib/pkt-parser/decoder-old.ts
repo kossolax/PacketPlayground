@@ -18,20 +18,20 @@ import pako from 'pako';
  * @throws Error if decompression fails
  */
 export function decryptPacketTracer5(data: Uint8Array): string {
-  let length = data.length;
+  const { length } = data;
   const decrypted = new Uint8Array(length);
 
   // Step 1: XOR decryption with decreasing file length
-  for (let i = 0; i < length; i++) {
+  for (let i = 0; i < length; i += 1) {
     decrypted[i] = data[i] ^ (length - i);
   }
 
-  // Step 2: Read uncompressed size (4 bytes, big-endian)
-  const uncompressedSize =
-    (decrypted[0] << 24) |
-    (decrypted[1] << 16) |
-    (decrypted[2] << 8) |
-    decrypted[3];
+  // Step 2: Read uncompressed size (4 bytes, big-endian) - currently unused
+  // const uncompressedSize =
+  //   (decrypted[0] << 24) |
+  //   (decrypted[1] << 16) |
+  //   (decrypted[2] << 8) |
+  //   decrypted[3];
 
   // Step 3: Decompress zlib data (skip first 4 bytes)
   const compressed = decrypted.slice(4);
@@ -61,16 +61,16 @@ export function encryptPacketTracer5(xml: string): Uint8Array {
   // Step 2: Prepend uncompressed size (4 bytes, big-endian)
   const size = xmlBytes.length;
   const withSize = new Uint8Array(4 + compressed.length);
-  withSize[0] = (size >> 24) & 0xFF;
-  withSize[1] = (size >> 16) & 0xFF;
-  withSize[2] = (size >> 8) & 0xFF;
-  withSize[3] = size & 0xFF;
+  withSize[0] = (size >> 24) & 0xff;
+  withSize[1] = (size >> 16) & 0xff;
+  withSize[2] = (size >> 8) & 0xff;
+  withSize[3] = size & 0xff;
   withSize.set(compressed, 4);
 
   // Step 3: XOR encryption with decreasing length
-  let length = withSize.length;
+  const { length } = withSize;
   const encrypted = new Uint8Array(length);
-  for (let i = 0; i < length; i++) {
+  for (let i = 0; i < length; i += 1) {
     encrypted[i] = withSize[i] ^ (length - i);
   }
 

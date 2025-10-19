@@ -4,22 +4,22 @@
 
 import { describe, it, expect } from 'vitest';
 import { TwofishCipher } from './twofish';
-import { hexToBytes, bytesToHex } from './utils';
+import { hexToBytes } from './utils';
 
 describe('TwoFish Cipher', () => {
   describe('constructor', () => {
     it('should accept 16-byte key', () => {
-      const key = new Uint8Array(16).fill(0xAB);
+      const key = new Uint8Array(16).fill(0xab);
       expect(() => new TwofishCipher(key)).not.toThrow();
     });
 
     it('should accept 24-byte key', () => {
-      const key = new Uint8Array(24).fill(0xAB);
+      const key = new Uint8Array(24).fill(0xab);
       expect(() => new TwofishCipher(key)).not.toThrow();
     });
 
     it('should accept 32-byte key', () => {
-      const key = new Uint8Array(32).fill(0xAB);
+      const key = new Uint8Array(32).fill(0xab);
       expect(() => new TwofishCipher(key)).not.toThrow();
     });
 
@@ -27,8 +27,12 @@ describe('TwoFish Cipher', () => {
       const key15 = new Uint8Array(15);
       const key17 = new Uint8Array(17);
 
-      expect(() => new TwofishCipher(key15)).toThrow('must be 16, 24, or 32 bytes');
-      expect(() => new TwofishCipher(key17)).toThrow('must be 16, 24, or 32 bytes');
+      expect(() => new TwofishCipher(key15)).toThrow(
+        'must be 16, 24, or 32 bytes'
+      );
+      expect(() => new TwofishCipher(key17)).toThrow(
+        'must be 16, 24, or 32 bytes'
+      );
     });
   });
 
@@ -48,7 +52,7 @@ describe('TwoFish Cipher', () => {
     it('should produce different ciphertext for different plaintext', () => {
       const key = new Uint8Array(16).fill(0x00);
       const plaintext1 = new Uint8Array(16).fill(0x00);
-      const plaintext2 = new Uint8Array(16).fill(0xFF);
+      const plaintext2 = new Uint8Array(16).fill(0xff);
 
       const cipher = new TwofishCipher(key);
 
@@ -60,8 +64,8 @@ describe('TwoFish Cipher', () => {
 
     it('should produce different ciphertext for different keys', () => {
       const key1 = new Uint8Array(16).fill(0x00);
-      const key2 = new Uint8Array(16).fill(0xFF);
-      const plaintext = new Uint8Array(16).fill(0xAA);
+      const key2 = new Uint8Array(16).fill(0xff);
+      const plaintext = new Uint8Array(16).fill(0xaa);
 
       const cipher1 = new TwofishCipher(key1);
       const cipher2 = new TwofishCipher(key2);

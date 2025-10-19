@@ -51,7 +51,7 @@ export function generateSubkeys(cipher: BlockCipher): CMACSubkeys {
  * @returns 16-byte MAC tag
  */
 export function cmac(cipher: BlockCipher, message: Uint8Array): Uint8Array {
-  const blockSize = cipher.blockSize;
+  const { blockSize } = cipher;
 
   // Step 1: Generate subkeys
   const { K1, K2 } = generateSubkeys(cipher);
@@ -63,7 +63,7 @@ export function cmac(cipher: BlockCipher, message: Uint8Array): Uint8Array {
   // Step 3: Process all blocks except the last one
   const blocks: Uint8Array[] = [];
 
-  for (let i = 0; i < n - 1; i++) {
+  for (let i = 0; i < n - 1; i += 1) {
     const block = message.slice(i * blockSize, (i + 1) * blockSize);
     blocks.push(block);
   }
@@ -92,10 +92,10 @@ export function cmac(cipher: BlockCipher, message: Uint8Array): Uint8Array {
   // Step 5: Apply CBC-MAC
   let mac = new Uint8Array(blockSize); // IV = 0
 
-  for (const block of blocks) {
+  blocks.forEach((block) => {
     const input = xor(mac, block);
     mac = cipher.encrypt(input);
-  }
+  });
 
   return mac;
 }

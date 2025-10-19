@@ -59,9 +59,21 @@ export default [
     },
   },
   {
-    files: ['**/*.test.{ts,tsx}', '**/test-utils/**/*.{ts,tsx}', '**/*-test-helpers.{ts,tsx}'],
+    files: [
+      '**/*.test.{ts,tsx}',
+      '**/test-utils/**/*.{ts,tsx}',
+      '**/*-test-helpers.{ts,tsx}',
+    ],
     rules: {
       'import/no-extraneous-dependencies': ['error', { devDependencies: true }],
+      'no-console': 'off',
+      'no-underscore-dangle': 'off',
+    },
+  },
+  {
+    files: ['src/lib/pkt-parser/**/*.{ts,tsx}'],
+    rules: {
+      'no-bitwise': 'off', // Bitwise operations are essential for cryptography
     },
   },
 ];

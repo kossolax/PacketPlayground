@@ -16,6 +16,15 @@ import type { BlockCipher } from './types';
 import { incrementCounter } from './utils';
 
 /**
+ * Type for CTR mode function signature
+ */
+export type CTRFunction = (
+  cipher: BlockCipher,
+  nonce: Uint8Array,
+  data: Uint8Array
+) => Uint8Array;
+
+/**
  * CTR mode encryption/decryption
  *
  * Algorithm (NIST SP 800-38A, Section 6.5):
@@ -32,12 +41,12 @@ import { incrementCounter } from './utils';
  * @param data Data to encrypt/decrypt
  * @returns Encrypted/decrypted data
  */
-export function ctr(
+export const ctr: CTRFunction = (
   cipher: BlockCipher,
   nonce: Uint8Array,
   data: Uint8Array
-): Uint8Array {
-  const blockSize = cipher.blockSize;
+): Uint8Array => {
+  const { blockSize } = cipher;
 
   if (nonce.length !== blockSize) {
     throw new Error(
@@ -57,7 +66,7 @@ export function ctr(
 
     // XOR data with keystream (handle last partial block)
     const blockLength = Math.min(blockSize, data.length - i);
-    for (let j = 0; j < blockLength; j++) {
+    for (let j = 0; j < blockLength; j += 1) {
       result[i + j] = data[i + j] ^ keystream[j];
     }
 
@@ -66,4 +75,4 @@ export function ctr(
   }
 
   return result;
-}
+};

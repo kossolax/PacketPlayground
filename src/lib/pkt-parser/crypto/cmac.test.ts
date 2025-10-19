@@ -5,7 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import { cmac, generateSubkeys } from './cmac';
 import { TwofishCipher } from './twofish';
-import { hexToBytes, bytesToHex } from './utils';
+import { hexToBytes } from './utils';
 
 describe('CMAC', () => {
   describe('generateSubkeys', () => {
@@ -24,7 +24,7 @@ describe('CMAC', () => {
     });
 
     it('should generate consistent subkeys for same key', () => {
-      const key = new Uint8Array(16).fill(0xAB);
+      const key = new Uint8Array(16).fill(0xab);
       const cipher1 = new TwofishCipher(key);
       const cipher2 = new TwofishCipher(key);
 
@@ -37,7 +37,7 @@ describe('CMAC', () => {
 
     it('should generate different subkeys for different keys', () => {
       const key1 = new Uint8Array(16).fill(0x00);
-      const key2 = new Uint8Array(16).fill(0xFF);
+      const key2 = new Uint8Array(16).fill(0xff);
 
       const cipher1 = new TwofishCipher(key1);
       const cipher2 = new TwofishCipher(key2);
@@ -110,7 +110,7 @@ describe('CMAC', () => {
 
     it('should produce different MAC for different keys', () => {
       const key1 = new Uint8Array(16).fill(0x00);
-      const key2 = new Uint8Array(16).fill(0xFF);
+      const key2 = new Uint8Array(16).fill(0xff);
 
       const cipher1 = new TwofishCipher(key1);
       const cipher2 = new TwofishCipher(key2);
@@ -126,7 +126,7 @@ describe('CMAC', () => {
     it('should handle message length = blockSize - 1 (padding)', () => {
       const key = new Uint8Array(16).fill(0x00);
       const cipher = new TwofishCipher(key);
-      const message = new Uint8Array(15).fill(0xAA);
+      const message = new Uint8Array(15).fill(0xaa);
 
       const mac = cmac(cipher, message);
 
@@ -136,7 +136,7 @@ describe('CMAC', () => {
     it('should handle message length = blockSize + 1 (padding)', () => {
       const key = new Uint8Array(16).fill(0x00);
       const cipher = new TwofishCipher(key);
-      const message = new Uint8Array(17).fill(0xBB);
+      const message = new Uint8Array(17).fill(0xbb);
 
       const mac = cmac(cipher, message);
 
@@ -146,7 +146,7 @@ describe('CMAC', () => {
     it('should handle multi-block message', () => {
       const key = new Uint8Array(16).fill(0x00);
       const cipher = new TwofishCipher(key);
-      const message = new Uint8Array(64).fill(0xCC); // 4 blocks
+      const message = new Uint8Array(64).fill(0xcc); // 4 blocks
 
       const mac = cmac(cipher, message);
 

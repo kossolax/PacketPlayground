@@ -12,11 +12,13 @@
  */
 export function xor(a: Uint8Array, b: Uint8Array): Uint8Array {
   if (a.length !== b.length) {
-    throw new Error(`XOR: buffers must have same length (got ${a.length} and ${b.length})`);
+    throw new Error(
+      `XOR: buffers must have same length (got ${a.length} and ${b.length})`
+    );
   }
 
   const result = new Uint8Array(a.length);
-  for (let i = 0; i < a.length; i++) {
+  for (let i = 0; i < a.length; i += 1) {
     result[i] = a[i] ^ b[i];
   }
 
@@ -33,10 +35,10 @@ export function concat(...buffers: Uint8Array[]): Uint8Array {
   const result = new Uint8Array(totalLength);
 
   let offset = 0;
-  for (const buffer of buffers) {
+  buffers.forEach((buffer) => {
     result.set(buffer, offset);
     offset += buffer.length;
-  }
+  });
 
   return result;
 }
@@ -50,16 +52,18 @@ export function concat(...buffers: Uint8Array[]): Uint8Array {
  */
 export function doubleGF128(block: Uint8Array): Uint8Array {
   if (block.length !== 16) {
-    throw new Error(`doubleGF128: block must be 16 bytes (got ${block.length})`);
+    throw new Error(
+      `doubleGF128: block must be 16 bytes (got ${block.length})`
+    );
   }
 
   const result = new Uint8Array(16);
   let carry = 0;
 
   // Shift left by 1 bit (process from right to left for big-endian)
-  for (let i = 15; i >= 0; i--) {
+  for (let i = 15; i >= 0; i -= 1) {
     const newCarry = (block[i] & 0x80) !== 0 ? 1 : 0;
-    result[i] = ((block[i] << 1) | carry) & 0xFF;
+    result[i] = ((block[i] << 1) | carry) & 0xff;
     carry = newCarry;
   }
 
@@ -80,8 +84,9 @@ export function doubleGF128(block: Uint8Array): Uint8Array {
  */
 export function incrementCounter(counter: Uint8Array): void {
   // Increment from right to left (big-endian)
-  for (let i = counter.length - 1; i >= 0; i--) {
-    counter[i]++;
+  for (let i = counter.length - 1; i >= 0; i -= 1) {
+    // eslint-disable-next-line no-param-reassign
+    counter[i] += 1;
     if (counter[i] !== 0) {
       // No overflow, stop
       break;
@@ -104,7 +109,7 @@ export function constantTimeEqual(a: Uint8Array, b: Uint8Array): boolean {
   }
 
   let diff = 0;
-  for (let i = 0; i < a.length; i++) {
+  for (let i = 0; i < a.length; i += 1) {
     diff |= a[i] ^ b[i];
   }
 
@@ -139,6 +144,7 @@ export function padISO9797(data: Uint8Array, blockSize: number): Uint8Array {
  */
 export function hexToBytes(hex: string): Uint8Array {
   // Remove spaces and convert to lowercase
+  // eslint-disable-next-line no-param-reassign
   hex = hex.replace(/\s/g, '').toLowerCase();
 
   if (hex.length % 2 !== 0) {

@@ -11,6 +11,9 @@ import {
 } from 'twofish-ts';
 import type { BlockCipher } from './types';
 
+// Re-export BlockCipher type for convenience
+export type { BlockCipher };
+
 /**
  * TwoFish block cipher implementation (128-bit blocks)
  */

@@ -27,16 +27,16 @@ const PT7_NONCE = new Uint8Array(16).fill(16); // { 16, 16, ..., 16 }
  * @returns Deobfuscated data
  */
 function deobfuscate1(input: Uint8Array): Uint8Array {
-  const length = input.length;
+  const { length } = input;
   const output = new Uint8Array(length);
 
-  for (let i = 0; i < length; i++) {
+  for (let i = 0; i < length; i += 1) {
     // Reverse index: length + ~i = length - i - 1
     const reverseIndex = length - i - 1;
 
     // XOR key: (length - i * length) & 0xFF
     // This will overflow intentionally - keep only low byte
-    const xorKey = (length - i * length) & 0xFF;
+    const xorKey = (length - i * length) & 0xff;
 
     output[i] = input[reverseIndex] ^ xorKey;
   }
@@ -52,10 +52,10 @@ function deobfuscate1(input: Uint8Array): Uint8Array {
  * @returns Deobfuscated data
  */
 function deobfuscate2(input: Uint8Array): Uint8Array {
-  const length = input.length;
+  const { length } = input;
   const output = new Uint8Array(length);
 
-  for (let i = 0; i < length; i++) {
+  for (let i = 0; i < length; i += 1) {
     output[i] = input[i] ^ (length - i);
   }
 
@@ -71,9 +71,9 @@ function deobfuscate2(input: Uint8Array): Uint8Array {
  * @returns Decompressed XML string
  */
 function decompressZlib(input: Uint8Array): string {
-  // Read uncompressed size (big-endian)
-  const uncompressedSize =
-    (input[0] << 24) | (input[1] << 16) | (input[2] << 8) | input[3];
+  // Read uncompressed size (big-endian) - currently unused
+  // const uncompressedSize =
+  //   (input[0] << 24) | (input[1] << 16) | (input[2] << 8) | input[3];
 
   // Decompress (skip first 4 bytes)
   const compressed = input.slice(4);
@@ -164,10 +164,10 @@ function obfuscate2(input: Uint8Array): Uint8Array {
  * @returns Obfuscated data
  */
 function obfuscate1(input: Uint8Array): Uint8Array {
-  const length = input.length;
+  const { length } = input;
   const output = new Uint8Array(length);
 
-  for (let i = 0; i < length; i++) {
+  for (let i = 0; i < length; i += 1) {
     const reverseIndex = length - i - 1;
     const xorKey = (length - i * length) & 0xff;
 
@@ -215,14 +215,14 @@ export function encryptPacketTracer7(xml: string): Uint8Array {
  * @returns Version ('5.x' or '7+')
  */
 export function detectPacketTracerVersion(data: Uint8Array): '5.x' | '7+' {
-  const length = data.length;
+  const { length } = data;
 
   // After simple XOR (PT 5.x), bytes 4-5 should be zlib headers (0x78, 0x9C or 0x78, 0xDA)
   const byte4 = data[4] ^ (length - 4);
   const byte5 = data[5] ^ (length - 5);
 
   // Check for zlib magic bytes
-  if (byte4 === 0x78 && (byte5 === 0x9C || byte5 === 0xDA || byte5 === 0x01)) {
+  if (byte4 === 0x78 && (byte5 === 0x9c || byte5 === 0xda || byte5 === 0x01)) {
     return '5.x';
   }
 

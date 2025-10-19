@@ -12,7 +12,8 @@ import {
 describe('Packet Tracer 7+ Decoder', () => {
   describe('encrypt/decrypt roundtrip', () => {
     it('should encrypt and decrypt small XML correctly', () => {
-      const xml = '<PACKETTRACER5 VERSION="7.3"><NETWORK></NETWORK></PACKETTRACER5>';
+      const xml =
+        '<PACKETTRACER5 VERSION="7.3"><NETWORK></NETWORK></PACKETTRACER5>';
 
       const encrypted = encryptPacketTracer7(xml);
       expect(encrypted.length).toBeGreaterThan(0);
@@ -40,11 +41,12 @@ describe('Packet Tracer 7+ Decoder', () => {
 
     it('should encrypt and decrypt large XML correctly', () => {
       // Generate a larger XML with many devices
-      const devices = Array.from({ length: 50 }, (_, i) => {
-        return `    <DEVICE name="Device${i}" type="router">
+      const devices = Array.from(
+        { length: 50 },
+        (_, i) => `    <DEVICE name="Device${i}" type="router">
       <INTERFACE name="Eth0" ip="192.168.${i}.1" mask="255.255.255.0"/>
-    </DEVICE>`;
-      }).join('\n');
+    </DEVICE>`
+      ).join('\n');
 
       const xml = `<PACKETTRACER5 VERSION="7.3">
   <NETWORK>
@@ -58,7 +60,8 @@ ${devices}
     });
 
     it('should handle XML with special characters', () => {
-      const xml = '<PACKETTRACER5 VERSION="7.3"><NETWORK desc="Test &amp; &lt;special&gt; chars \u00e9\u00e0\u00fc"></NETWORK></PACKETTRACER5>';
+      const xml =
+        '<PACKETTRACER5 VERSION="7.3"><NETWORK desc="Test &amp; &lt;special&gt; chars \u00e9\u00e0\u00fc"></NETWORK></PACKETTRACER5>';
 
       const encrypted = encryptPacketTracer7(xml);
       const decrypted = decryptPacketTracer7(encrypted);
@@ -84,8 +87,10 @@ ${devices}
 
   describe('encryption properties', () => {
     it('should produce different ciphertext for different XML', () => {
-      const xml1 = '<PACKETTRACER5 VERSION="7.3"><NETWORK></NETWORK></PACKETTRACER5>';
-      const xml2 = '<PACKETTRACER5 VERSION="8.0"><NETWORK></NETWORK></PACKETTRACER5>';
+      const xml1 =
+        '<PACKETTRACER5 VERSION="7.3"><NETWORK></NETWORK></PACKETTRACER5>';
+      const xml2 =
+        '<PACKETTRACER5 VERSION="8.0"><NETWORK></NETWORK></PACKETTRACER5>';
 
       const encrypted1 = encryptPacketTracer7(xml1);
       const encrypted2 = encryptPacketTracer7(xml2);
@@ -94,7 +99,8 @@ ${devices}
     });
 
     it('should produce deterministic encryption', () => {
-      const xml = '<PACKETTRACER5 VERSION="7.3"><NETWORK></NETWORK></PACKETTRACER5>';
+      const xml =
+        '<PACKETTRACER5 VERSION="7.3"><NETWORK></NETWORK></PACKETTRACER5>';
 
       const encrypted1 = encryptPacketTracer7(xml);
       const encrypted2 = encryptPacketTracer7(xml);
@@ -115,12 +121,13 @@ ${devices}
 
   describe('authentication', () => {
     it('should detect tampered ciphertext', () => {
-      const xml = '<PACKETTRACER5 VERSION="7.3"><NETWORK></NETWORK></PACKETTRACER5>';
+      const xml =
+        '<PACKETTRACER5 VERSION="7.3"><NETWORK></NETWORK></PACKETTRACER5>';
 
       const encrypted = encryptPacketTracer7(xml);
 
       // Tamper with a byte in the middle
-      encrypted[encrypted.length / 2 | 0] ^= 0xFF;
+      encrypted[(encrypted.length / 2) | 0] ^= 0xff;
 
       const decrypted = decryptPacketTracer7(encrypted);
 
@@ -129,7 +136,8 @@ ${devices}
     });
 
     it('should detect tampered tag', () => {
-      const xml = '<PACKETTRACER5 VERSION="7.3"><NETWORK></NETWORK></PACKETTRACER5>';
+      const xml =
+        '<PACKETTRACER5 VERSION="7.3"><NETWORK></NETWORK></PACKETTRACER5>';
 
       const encrypted = encryptPacketTracer7(xml);
 
@@ -143,7 +151,8 @@ ${devices}
     });
 
     it('should detect truncated data', () => {
-      const xml = '<PACKETTRACER5 VERSION="7.3"><NETWORK></NETWORK></PACKETTRACER5>';
+      const xml =
+        '<PACKETTRACER5 VERSION="7.3"><NETWORK></NETWORK></PACKETTRACER5>';
 
       const encrypted = encryptPacketTracer7(xml);
 
@@ -159,7 +168,8 @@ ${devices}
 
   describe('version detection', () => {
     it('should detect PT 7+ format', () => {
-      const xml = '<PACKETTRACER5 VERSION="7.3"><NETWORK></NETWORK></PACKETTRACER5>';
+      const xml =
+        '<PACKETTRACER5 VERSION="7.3"><NETWORK></NETWORK></PACKETTRACER5>';
       const encrypted = encryptPacketTracer7(xml);
 
       const version = detectPacketTracerVersion(encrypted);
@@ -173,7 +183,7 @@ ${devices}
 
       // Set bytes so that after XOR with (length - i), we get zlib headers
       data[4] = 0x78 ^ (length - 4); // Zlib magic byte 1
-      data[5] = 0x9C ^ (length - 5); // Zlib magic byte 2
+      data[5] = 0x9c ^ (length - 5); // Zlib magic byte 2
 
       const version = detectPacketTracerVersion(data);
       expect(version).toBe('5.x');
@@ -184,14 +194,14 @@ ${devices}
       const data = new Uint8Array(length);
 
       data[4] = 0x78 ^ (length - 4);
-      data[5] = 0xDA ^ (length - 5); // Alternate zlib compression level
+      data[5] = 0xda ^ (length - 5); // Alternate zlib compression level
 
       const version = detectPacketTracerVersion(data);
       expect(version).toBe('5.x');
     });
 
     it('should default to PT 7+ for ambiguous data', () => {
-      const data = new Uint8Array(100).fill(0xFF);
+      const data = new Uint8Array(100).fill(0xff);
 
       const version = detectPacketTracerVersion(data);
       expect(version).toBe('7+');
@@ -232,7 +242,8 @@ ${devices}
     });
 
     it('should handle UTF-8 encoded XML', () => {
-      const xml = '<PACKETTRACER5 desc="\u4e2d\u6587 \u65e5\u672c\u8a9e \ud55c\uae00 \u0420\u0443\u0441\u0441\u043a\u0438\u0439"/>';
+      const xml =
+        '<PACKETTRACER5 desc="\u4e2d\u6587 \u65e5\u672c\u8a9e \ud55c\uae00 \u0420\u0443\u0441\u0441\u043a\u0438\u0439"/>';
 
       const encrypted = encryptPacketTracer7(xml);
       const decrypted = decryptPacketTracer7(encrypted);

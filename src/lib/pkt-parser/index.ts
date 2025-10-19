@@ -8,12 +8,24 @@
  */
 
 // Decoders
-export { decryptPacketTracer5, encryptPacketTracer5 } from './decoder-old';
-export {
-  decryptPacketTracer7,
+import {
+  decryptPacketTracer5 as decrypt5,
+  encryptPacketTracer5,
+} from './decoder-old';
+import {
+  decryptPacketTracer7 as decrypt7,
   encryptPacketTracer7,
-  detectPacketTracerVersion,
+  detectPacketTracerVersion as detectVersion,
 } from './decoder';
+
+// Re-export for external use
+export {
+  decrypt5 as decryptPacketTracer5,
+  encryptPacketTracer5,
+  decrypt7 as decryptPacketTracer7,
+  encryptPacketTracer7,
+  detectVersion as detectPacketTracerVersion,
+};
 
 // Crypto primitives (for advanced usage)
 export * from './crypto';
@@ -26,20 +38,13 @@ export * from './crypto';
  * @throws Error if decryption fails
  */
 export function decryptPacketTracerFile(data: Uint8Array): string {
-  // Import locally to avoid circular dependencies
-  const {
-    detectPacketTracerVersion,
-    decryptPacketTracer7,
-  } = require('./decoder');
-  const { decryptPacketTracer5 } = require('./decoder-old');
-
-  const version = detectPacketTracerVersion(data);
+  const version = detectVersion(data);
 
   if (version === '5.x') {
-    return decryptPacketTracer5(data);
+    return decrypt5(data);
   }
 
-  const result = decryptPacketTracer7(data);
+  const result = decrypt7(data);
 
   if (result === null) {
     throw new Error('Failed to decrypt PT 7+ file: authentication failed');
