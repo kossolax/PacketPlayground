@@ -1,5 +1,5 @@
 import React, { Suspense } from 'react';
-import { Link, Outlet } from 'react-router-dom';
+import { Link, Outlet, useMatches } from 'react-router-dom';
 
 import LoadingAnimation from '@/components/LoadingAnimation';
 
@@ -69,6 +69,15 @@ function renderBreadcrumbList(breadcrumbs: BreadcrumbItemType[]) {
 
 export default function Layout() {
   const { breadcrumbs } = useBreadcrumb();
+  const matches = useMatches();
+
+  // Check if current route has fullWidth handle
+  const currentRoute = matches[matches.length - 1];
+  const isFullWidth =
+    currentRoute?.handle &&
+    typeof currentRoute.handle === 'object' &&
+    'fullWidth' in currentRoute.handle &&
+    currentRoute.handle.fullWidth === true;
 
   return (
     <SidebarProvider
@@ -96,11 +105,17 @@ export default function Layout() {
           <ThemeToggle />
         </header>
         <main className="flex-1 overflow-auto">
-          <div className="max-w-6xl mx-auto p-6 space-y-6">
+          {isFullWidth ? (
             <Suspense fallback={<LoadingAnimation fullScreen={false} />}>
               <Outlet />
             </Suspense>
-          </div>
+          ) : (
+            <div className="max-w-6xl mx-auto p-6 space-y-6">
+              <Suspense fallback={<LoadingAnimation fullScreen={false} />}>
+                <Outlet />
+              </Suspense>
+            </div>
+          )}
         </main>
       </SidebarInset>
     </SidebarProvider>

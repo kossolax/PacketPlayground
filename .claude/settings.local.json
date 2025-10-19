@@ -25,7 +25,8 @@
       "Bash(find src/lib/pkt-parser -name \"*.ts\" -not -name \"*.test.ts\" -exec sed -i 's/i++/i += 1/g; s/i--/i -= 1/g' {} ;)",
       "Bash(find src/lib/pkt-parser -name \"*.ts\" -not -name \"*.test.ts\" -exec sed -i 's/counter\\[i\\]++/counter[i] += 1/g; s/length++/length += 1/g' {} ;)",
       "Bash(find src/lib/pkt-parser -name \"*.ts\" -not -name \"*.test.ts\" -exec grep -l \"j++\" {} ;)",
-      "Bash(find src/lib/pkt-parser -name \"*.ts\" -not -name \"*.test.ts\" -exec sed -i 's/j++/j += 1/g; s/j--/j -= 1/g' {} ;)"
+      "Bash(find src/lib/pkt-parser -name \"*.ts\" -not -name \"*.test.ts\" -exec sed -i 's/j++/j += 1/g; s/j--/j -= 1/g' {} ;)",
+      "Bash(npm install @xyflow/react fast-xml-parser)"
     ],
     "deny": [],
     "ask": []

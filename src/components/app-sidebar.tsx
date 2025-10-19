@@ -12,6 +12,7 @@ import {
   Settings,
   Square,
   Truck,
+  Workflow,
   Zap,
 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
@@ -149,6 +150,11 @@ const developmentItems: SidebarItem[] = [
     title: 'Theme',
     url: '/theme',
     icon: FileOutput,
+  },
+  {
+    title: 'Network Diagram',
+    url: '/network-diagram',
+    icon: Workflow,
   },
 ];
 

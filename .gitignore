@@ -50,3 +50,5 @@ Thumbs.db
 *.pem
 *.cert
 *.key
+
+netflow
