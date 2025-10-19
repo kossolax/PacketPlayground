@@ -5,11 +5,12 @@
 
 /* eslint-disable import/prefer-default-export */
 
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import {
   useNodesState,
   useEdgesState,
   addEdge,
+  useReactFlow,
   type Node,
   type Edge,
   type Connection,
@@ -37,6 +38,7 @@ interface UseNetworkEditorReturn {
 export function useNetworkEditor(): UseNetworkEditorReturn {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+  const { fitView } = useReactFlow();
 
   const loadTopology = useCallback(
     (topology: NetworkTopology) => {
@@ -69,6 +71,21 @@ export function useNetworkEditor(): UseNetworkEditorReturn {
     },
     [setNodes, setEdges]
   );
+
+  // Auto-fit view when nodes are loaded
+  useEffect(() => {
+    if (nodes.length > 0) {
+      setTimeout(() => {
+        fitView({
+          padding: 0.2,
+          duration: 0,
+          includeHiddenNodes: false,
+          maxZoom: 1.5,
+          minZoom: 0.1,
+        });
+      }, 100);
+    }
+  }, [nodes.length, fitView]);
 
   const addDevice = useCallback(
     (device: Device) => {

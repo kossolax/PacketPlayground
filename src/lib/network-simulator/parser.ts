@@ -74,6 +74,12 @@ function parseDevices(root: any): Device[] {
           return null;
         }
 
+        // Filter out infrastructure devices that are not part of the network topology
+        const typeLower = typeText.toLowerCase();
+        if (typeLower === 'power distribution device') {
+          return null;
+        }
+
         const type = mapPacketTracerType(typeText);
         const interfaces = parseInterfaces(deviceNode.ENGINE);
 
@@ -218,13 +224,44 @@ function parseLinks(root: any, devices: Device[]): Link[] {
           }
         }
 
+        // Determine cable type based on device types
+        const sourceDeviceType = sourceDevice.type;
+        const targetDeviceType = targetDevice.type;
+
+        // Group device types for cable detection
+        const isSourceEndDevice = [
+          'pc',
+          'laptop',
+          'server',
+          'printer',
+        ].includes(sourceDeviceType);
+        const isTargetEndDevice = [
+          'pc',
+          'laptop',
+          'server',
+          'printer',
+        ].includes(targetDeviceType);
+
+        // Determine cable type (crossover vs straight)
+        let cableType: string;
+        if (
+          (isSourceEndDevice && isTargetEndDevice) ||
+          (sourceDeviceType === 'router' && targetDeviceType === 'router') ||
+          (sourceDeviceType === 'switch' && targetDeviceType === 'switch') ||
+          (sourceDeviceType === 'hub' && targetDeviceType === 'hub')
+        ) {
+          cableType = 'crossover';
+        } else {
+          cableType = 'straight';
+        }
+
         return {
           id: `link-${index}`,
           sourceGuid,
           targetGuid,
           sourcePort,
           targetPort,
-          cableType: 'straight',
+          cableType,
           length: length ? parseFloat(length) : undefined,
         };
       } catch {

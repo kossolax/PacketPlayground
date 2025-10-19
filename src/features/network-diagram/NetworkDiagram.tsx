@@ -13,20 +13,33 @@ import DeviceToolbar from './components/DeviceToolbar';
 import NetworkCanvas from './components/NetworkCanvas';
 import { useNetworkFile } from './hooks/useNetworkFile';
 import { useNetworkEditor } from './hooks/useNetworkEditor';
-import type { DeviceType } from '@/lib/network-simulator';
+import type { DeviceType, NetworkTopology } from '@/lib/network-simulator';
 
-export default function NetworkDiagram() {
+/**
+ * NetworkDiagramContent - Inner component that uses ReactFlow hooks
+ * Must be a child of ReactFlowProvider
+ */
+interface NetworkDiagramContentProps {
+  topology: NetworkTopology | null;
+  filename: string | null;
+  isLoading: boolean;
+  error: string | null;
+  handleFileUpload: (file: File) => Promise<void>;
+  startEmpty: () => void;
+}
+
+function NetworkDiagramContent({
+  topology,
+  filename,
+  isLoading,
+  error,
+  handleFileUpload,
+  startEmpty,
+}: NetworkDiagramContentProps) {
   const [selectedDevice, setSelectedDevice] = useState<DeviceType | null>(null);
-  const { setBreadcrumbs } = useBreadcrumb();
   const { setOpen, isMobile } = useSidebar();
   const hasCollapsedSidebar = useRef(false);
-
-  useEffect(() => {
-    setBreadcrumbs('Development', 'Network Diagram');
-  }, [setBreadcrumbs]);
-
-  const { topology, filename, isLoading, error, handleFileUpload, startEmpty } =
-    useNetworkFile();
+  const lastLoadedFilename = useRef<string | null>(null);
 
   const {
     nodes,
@@ -40,8 +53,12 @@ export default function NetworkDiagram() {
 
   useEffect(() => {
     if (topology) {
-      loadTopology(topology);
-      toast.success(`Loaded: ${filename}`);
+      // Only load if this is a new file to avoid double loading
+      if (lastLoadedFilename.current !== filename) {
+        loadTopology(topology);
+        toast.success(`Loaded: ${filename}`);
+        lastLoadedFilename.current = filename;
+      }
 
       // Collapse sidebar on desktop when topology is loaded (only once)
       if (!isMobile && !hasCollapsedSidebar.current) {
@@ -51,6 +68,7 @@ export default function NetworkDiagram() {
     } else {
       // Reset when returning to upload state
       hasCollapsedSidebar.current = false;
+      lastLoadedFilename.current = null;
     }
   }, [topology, filename, loadTopology, isMobile, setOpen]);
 
@@ -86,18 +104,16 @@ export default function NetworkDiagram() {
           selectedDevice={selectedDevice}
         />
 
-        <ReactFlowProvider>
-          <NetworkCanvas
-            nodes={nodes}
-            edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            onAddDevice={addDevice}
-            selectedDevice={selectedDevice}
-            onDeviceAdded={handleDeviceAdded}
-          />
-        </ReactFlowProvider>
+        <NetworkCanvas
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          onAddDevice={addDevice}
+          selectedDevice={selectedDevice}
+          onDeviceAdded={handleDeviceAdded}
+        />
       </div>
 
       {selectedDevice && (
@@ -106,5 +122,33 @@ export default function NetworkDiagram() {
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * NetworkDiagram - Main page component
+ * Wraps everything in ReactFlowProvider
+ */
+export default function NetworkDiagram() {
+  const { setBreadcrumbs } = useBreadcrumb();
+
+  useEffect(() => {
+    setBreadcrumbs('Development', 'Network Diagram');
+  }, [setBreadcrumbs]);
+
+  const { topology, filename, isLoading, error, handleFileUpload, startEmpty } =
+    useNetworkFile();
+
+  return (
+    <ReactFlowProvider>
+      <NetworkDiagramContent
+        topology={topology}
+        filename={filename}
+        isLoading={isLoading}
+        error={error}
+        handleFileUpload={handleFileUpload}
+        startEmpty={startEmpty}
+      />
+    </ReactFlowProvider>
   );
 }

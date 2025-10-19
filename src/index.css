@@ -221,3 +221,16 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* ReactFlow fixes for Tailwind CSS compatibility */
+.react-flow__edges {
+  overflow: visible !important;
+}
+
+.react-flow__edge-path {
+  stroke-width: 1.5;
+}
+
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke-width: 2.5;
+}
