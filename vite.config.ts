@@ -45,6 +45,7 @@ export default defineConfig(({ mode }) => {
         '**/*.old/**',
         '**/src/components/ui/**',
         '**/src/lib/simulation-test-helpers.test.ts',
+        '**/netflow/**',
       ],
       globals: true,
       setupFiles: './vitest-setup.ts',

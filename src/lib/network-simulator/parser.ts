@@ -3,153 +3,12 @@
  * Converts decrypted PKT/PKA XML to NetworkTopology
  */
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/no-use-before-define */
-/* eslint-disable prefer-destructuring */
-/* eslint-disable import/prefer-default-export */
-
 import { XMLParser } from 'fast-xml-parser';
 import type { Device, Link, NetworkInterface, NetworkTopology } from './types';
 import { mapPacketTracerType } from './devices';
 
-/**
- * Parse Packet Tracer XML to NetworkTopology
- *
- * @param xml Decrypted XML string from PKT/PKA file
- * @returns NetworkTopology object ready for ReactFlow
- */
-export function parsePacketTracerXML(xml: string): NetworkTopology {
-  const parser = new XMLParser({
-    ignoreAttributes: false,
-    attributeNamePrefix: '@_',
-    textNodeName: '#text',
-  });
-
-  const jsonObj = parser.parse(xml);
-
-  let root;
-  if (jsonObj.PACKETTRACER5) {
-    root = jsonObj.PACKETTRACER5;
-  } else if (jsonObj.PACKETTRACER5_ACTIVITY) {
-    root = jsonObj.PACKETTRACER5_ACTIVITY.PACKETTRACER5[0];
-  } else {
-    throw new Error('Invalid Packet Tracer file format');
-  }
-
-  const devices = parseDevices(root);
-  const links = parseLinks(root, devices);
-
-  return {
-    devices,
-    links,
-    metadata: {
-      version: root.VERSION?.['#text'] || 'unknown',
-    },
-  };
-}
-
-/**
- * Parse devices from PKT XML
- */
-function parseDevices(root: any): Device[] {
-  const devicesArray = root.NETWORK?.DEVICES?.DEVICE;
-
-  if (!devicesArray) {
-    return [];
-  }
-
-  const devicesList = Array.isArray(devicesArray)
-    ? devicesArray
-    : [devicesArray];
-
-  return devicesList
-    .map((deviceNode: any): Device | null => {
-      try {
-        const guid = deviceNode.ENGINE?.SAVE_REF_ID;
-        const typeText = deviceNode.ENGINE?.TYPE?.['#text'];
-        const x = parseFloat(deviceNode.WORKSPACE?.LOGICAL?.X || 0);
-        const y = parseFloat(deviceNode.WORKSPACE?.LOGICAL?.Y || 0);
-
-        if (!guid || !typeText) {
-          return null;
-        }
-
-        // Filter out infrastructure devices that are not part of the network topology
-        const typeLower = typeText.toLowerCase();
-        if (typeLower === 'power distribution device') {
-          return null;
-        }
-
-        const type = mapPacketTracerType(typeText);
-        const interfaces = parseInterfaces(deviceNode.ENGINE);
-
-        return {
-          guid,
-          name: typeText,
-          type,
-          x,
-          y,
-          interfaces,
-        };
-      } catch {
-        return null;
-      }
-    })
-    .filter((device): device is Device => device !== null);
-}
-
-/**
- * Parse interfaces (ports) from device
- */
-function parseInterfaces(engineNode: any): NetworkInterface[] {
-  const interfaces: NetworkInterface[] = [];
-
-  function parseModule(module: any, depth: number[] = []) {
-    if (!module) return;
-
-    if (module.PORT) {
-      const ports = Array.isArray(module.PORT) ? module.PORT : [module.PORT];
-      let lastType = '';
-      let portIndex = 0;
-
-      ports.forEach((port: any) => {
-        const portType = port.TYPE;
-        if (!portType) return;
-
-        if (portType !== lastType) {
-          portIndex = 0;
-        }
-        lastType = portType;
-
-        const name = buildPortName(portType, [...depth, portIndex]);
-        portIndex += 1;
-
-        interfaces.push({
-          name,
-          type: portType,
-          isConnected: false,
-        });
-      });
-    }
-
-    if (module.SLOT) {
-      const slots = Array.isArray(module.SLOT) ? module.SLOT : [module.SLOT];
-
-      slots.forEach((slot: any, index: number) => {
-        const slotType = slot.TYPE;
-        if (slotType === 'ePtHostModule') {
-          parseModule(slot, depth);
-        } else {
-          parseModule(slot, [...depth, index]);
-        }
-      });
-    }
-  }
-
-  parseModule(engineNode.MODULE);
-
-  return interfaces;
-}
+// Type for parsed XML nodes
+export type XMLNode = Record<string, unknown>;
 
 /**
  * Build port name from type and depth
@@ -173,10 +32,148 @@ function buildPortName(portType: string, depth: number[]): string {
 }
 
 /**
+ * Parse interfaces (ports) from device
+ */
+function parseInterfaces(engineNode: XMLNode): NetworkInterface[] {
+  const interfaces: NetworkInterface[] = [];
+
+  function parseModule(module: XMLNode, depth: number[] = []) {
+    if (!module) return;
+
+    const modulePort = (module as Record<string, unknown>).PORT;
+    if (modulePort) {
+      const ports = Array.isArray(modulePort) ? modulePort : [modulePort];
+      let lastType = '';
+      let portIndex = 0;
+
+      ports.forEach((port: XMLNode) => {
+        const portType = (port as Record<string, unknown>).TYPE as string;
+        if (!portType) return;
+
+        if (portType !== lastType) {
+          portIndex = 0;
+        }
+        lastType = portType;
+
+        const name = buildPortName(portType, [...depth, portIndex]);
+        portIndex += 1;
+
+        interfaces.push({
+          name,
+          type: portType,
+          isConnected: false,
+        });
+      });
+    }
+
+    const moduleSlot = (module as Record<string, unknown>).SLOT;
+    if (moduleSlot) {
+      const slots = Array.isArray(moduleSlot) ? moduleSlot : [moduleSlot];
+
+      slots.forEach((slot: XMLNode, index: number) => {
+        const slotType = (slot as Record<string, unknown>).TYPE as string;
+        if (slotType === 'ePtHostModule') {
+          parseModule(slot, depth);
+        } else {
+          parseModule(slot, [...depth, index]);
+        }
+      });
+    }
+  }
+
+  const engineModule = (engineNode as Record<string, unknown>)
+    .MODULE as XMLNode;
+  parseModule(engineModule);
+
+  return interfaces;
+}
+
+/**
+ * Parse devices from PKT XML
+ */
+function parseDevices(root: XMLNode): Device[] {
+  const network = (root as Record<string, unknown>).NETWORK as XMLNode;
+  const devices = network
+    ? ((network as Record<string, unknown>).DEVICES as XMLNode)
+    : undefined;
+  const devicesArray = devices
+    ? ((devices as Record<string, unknown>).DEVICE as XMLNode | XMLNode[])
+    : undefined;
+
+  if (!devicesArray) {
+    return [];
+  }
+
+  const devicesList = Array.isArray(devicesArray)
+    ? devicesArray
+    : [devicesArray];
+
+  return devicesList
+    .map((deviceNode: XMLNode): Device | null => {
+      try {
+        const engine = (deviceNode as Record<string, unknown>)
+          .ENGINE as XMLNode;
+        const workspace = (deviceNode as Record<string, unknown>)
+          .WORKSPACE as XMLNode;
+        const logical = workspace
+          ? ((workspace as Record<string, unknown>).LOGICAL as XMLNode)
+          : undefined;
+
+        const guid = (engine as Record<string, unknown>).SAVE_REF_ID as string;
+        const typeNode = (engine as Record<string, unknown>).TYPE as XMLNode;
+        const typeText = typeNode
+          ? ((typeNode as Record<string, unknown>)['#text'] as string)
+          : undefined;
+        const x = logical
+          ? parseFloat(
+              ((logical as Record<string, unknown>).X as string) || '0'
+            )
+          : 0;
+        const y = logical
+          ? parseFloat(
+              ((logical as Record<string, unknown>).Y as string) || '0'
+            )
+          : 0;
+
+        if (!guid || !typeText) {
+          return null;
+        }
+
+        // Filter out infrastructure devices that are not part of the network topology
+        const typeLower = typeText.toLowerCase();
+        if (typeLower === 'power distribution device') {
+          return null;
+        }
+
+        const type = mapPacketTracerType(typeText);
+        const interfaces = parseInterfaces(engine);
+
+        return {
+          guid,
+          name: typeText,
+          type,
+          x,
+          y,
+          interfaces,
+        };
+      } catch {
+        return null;
+      }
+    })
+    .filter((device): device is Device => device !== null);
+}
+
+/**
  * Parse links (connections) from PKT XML
  */
-function parseLinks(root: any, devices: Device[]): Link[] {
-  const linksArray = root.NETWORK?.LINKS?.LINK;
+function parseLinks(root: XMLNode, devices: Device[]): Link[] {
+  const network = (root as Record<string, unknown>).NETWORK as XMLNode;
+  const links = network
+    ? ((network as Record<string, unknown>).LINKS as XMLNode)
+    : undefined;
+  const linksArray = links
+    ? ((links as Record<string, unknown>).LINK as XMLNode | XMLNode[])
+    : undefined;
 
   if (!linksArray) {
     return [];
@@ -187,12 +184,17 @@ function parseLinks(root: any, devices: Device[]): Link[] {
   const deviceMap = new Map(devices.map((d) => [d.guid, d]));
 
   return linksList
-    .map((linkNode: any, index: number): Link | null => {
+    .map((linkNode: XMLNode, index: number): Link | null => {
       try {
-        const sourceGuid = linkNode.CABLE?.FROM;
-        const targetGuid = linkNode.CABLE?.TO;
-        const ports = linkNode.CABLE?.PORT;
-        const length = linkNode.CABLE?.LENGTH;
+        const cable = (linkNode as Record<string, unknown>).CABLE as XMLNode;
+        const sourceGuid = (cable as Record<string, unknown>).FROM as string;
+        const targetGuid = (cable as Record<string, unknown>).TO as string;
+        const ports = (cable as Record<string, unknown>).PORT as
+          | string[]
+          | undefined;
+        const length = (cable as Record<string, unknown>).LENGTH as
+          | string
+          | undefined;
 
         if (!sourceGuid || !targetGuid) {
           return null;
@@ -269,4 +271,53 @@ function parseLinks(root: any, devices: Device[]): Link[] {
       }
     })
     .filter((link): link is Link => link !== null);
+}
+
+/**
+ * Parse Packet Tracer XML to NetworkTopology
+ *
+ * @param xml Decrypted XML string from PKT/PKA file
+ * @returns NetworkTopology object ready for ReactFlow
+ */
+export function parsePacketTracerXML(xml: string): NetworkTopology {
+  const parser = new XMLParser({
+    ignoreAttributes: false,
+    attributeNamePrefix: '@_',
+    textNodeName: '#text',
+  });
+
+  const jsonObj = parser.parse(xml) as XMLNode;
+
+  let root: XMLNode;
+  const packetTracer5 = (jsonObj as Record<string, unknown>)
+    .PACKETTRACER5 as XMLNode;
+  const packetTracer5Activity = (jsonObj as Record<string, unknown>)
+    .PACKETTRACER5_ACTIVITY as XMLNode;
+
+  if (packetTracer5) {
+    root = packetTracer5;
+  } else if (packetTracer5Activity) {
+    const pt5Array = (packetTracer5Activity as Record<string, unknown>)
+      .PACKETTRACER5 as XMLNode[];
+    const [firstElement] = pt5Array;
+    root = firstElement;
+  } else {
+    throw new Error('Invalid Packet Tracer file format');
+  }
+
+  const devices = parseDevices(root);
+  const links = parseLinks(root, devices);
+
+  const versionNode = (root as Record<string, unknown>).VERSION as XMLNode;
+  const versionText = versionNode
+    ? ((versionNode as Record<string, unknown>)['#text'] as string)
+    : 'unknown';
+
+  return {
+    devices,
+    links,
+    metadata: {
+      version: versionText || 'unknown',
+    },
+  };
 }

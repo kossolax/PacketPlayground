@@ -16,7 +16,7 @@ const compat = new FlatCompat({
 
 export default [
   { files: ['src/**/*.{js,mjs,cjs,ts,jsx,tsx}'] },
-  { ignores: ['src/components/ui/'] },
+  { ignores: ['src/components/ui/', 'netflow/'] },
   { languageOptions: { globals: globals.browser } },
   javascript.configs.recommended,
   ...typescript.configs.recommended,
@@ -49,7 +49,10 @@ export default [
       'prettier/prettier': 'error',
       '@stylistic/comma-dangle': 'off',
       '@stylistic/indent': 'off',
+      '@stylistic/brace-style': 'off',
       'linebreak-style': ['error', 'unix'],
+      'max-classes-per-file': 'off', // Allow multiple related classes in model files
+      'no-bitwise': 'off', // Bitwise operations are essential for cryptography
     },
     languageOptions: {
       parserOptions: {
@@ -68,12 +71,6 @@ export default [
       'import/no-extraneous-dependencies': ['error', { devDependencies: true }],
       'no-console': 'off',
       'no-underscore-dangle': 'off',
-    },
-  },
-  {
-    files: ['src/lib/pkt-parser/**/*.{ts,tsx}'],
-    rules: {
-      'no-bitwise': 'off', // Bitwise operations are essential for cryptography
     },
   },
 ];
