@@ -1,3 +1,5 @@
+import { map, Observable, race, Subject, tap } from 'rxjs';
+
 import { Scheduler } from '@/features/network-diagram/lib/scheduler';
 import { IPAddress } from '../address';
 import type { NetworkInterface } from '../layers/network';
@@ -115,19 +117,19 @@ export class ICMPMessage extends IPv4Message {
 export class ICMPProtocol implements NetworkListener {
   private iface: NetworkInterface;
 
-  private queue: Map<number, (value: IPv4Message) => void>;
+  private queue: Map<number, Subject<IPv4Message>>;
 
   constructor(iface: NetworkInterface) {
     this.iface = iface;
     iface.addListener(this);
 
-    this.queue = new Map<number, (value: IPv4Message) => void>();
+    this.queue = new Map<number, Subject<IPv4Message>>();
   }
 
   public sendIcmpRequest(
     destination: IPAddress,
     timeout: number = 20
-  ): Promise<IPv4Message | null> {
+  ): Observable<IPv4Message | null> {
     const request = new ICMPMessage.Builder()
       .setType(ICMPType.EchoRequest)
       .setCode(0)
@@ -135,25 +137,17 @@ export class ICMPProtocol implements NetworkListener {
       .setNetDestination(destination)
       .build()[0];
 
-    // Create Promise that resolves when reply is received
-    const responsePromise = new Promise<IPv4Message | null>((resolve) => {
-      this.queue.set(request.identification, resolve);
-    });
+    const subject: Subject<IPv4Message> = new Subject();
 
-    // Create Promise that resolves to null after timeout
-    const timeoutPromise = new Promise<IPv4Message | null>((resolve) => {
-      Scheduler.getInstance().once(timeout, () => resolve(null));
-    });
-
-    // Send ICMP request
+    this.queue.set(request.identification, subject);
     this.iface.sendPacket(request);
 
-    // Race between response and timeout
-    return Promise.race([responsePromise, timeoutPromise]).then((result) => {
-      // Cleanup: remove from queue
-      this.queue.delete(request.identification);
-      return result;
-    });
+    const timeout$ = Scheduler.getInstance()
+      .once$(timeout)
+      .pipe(map(() => null));
+    return race(subject, timeout$).pipe(
+      tap(() => this.queue.delete(request.identification))
+    );
   }
 
   public receivePacket(message: NetworkMessage): ActionHandle {
@@ -176,9 +170,8 @@ export class ICMPProtocol implements NetworkListener {
       }
 
       if (message.type === ICMPType.EchoReply) {
-        const resolver = this.queue.get(message.identification);
-        if (resolver) {
-          resolver(message);
+        if (this.queue.has(message.identification)) {
+          this.queue.get(message.identification)?.next(message);
           return ActionHandle.Handled;
         }
       }

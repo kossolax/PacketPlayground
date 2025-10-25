@@ -253,7 +253,11 @@ export class AutoNegotiationProtocol implements PhysicalListener {
     });
   }
 
-  public receiveBits(message: PhysicalMessage): ActionHandle {
+  public receiveBits(
+    message: PhysicalMessage,
+    _from: Interface,
+    _to: Interface
+  ): ActionHandle {
     if (message instanceof AutonegotiationMessage) {
       if (message.payload.acknowledge)
         this.neighbourAcknoledge.push(message.payload);

@@ -1,3 +1,5 @@
+import { Observable } from 'rxjs';
+
 export enum SchedulerState {
   FASTER,
   REAL_TIME,
@@ -166,6 +168,24 @@ export class Scheduler {
         this.listeners.splice(index, 1);
       }
     };
+  }
+
+  /**
+   * RxJS Observable version of once() - returns an Observable that completes after the delay
+   * Used for RxJS-based code in network simulator layers
+   */
+  public once$(delay: number): Observable<void> {
+    return new Observable<void>((subscriber) => {
+      const unsubscribe = this.once(delay, () => {
+        subscriber.next();
+        subscriber.complete();
+      });
+
+      // Return teardown logic
+      return () => {
+        unsubscribe();
+      };
+    });
   }
 
   public repeat(

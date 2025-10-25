@@ -1,3 +1,6 @@
+import { Observable, Subject, of } from 'rxjs';
+import { concatMap, map, switchMap, tap } from 'rxjs/operators';
+
 import {
   Scheduler,
   SchedulerState,
@@ -24,13 +27,13 @@ export abstract class AbstractLink implements PhysicalListener, PhysicalSender {
 
   protected iface1: HardwareInterface | null;
 
-  // Promise queue for sequential message transmission (replaces Subject + concatMap)
-  private queue1: Promise<void> = Promise.resolve();
+  // RxJS Subject queue for sequential message transmission (restored from Angular)
+  protected queue1: Subject<Observable<number>> = new Subject();
 
   protected iface2: HardwareInterface | null;
 
-  // Promise queue for sequential message transmission (replaces Subject + concatMap)
-  private queue2: Promise<void> = Promise.resolve();
+  // RxJS Subject queue for sequential message transmission (restored from Angular)
+  protected queue2: Subject<Observable<number>> = new Subject();
 
   protected length: number;
 
@@ -52,7 +55,9 @@ export abstract class AbstractLink implements PhysicalListener, PhysicalSender {
 
     this.length = length;
 
-    // No need for explicit subscription - queues start resolved
+    // Initialize RxJS queues with concatMap for sequential execution (from Angular)
+    this.queue1.pipe(concatMap((action) => action)).subscribe();
+    this.queue2.pipe(concatMap((action) => action)).subscribe();
 
     if (this.iface1 !== null) this.iface1.connectTo(this);
     if (this.iface2 !== null) this.iface2.connectTo(this);
@@ -103,43 +108,38 @@ export abstract class AbstractLink implements PhysicalListener, PhysicalSender {
 
     const destination = this.iface1 === source ? this.iface2 : this.iface1;
 
-    // Chain promise to queue for sequential execution (replaces concatMap)
+    // Enqueue Observable for sequential execution (restored from Angular)
     if (this.iface1 === source || source.FullDuplex === false) {
-      this.queue1 = this.queue1.then(() =>
-        this.enqueue(message, source, destination)
-      );
+      this.queue1.next(this.enqueue(message, source, destination));
     } else {
-      this.queue2 = this.queue2.then(() =>
-        this.enqueue(message, source, destination)
-      );
+      this.queue2.next(this.enqueue(message, source, destination));
     }
   }
 
-  // Replaces Observable pipeline with Promise
+  // RxJS Observable pipeline (restored from Angular)
   private enqueue(
     message: PhysicalMessage,
     source: HardwareInterface,
     destination: HardwareInterface
-  ): Promise<void> {
-    // Calculate delay (replaces map operator)
-    const propagationDelay = this.getDelay(message.length, source.Speed);
-
-    handleChain(
-      'sendBits',
-      this.getListener,
-      message,
-      source,
-      destination,
-      propagationDelay
-    );
-
-    // Wait for delay then execute (replaces switchMap + tap)
-    return new Promise<void>((resolve) => {
-      Scheduler.getInstance().once(propagationDelay, () => {
+  ): Observable<number> {
+    return of(0).pipe(
+      map(() => {
+        const propagationDelay = this.getDelay(message.length, source.Speed);
+        handleChain(
+          'sendBits',
+          this.getListener,
+          message,
+          source,
+          destination,
+          propagationDelay
+        );
+        return propagationDelay;
+      }),
+      switchMap((delay) => Scheduler.getInstance().once$(delay)),
+      tap(() => {
         this.receiveBits(message, source, destination);
-        resolve();
-      });
-    });
+      })
+    );
   }
 
   public receiveBits(
@@ -150,7 +150,7 @@ export abstract class AbstractLink implements PhysicalListener, PhysicalSender {
     handleChain('receiveBits', this.getListener, message, source, destination);
 
     // send to L2
-    destination.receiveBits(message, source);
+    destination.receiveBits(message, source, destination);
     return ActionHandle.Continue;
   }
 

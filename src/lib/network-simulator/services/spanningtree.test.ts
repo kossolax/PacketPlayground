@@ -141,18 +141,15 @@ describe('STP protocol', () => {
     expect(D.spanningTree.IsRoot).toBeTruthy();
 
     // Poll for convergence - call negociate() repeatedly until convergence
-    const checkConvergence = (): boolean => {
-      return (
-        A.spanningTree.Root.equals(mac) &&
-        B.spanningTree.Root.equals(mac) &&
-        C.spanningTree.Root.equals(mac) &&
-        D.spanningTree.Root.equals(mac) &&
-        A.spanningTree.IsRoot &&
-        !B.spanningTree.IsRoot &&
-        !C.spanningTree.IsRoot &&
-        !D.spanningTree.IsRoot
-      );
-    };
+    const checkConvergence = (): boolean =>
+      A.spanningTree.Root.equals(mac) &&
+      B.spanningTree.Root.equals(mac) &&
+      C.spanningTree.Root.equals(mac) &&
+      D.spanningTree.Root.equals(mac) &&
+      A.spanningTree.IsRoot &&
+      !B.spanningTree.IsRoot &&
+      !C.spanningTree.IsRoot &&
+      !D.spanningTree.IsRoot;
 
     // Poll every 100ms for up to 5 seconds
     const startTime = Date.now();

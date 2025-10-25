@@ -47,6 +47,13 @@ export default [
       'react/react-in-jsx-scope': 'off',
       ...eslintConfigPrettier.rules,
       'prettier/prettier': 'error',
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+        },
+      ],
       '@stylistic/comma-dangle': 'off',
       '@stylistic/indent': 'off',
       '@stylistic/brace-style': 'off',

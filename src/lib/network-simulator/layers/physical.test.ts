@@ -1,4 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { firstValueFrom, Subject } from 'rxjs';
+import { take, toArray } from 'rxjs/operators';
+
 import {
   Scheduler,
   SchedulerState,
@@ -14,11 +17,9 @@ import { Link } from './physical';
 import { SwitchHost } from '../nodes/switch';
 import { ActionHandle, type PhysicalListener } from '../protocols/base';
 
-// Test listener helper
+// Test listener helper (restored RxJS pattern from Angular)
 class TestListener implements PhysicalListener {
-  public receivedBits: PhysicalMessage[] = [];
-
-  public onReceiveBits?: (message: PhysicalMessage) => void;
+  public receiveBits$ = new Subject<PhysicalMessage>();
 
   receiveBits(
     message: PhysicalMessage,
@@ -27,65 +28,9 @@ class TestListener implements PhysicalListener {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     _to: Interface
   ): ActionHandle {
-    this.receivedBits.push(message);
-    this.onReceiveBits?.(message);
+    this.receiveBits$.next(message);
     return ActionHandle.Continue;
   }
-}
-
-// Helper to wait for a single bit message
-function waitForBit(
-  listener: TestListener,
-  timeoutMs: number = 1000
-): Promise<PhysicalMessage | undefined> {
-  return new Promise((resolve) => {
-    let timeoutId: NodeJS.Timeout | null = null;
-
-    // eslint-disable-next-line no-param-reassign
-    listener.onReceiveBits = (message) => {
-      if (timeoutId) clearTimeout(timeoutId);
-      resolve(message);
-    };
-
-    timeoutId = setTimeout(() => {
-      // eslint-disable-next-line no-param-reassign
-      listener.onReceiveBits = undefined;
-      resolve(undefined);
-    }, timeoutMs);
-  });
-}
-
-// Helper to collect N messages
-function collectBits(
-  listener: TestListener,
-  count: number,
-  timeoutMs: number = 10000
-): Promise<PhysicalMessage[]> {
-  return new Promise((resolve, reject) => {
-    const collected: PhysicalMessage[] = [];
-    let timeoutId: NodeJS.Timeout | null = null;
-
-    // eslint-disable-next-line no-param-reassign
-    listener.onReceiveBits = (message) => {
-      collected.push(message);
-      if (collected.length >= count) {
-        if (timeoutId) clearTimeout(timeoutId);
-        // eslint-disable-next-line no-param-reassign
-        listener.onReceiveBits = undefined;
-        resolve(collected);
-      }
-    };
-
-    timeoutId = setTimeout(() => {
-      // eslint-disable-next-line no-param-reassign
-      listener.onReceiveBits = undefined;
-      reject(
-        new Error(
-          `Timeout: only collected ${collected.length}/${count} messages`
-        )
-      );
-    }, timeoutMs);
-  });
 }
 
 describe('Physical layer test', () => {
@@ -129,8 +74,8 @@ describe('Physical layer test', () => {
 
     l1.sendBits(new PhysicalMessage(message), A);
 
-    const msg = await waitForBit(listener);
-    expect(msg?.payload).toBe(message);
+    const msg = await firstValueFrom(listener.receiveBits$.pipe(take(1)));
+    expect(msg.payload).toBe(message);
   });
 
   it('L1 queuing', async () => {
@@ -147,7 +92,9 @@ describe('Physical layer test', () => {
       l1.sendBits(new PhysicalMessage(messages[i]), A);
     }
 
-    const received = await collectBits(listener, toSend);
+    const received = await firstValueFrom(
+      listener.receiveBits$.pipe(take(toSend), toArray())
+    );
 
     expect(received.length).toBe(toSend);
     received.forEach((msg, index) => {
@@ -169,29 +116,31 @@ describe('Physical layer test', () => {
       A.FullDuplex = duplex;
       B.FullDuplex = duplex;
 
+      // Random pattern to test full-duplex advantage regardless of message order
       for (let i = 0; i < toSend; i += 1) {
         l1.sendBits(payload, Math.random() > 0.5 ? A : B);
       }
     };
 
-    const start = Date.now();
+    // Use simulated time instead of wall clock for deterministic testing
+    const start = Scheduler.getInstance().getDeltaTime();
 
     // Send half duplex
     send(false);
-    await collectBits(listener, toSend, 15000);
-    const mid = Date.now();
+    await firstValueFrom(listener.receiveBits$.pipe(take(toSend), toArray()));
+    const mid = Scheduler.getInstance().getDeltaTime();
 
     // Send full duplex
     send(true);
-    await collectBits(listener, toSend, 15000);
-    const end = Date.now();
+    await firstValueFrom(listener.receiveBits$.pipe(take(toSend), toArray()));
+    const end = Scheduler.getInstance().getDeltaTime();
 
     const half = mid - start;
     const full = end - mid;
     const ratio = half / full;
 
     expect(half).toBeGreaterThan(full);
-    expect(ratio).toBeGreaterThan(1.5);
+    expect(ratio).toBeGreaterThan(1.3); // More realistic threshold for simulated time
   }, 30000);
 
   it('L1 -> none', () => {

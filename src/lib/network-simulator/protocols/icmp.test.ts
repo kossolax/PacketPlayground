@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
+import { firstValueFrom } from 'rxjs';
+
 import {
   Scheduler,
   SchedulerState,
@@ -37,8 +39,8 @@ describe('ICMP protocol', () => {
   it('Router->ICMP-->Router', async () => {
     const ipface = A.getInterface(0) as NetworkInterface;
 
-    const msg = await ipface.sendIcmpRequest(
-      B.getInterface(0).getNetAddress() as IPAddress
+    const msg = await firstValueFrom(
+      ipface.sendIcmpRequest(B.getInterface(0).getNetAddress() as IPAddress)
     );
 
     expect(msg).not.toBeNull();
@@ -48,7 +50,9 @@ describe('ICMP protocol', () => {
   it('Router->ICMP-->none', async () => {
     const ipface = A.getInterface(0) as NetworkInterface;
 
-    const msg = await ipface.sendIcmpRequest(IPAddress.generateAddress());
+    const msg = await firstValueFrom(
+      ipface.sendIcmpRequest(IPAddress.generateAddress())
+    );
 
     expect(msg).toBeNull();
   });

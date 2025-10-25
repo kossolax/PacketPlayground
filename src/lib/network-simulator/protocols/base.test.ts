@@ -30,7 +30,11 @@ class LinkLayerSpyTest implements DatalinkListener, DatalinkSender {
 
   public onSendBits?: (message: PhysicalMessage) => void;
 
-  receiveBits(message: PhysicalMessage): ActionHandle {
+  receiveBits(
+    message: PhysicalMessage,
+    _from: Interface,
+    _to: Interface
+  ): ActionHandle {
     this.receivedBits.push(message);
     this.onReceiveBits?.(message);
     return ActionHandle.Continue;

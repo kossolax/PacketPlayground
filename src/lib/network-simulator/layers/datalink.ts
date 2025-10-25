@@ -162,7 +162,8 @@ export abstract class HardwareInterface
 
   public receiveBits(
     message: PhysicalMessage,
-    source: HardwareInterface
+    source: HardwareInterface,
+    _destination: HardwareInterface
   ): ActionHandle {
     if (!this.isActive()) return ActionHandle.Stop;
 

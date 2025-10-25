@@ -1,3 +1,5 @@
+import { firstValueFrom } from 'rxjs';
+
 import { IPAddress } from '../../address';
 import type { IPInterface } from '../../layers/network';
 import type { Terminal } from '../terminal';
@@ -16,11 +18,13 @@ export class PingCommand extends TerminalCommand {
     const nethost = this.terminal.Node as NetworkHost;
     const ipface = nethost.getInterface(0) as IPInterface;
 
-    ipface.sendIcmpRequest(new IPAddress(args[0]), 20).then((data) => {
-      if (data) this.terminal.write(`${args[0]} is alive`);
-      else this.terminal.write(`${args[0]} is dead`);
-      this.finalize();
-    });
+    firstValueFrom(ipface.sendIcmpRequest(new IPAddress(args[0]), 20)).then(
+      (data) => {
+        if (data) this.terminal.write(`${args[0]} is alive`);
+        else this.terminal.write(`${args[0]} is dead`);
+        this.finalize();
+      }
+    );
   }
 }
 

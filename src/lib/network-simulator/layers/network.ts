@@ -1,3 +1,5 @@
+import type { Observable } from 'rxjs';
+
 import type { HardwareAddress, IPAddress, NetworkAddress } from '../address';
 import { DatalinkMessage, NetworkMessage } from '../message';
 import { ArpProtocol } from '../protocols/arp';
@@ -204,7 +206,7 @@ export class IPInterface extends NetworkInterface {
   public sendIcmpRequest(
     destination: IPAddress,
     timeout: number = 20
-  ): Promise<IPv4Message | null> {
+  ): Observable<IPv4Message | null> {
     return this.protocols2.sendIcmpRequest(destination, timeout);
   }
 
