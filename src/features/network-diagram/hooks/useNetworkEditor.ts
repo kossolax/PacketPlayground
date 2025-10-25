@@ -5,7 +5,7 @@
 
 /* eslint-disable import/prefer-default-export */
 
-import { useCallback, useEffect } from 'react';
+import { useCallback } from 'react';
 import {
   useNodesState,
   useEdgesState,
@@ -68,13 +68,8 @@ export function useNetworkEditor(): UseNetworkEditorReturn {
 
       setNodes(newNodes);
       setEdges(newEdges);
-    },
-    [setNodes, setEdges]
-  );
 
-  // Auto-fit view when nodes are loaded
-  useEffect(() => {
-    if (nodes.length > 0) {
+      // Auto-fit view only when loading a topology file
       setTimeout(() => {
         fitView({
           padding: 0.2,
@@ -84,8 +79,9 @@ export function useNetworkEditor(): UseNetworkEditorReturn {
           minZoom: 0.1,
         });
       }, 100);
-    }
-  }, [nodes.length, fitView]);
+    },
+    [setNodes, setEdges, fitView]
+  );
 
   const addDevice = useCallback(
     (device: Device) => {

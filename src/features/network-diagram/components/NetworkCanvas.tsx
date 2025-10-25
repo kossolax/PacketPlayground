@@ -108,7 +108,6 @@ export default function NetworkCanvas({
         onConnect={onConnect}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
-        fitView
         minZoom={0.1}
         maxZoom={2}
         deleteKeyCode="Delete"
