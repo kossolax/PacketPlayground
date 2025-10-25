@@ -428,8 +428,10 @@ export class DhcpClient implements NetworkListener {
     }
   }
 
-  public receivePacket(message: NetworkMessage): ActionHandle {
+  public receivePacket(message: NetworkMessage, from: Interface): ActionHandle {
     if (message instanceof DhcpMessage && message.op === DhcpOpCode.Reply) {
+      const iface = from as NetworkInterface;
+
       // Offer:
       if (message.options.type === DhcpType.Offer) {
         const request = new DhcpMessage.Builder()
@@ -442,7 +444,7 @@ export class DhcpClient implements NetworkListener {
           .setServerAddress(message.siaddr)
           .build()[0] as DhcpMessage;
 
-        this.iface.sendPacket(request);
+        iface.sendPacket(request);
         return ActionHandle.Stop;
       }
 
@@ -468,10 +470,10 @@ export class DhcpServer
 
   public forwarder: IPAddress | null = null;
 
-  public receivePacket(message: NetworkMessage): ActionHandle {
+  public receivePacket(message: NetworkMessage, from: Interface): ActionHandle {
     if (message instanceof DhcpMessage) {
       if (message.op === DhcpOpCode.Request) {
-        const [iface] = this.ifaces as NetworkInterface[];
+        const iface = from as NetworkInterface;
         const selfIP = iface.getNetAddress() as IPAddress;
         const lookupIP = message.giaddr.equals(new IPAddress('0.0.0.0'))
           ? selfIP

@@ -166,6 +166,10 @@ export class Terminal {
     if (this.onDirectoryChange) {
       this.onDirectoryChange(command);
     }
+
+    // Unlock terminal when changing directory (like Angular's Complete$ tap)
+    this.locked = false;
+
     if (this.onComplete) {
       this.onComplete();
     }

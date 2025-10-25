@@ -224,21 +224,7 @@ export class PVSTPService
   }
 
   override set Enable(enable: boolean) {
-    if (enable) {
-      this.host.getInterfaces().forEach((i) => {
-        const iface = this.host.getInterface(i);
-
-        if (this.ifaces.indexOf(iface) < 0) {
-          this.ifaces.push(iface);
-          iface.addListener(this);
-        }
-      });
-    } else {
-      this.ifaces.forEach((i) => {
-        i.removeListener(this);
-      });
-      this.ifaces = [];
-    }
+    super.Enable = enable;
     this.enabled = enable;
     this.setDefaultRoot();
   }
@@ -264,7 +250,8 @@ export class PVSTPService
 
         if (this.roles.get(iface) === undefined) {
           this.changeRole(iface, SpanningTreePortRole.Designated);
-          this.changeState(iface, SpanningTreeState.Blocking);
+          // Root bridge ports should start in Forwarding state
+          this.changeState(iface, SpanningTreeState.Forwarding);
           this.cost.set(iface, 42);
         }
       } else {

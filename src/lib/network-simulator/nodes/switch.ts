@@ -9,7 +9,7 @@ import { Node } from './generic';
 import { DatalinkMessage } from '../message';
 import {
   PVSTPService,
-  type SpanningTreeMessage,
+  SpanningTreeMessage,
   SpanningTreeState,
 } from '../services/spanningtree';
 import { HardwareAddress, MacAddress } from '../address';
@@ -126,22 +126,16 @@ export class SwitchHost
     }
   }
 
-  public receiveTrame(message: DatalinkMessage): ActionHandle {
-    const sourceInterface = this.findInterfaceWithMac(
-      message.macSrc as HardwareAddress
-    );
-
+  public receiveTrame(message: DatalinkMessage, from: Interface): ActionHandle {
     if (message instanceof SpanningTreeMessage) {
       return ActionHandle.Continue;
     }
 
-    if (
-      sourceInterface &&
-      this.spanningTree.State(sourceInterface) === SpanningTreeState.Blocking
-    )
+    const sourceInterface = from as HardwareInterface;
+
+    if (this.spanningTree.State(sourceInterface) === SpanningTreeState.Blocking)
       return ActionHandle.Stop;
     if (
-      sourceInterface &&
       this.spanningTree.State(sourceInterface) === SpanningTreeState.Listening
     )
       return ActionHandle.Handled;
@@ -150,21 +144,15 @@ export class SwitchHost
     const dst = message.macDst as HardwareAddress;
 
     // Learn source MAC address
-    if (sourceInterface) {
-      this.learnMAC(src, sourceInterface);
-    }
+    this.learnMAC(src, sourceInterface);
 
-    if (
-      sourceInterface &&
-      this.spanningTree.State(sourceInterface) === SpanningTreeState.Learning
-    )
+    if (this.spanningTree.State(sourceInterface) === SpanningTreeState.Learning)
       return ActionHandle.Handled;
 
-    let vlanId = sourceInterface
-      ? (sourceInterface as Dot1QInterface).NativeVlan
-      : 0;
-    if (message instanceof Dot1QMessage) vlanId = message.vlanId;
-    else if (sourceInterface) {
+    let vlanId = (sourceInterface as Dot1QInterface).NativeVlan;
+    if (message instanceof Dot1QMessage) {
+      vlanId = message.vlanId;
+    } else {
       const [firstVlan] = (sourceInterface as Dot1QInterface).Vlan;
       vlanId = firstVlan;
     }
@@ -225,22 +213,15 @@ export class SwitchHost
       iface.sendTrame(msg);
     });
 
+    // Propagate message to node's own listeners
+    handleChain('receiveTrame', this.getListener, message, from);
+
     // Trigger callback if defined
     if (this.onReceiveTrame) {
       this.onReceiveTrame(message);
     }
 
     return ActionHandle.Continue;
-  }
-
-  private findInterfaceWithMac(mac: HardwareAddress): HardwareInterface | null {
-    const keys = Object.keys(this.interfaces);
-    for (let i = 0; i < keys.length; i += 1) {
-      if (this.interfaces[keys[i]].hasMacAddress(mac)) {
-        return this.interfaces[keys[i]];
-      }
-    }
-    return null;
   }
 
   private learnMAC(src: HardwareAddress, from: HardwareInterface): void {

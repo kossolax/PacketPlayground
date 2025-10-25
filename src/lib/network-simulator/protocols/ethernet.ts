@@ -34,7 +34,7 @@ export class EthernetMessage extends DatalinkMessage {
     return sum;
   }
 
-  public IsReadyAtEndPoint(iface: HardwareInterface): boolean {
+  public isReadyAtEndPoint(iface: HardwareInterface): boolean {
     if (this.macDst && iface.hasMacAddress(this.macDst)) return true;
     return false;
   }

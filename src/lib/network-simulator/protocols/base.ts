@@ -41,8 +41,10 @@ export function handleChain(
   let ret = ActionHandle.Continue;
   let action = ActionHandle.Continue;
 
-  listeners.forEach((i) => {
-    if (i === sender) return;
+  // eslint-disable-next-line no-restricted-syntax
+  for (const i of listeners) {
+    // eslint-disable-next-line no-continue
+    if (i === sender) continue;
 
     if (handler in i && handler !== 'on') {
       switch (handler) {
@@ -124,9 +126,9 @@ export function handleChain(
     }
 
     if (action === ActionHandle.Stop) {
-      // Early return in forEach - action is already set
+      break;
     }
-  });
+  }
 
   return action;
 }

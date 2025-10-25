@@ -14,6 +14,7 @@ import { DhcpClient } from '../services/dhcp';
 import { HardwareInterface, Interface } from './datalink';
 import type { GenericNode, NetworkHost } from '../nodes/generic';
 import { NetworkInterfaceMarker } from './layer-base';
+import { Scheduler } from '@/features/network-diagram/lib/scheduler';
 
 export abstract class NetworkInterface
   extends Interface
@@ -163,7 +164,10 @@ export abstract class NetworkInterface
       i.addr.equals(message.netDst)
     );
     if (loopback.length > 0) {
-      this.receivePacket(message);
+      // Schedule loopback asynchronously to allow listeners to be added
+      Scheduler.getInstance().once(0, () => {
+        this.receivePacket(message);
+      });
       return;
     }
 

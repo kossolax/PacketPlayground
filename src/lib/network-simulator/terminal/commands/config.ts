@@ -173,7 +173,8 @@ export class ConfigCommand extends TerminalCommand {
     negated: boolean
   ): void {
     if (command === this.name) {
-      if (args[0] === 'terminal') this.terminal.changeDirectory(this);
+      if (args.length > 0 && args[0] === 'terminal')
+        this.terminal.changeDirectory(this);
       else throw new Error(`${this.name} requires a subcommand`);
     } else {
       super.exec(command, args, negated);

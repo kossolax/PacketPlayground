@@ -19,6 +19,7 @@ import {
 } from '../protocols/ethernet';
 import type { GenericNode } from '../nodes/generic';
 import { HardwareInterfaceMarker } from './layer-base';
+import { Scheduler } from '@/features/network-diagram/lib/scheduler';
 
 export abstract class Interface {
   protected host: GenericNode;
@@ -195,7 +196,10 @@ export abstract class HardwareInterface
 
     const loopback = this.address.equals(message.macDst);
     if (loopback) {
-      this.receiveTrame(message);
+      // Schedule loopback asynchronously to allow listeners to be added
+      Scheduler.getInstance().once(0, () => {
+        this.receiveTrame(message);
+      });
       return;
     }
 

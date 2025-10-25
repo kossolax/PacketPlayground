@@ -1,8 +1,12 @@
 import { IPAddress, type NetworkAddress } from '../address';
-import { ActionHandle, type NetworkListener } from '../protocols/base';
+import {
+  ActionHandle,
+  handleChain,
+  type NetworkListener,
+} from '../protocols/base';
 import { DhcpServer } from '../services/dhcp';
 import { NetworkHost } from './generic';
-import { type NetworkMessage } from '../message';
+import { NetworkMessage } from '../message';
 import type { NetworkInterface } from '../layers/network';
 
 export type RoutingTableEntry = {
@@ -73,14 +77,13 @@ export class RouterHost extends NetworkHost implements NetworkListener {
     }
   }
 
-  public receivePacket(message: NetworkMessage): ActionHandle {
+  public receivePacket(
+    message: NetworkMessage,
+    from: NetworkInterface
+  ): ActionHandle {
     const dst = message.netDst as NetworkAddress;
 
-    const sourceInterface = this.findInterfaceWithAddress(
-      message.netSrc as NetworkAddress
-    );
-
-    if (sourceInterface && !sourceInterface.hasNetAddress(dst)) {
+    if (from && !from.hasNetAddress(dst)) {
       const route = this.getNextHop(dst);
 
       if (route != null) {
@@ -95,6 +98,9 @@ export class RouterHost extends NetworkHost implements NetworkListener {
         }
       }
     }
+
+    // Propagate message to node's own listeners
+    handleChain('receivePacket', this.getListener, message, from);
 
     // Trigger callback if defined
     if (this.onReceivePacket) {
