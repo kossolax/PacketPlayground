@@ -5,7 +5,7 @@
 
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { DEVICE_CATALOG, type DeviceType } from '@/lib/network-simulator';
+import { DEVICE_CATALOG, type DeviceType } from '../lib/network-simulator';
 
 interface DeviceToolbarProps {
   onDeviceSelect: (deviceType: DeviceType) => void;

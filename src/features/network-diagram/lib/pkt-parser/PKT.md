@@ -113,7 +113,7 @@ function deobfuscate1(input: Uint8Array): Uint8Array {
 
 - **Mode** : EAX (Encrypt-then-Authenticate-then-Translate)
 - **Tag** : Les 16 derniers bytes après déobfuscation1
-- **Implémentation** : Voir `src/lib/pkt-parser/crypto/`
+- **Implémentation** : Voir `src/features/network-diagram/lib/pkt-parser/crypto/`
 
 ```typescript
 function decryptEAX(data: Uint8Array): Uint8Array | null {
@@ -239,10 +239,10 @@ function eaxDecrypt(cipher, nonce, ciphertext, tag, header = []) {
 
 ## Implémentation TypeScript
 
-L'implémentation complète se trouve dans `src/lib/pkt-parser/` :
+L'implémentation complète se trouve dans `src/features/network-diagram/lib/pkt-parser/` :
 
 ```
-src/lib/pkt-parser/
+src/features/network-diagram/lib/pkt-parser/
 ├── crypto/
 │   ├── types.ts          # Interfaces (BlockCipher, EAXResult)
 │   ├── utils.ts          # XOR, concat, GF(2^128), etc.
@@ -263,7 +263,7 @@ import {
   decryptPacketTracer7,
   decryptPacketTracer5,
   detectPacketTracerVersion,
-} from '@/lib/pkt-parser';
+} from '@/features/network-diagram/lib/pkt-parser';
 
 const fileData = await readFile('myfile.pkt');
 const buffer = new Uint8Array(fileData);

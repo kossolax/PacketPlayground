@@ -5,7 +5,7 @@
 
 import { memo } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
-import type { DeviceType, NetworkInterface } from '@/lib/network-simulator';
+import type { DeviceType, NetworkInterface } from '../../lib/network-simulator';
 
 export interface CustomNodeData {
   label: string;

@@ -18,8 +18,8 @@ import {
   type OnEdgesChange,
   type OnConnect,
 } from '@xyflow/react';
-import type { Device, NetworkTopology } from '@/lib/network-simulator';
-import { DEVICE_CATALOG } from '@/lib/network-simulator';
+import type { Device, NetworkTopology } from '../lib/network-simulator';
+import { DEVICE_CATALOG } from '../lib/network-simulator';
 
 interface UseNetworkEditorReturn {
   nodes: Node[];

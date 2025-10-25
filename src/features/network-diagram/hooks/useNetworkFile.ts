@@ -6,11 +6,11 @@
 /* eslint-disable import/prefer-default-export */
 
 import { useState, useCallback } from 'react';
-import { decryptPacketTracerFile } from '@/lib/pkt-parser';
+import { decryptPacketTracerFile } from '../lib/pkt-parser';
 import {
   parsePacketTracerXML,
   type NetworkTopology,
-} from '@/lib/network-simulator';
+} from '../lib/network-simulator';
 
 interface UseNetworkFileState {
   topology: NetworkTopology | null;

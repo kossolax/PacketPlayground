@@ -13,7 +13,7 @@ import DeviceToolbar from './components/DeviceToolbar';
 import NetworkCanvas from './components/NetworkCanvas';
 import { useNetworkFile } from './hooks/useNetworkFile';
 import { useNetworkEditor } from './hooks/useNetworkEditor';
-import type { DeviceType, NetworkTopology } from '@/lib/network-simulator';
+import type { DeviceType, NetworkTopology } from './lib/network-simulator';
 
 /**
  * NetworkDiagramContent - Inner component that uses ReactFlow hooks

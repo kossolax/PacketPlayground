@@ -23,7 +23,7 @@ import {
   createDevice,
   type Device,
   type DeviceType,
-} from '@/lib/network-simulator';
+} from '../lib/network-simulator';
 
 interface NetworkCanvasProps {
   nodes: Node[];
