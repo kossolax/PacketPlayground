@@ -10,53 +10,59 @@ describe('scheduler', () => {
     service.Speed = SchedulerState.REAL_TIME;
   });
 
-  it('should be slower than realtime', (done) => {
+  it('should be slower than realtime', () => {
     service.Speed = SchedulerState.SLOWER;
 
     const start = Date.now();
-    service.once(delay, () => {
-      const delta = Date.now() - start;
-      expect(delta).toBeGreaterThan(delay * 1000);
-      expect(service.SpeedOfLight).toBeLessThan(1);
-      expect(service.Transmission).toBeLessThan(1);
-      expect(service.Speed).toBe(SchedulerState.SLOWER);
+    return new Promise<void>((resolve) => {
+      service.once(delay, () => {
+        const delta = Date.now() - start;
+        expect(delta).toBeGreaterThan(delay * 1000);
+        expect(service.SpeedOfLight).toBeLessThan(1);
+        expect(service.Transmission).toBeLessThan(1);
+        expect(service.Speed).toBe(SchedulerState.SLOWER);
 
-      done();
+        resolve();
+      });
     });
   });
 
-  it('should be realtime', (done) => {
+  it('should be realtime', () => {
     service.Speed = SchedulerState.REAL_TIME;
 
     const start = Date.now();
-    service.once(delay, () => {
-      const delta = Date.now() - start;
-      expect(delta).toBeGreaterThan(delay * 1000 * 0.75);
-      expect(delta).toBeLessThan(delay * 1000 * 1.25);
-      expect(service.SpeedOfLight).toBe(1);
-      expect(service.Transmission).toBe(1);
-      expect(service.Speed).toBe(SchedulerState.REAL_TIME);
+    return new Promise<void>((resolve) => {
+      service.once(delay, () => {
+        const delta = Date.now() - start;
+        expect(delta).toBeGreaterThan(delay * 1000 * 0.75);
+        expect(delta).toBeLessThan(delay * 1000 * 1.25);
+        expect(service.SpeedOfLight).toBe(1);
+        expect(service.Transmission).toBe(1);
+        expect(service.Speed).toBe(SchedulerState.REAL_TIME);
 
-      done();
+        resolve();
+      });
     });
   });
 
-  it('should be faster than realtime', (done) => {
+  it('should be faster than realtime', () => {
     service.Speed = SchedulerState.FASTER;
 
     const start = Date.now();
-    service.once(delay, () => {
-      const delta = Date.now() - start;
-      expect(delta).toBeLessThan(delay * 1000);
-      expect(service.SpeedOfLight).toBeGreaterThan(1);
-      expect(service.Transmission).toBeGreaterThan(1);
-      expect(service.Speed).toBe(SchedulerState.FASTER);
+    return new Promise<void>((resolve) => {
+      service.once(delay, () => {
+        const delta = Date.now() - start;
+        expect(delta).toBeLessThan(delay * 1000);
+        expect(service.SpeedOfLight).toBeGreaterThan(1);
+        expect(service.Transmission).toBeGreaterThan(1);
+        expect(service.Speed).toBe(SchedulerState.FASTER);
 
-      done();
+        resolve();
+      });
     });
   });
 
-  it('should be paused', (done) => {
+  it('should be paused', () => {
     service.Speed = SchedulerState.REAL_TIME;
     service.Speed = SchedulerState.PAUSED;
 
@@ -67,49 +73,57 @@ describe('scheduler', () => {
     });
 
     // Set a timeout to check that the callback was never executed
-    setTimeout(
-      () => {
-        expect(callbackExecuted).toBe(false);
-        expect(service.SpeedOfLight).toBe(0);
-        expect(service.Transmission).toBe(0);
-        expect(service.Speed).toBe(SchedulerState.PAUSED);
-        done();
-      },
-      delay * 2 * 1000
-    );
+    return new Promise<void>((resolve) => {
+      setTimeout(
+        () => {
+          expect(callbackExecuted).toBe(false);
+          expect(service.SpeedOfLight).toBe(0);
+          expect(service.Transmission).toBe(0);
+          expect(service.Speed).toBe(SchedulerState.PAUSED);
+          resolve();
+        },
+        delay * 2 * 1000
+      );
+    });
   });
 
-  it('should be able to pause and resume', (done) => {
+  it('should be able to pause and resume', () => {
     service.Speed = SchedulerState.PAUSED;
 
-    service.once(delay, () => {
-      expect(true).toBeTruthy();
-      done();
+    const promise = new Promise<void>((resolve) => {
+      service.once(delay, () => {
+        expect(true).toBeTruthy();
+        resolve();
+      });
     });
 
     service.Speed = SchedulerState.REAL_TIME;
+    return promise;
   });
 
-  it('should have an interval faster than a second', (done) => {
+  it('should have an interval faster than a second', () => {
     service.Speed = SchedulerState.FASTER;
 
     const deltas: number[] = [];
     let count = 0;
 
-    const unsubscribe = service.subscribeToTimer((time: string) => {
-      const split = time.split(':');
-      const timeInSeconds = parseInt(split[0], 10) * 60 + parseFloat(split[1]);
-      deltas.push(timeInSeconds);
-      count += 1;
+    return new Promise<void>((resolve) => {
+      const unsubscribe = service.subscribeToTimer((time: string) => {
+        const split = time.split(':');
+        const timeInSeconds =
+          parseInt(split[0], 10) * 60 + parseFloat(split[1]);
+        deltas.push(timeInSeconds);
+        count += 1;
 
-      if (count === 2) {
-        unsubscribe();
+        if (count === 2) {
+          unsubscribe();
 
-        const delta = deltas[1] - deltas[0];
-        expect(delta).toBeGreaterThan(0);
-        expect(delta).toBeLessThan(1);
-        done();
-      }
+          const delta = deltas[1] - deltas[0];
+          expect(delta).toBeGreaterThan(0);
+          expect(delta).toBeLessThan(1);
+          resolve();
+        }
+      });
     });
   });
 });

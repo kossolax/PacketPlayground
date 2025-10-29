@@ -24,6 +24,7 @@ import {
   type Device,
   type DeviceType,
 } from '../lib/network-simulator';
+import { usePacketAnimation } from '../hooks/usePacketAnimation';
 
 interface NetworkCanvasProps {
   nodes: Node[];
@@ -47,6 +48,7 @@ export default function NetworkCanvas({
   onDeviceAdded,
 }: NetworkCanvasProps) {
   const { screenToFlowPosition } = useReactFlow();
+  const { edgesWithPackets } = usePacketAnimation({ edges });
 
   const nodeTypes = useMemo(
     () => ({
@@ -102,7 +104,7 @@ export default function NetworkCanvas({
     >
       <ReactFlow
         nodes={nodes}
-        edges={edges}
+        edges={edgesWithPackets}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}

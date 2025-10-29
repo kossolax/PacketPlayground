@@ -11,16 +11,19 @@ import { useSidebar } from '@/components/ui/sidebar';
 import FileUploader from './components/FileUploader';
 import DeviceToolbar from './components/DeviceToolbar';
 import NetworkCanvas from './components/NetworkCanvas';
+import SimulationControls from './components/SimulationControls';
 import { useNetworkFile } from './hooks/useNetworkFile';
 import { useNetworkEditor } from './hooks/useNetworkEditor';
-import type { DeviceType, NetworkTopology } from './lib/network-simulator';
+import useSimulationNetwork from './hooks/useSimulationNetwork';
+import { NetworkSimulationProvider } from './context/NetworkSimulationContext';
+import type { DeviceType, Network } from './lib/network-simulator';
 
 /**
  * NetworkDiagramContent - Inner component that uses ReactFlow hooks
  * Must be a child of ReactFlowProvider
  */
 interface NetworkDiagramContentProps {
-  topology: NetworkTopology | null;
+  network: Network | null;
   filename: string | null;
   isLoading: boolean;
   error: string | null;
@@ -29,7 +32,7 @@ interface NetworkDiagramContentProps {
 }
 
 function NetworkDiagramContent({
-  topology,
+  network,
   filename,
   isLoading,
   error,
@@ -51,16 +54,19 @@ function NetworkDiagramContent({
     addDevice,
   } = useNetworkEditor();
 
+  // Create simulation objects from network
+  const { simulation, isSimulationReady } = useSimulationNetwork(network);
+
   useEffect(() => {
-    if (topology) {
+    if (network) {
       // Only load if this is a new file to avoid double loading
       if (lastLoadedFilename.current !== filename) {
-        loadTopology(topology);
+        loadTopology(network);
         toast.success(`Loaded: ${filename}`);
         lastLoadedFilename.current = filename;
       }
 
-      // Collapse sidebar on desktop when topology is loaded (only once)
+      // Collapse sidebar on desktop when network is loaded (only once)
       if (!isMobile && !hasCollapsedSidebar.current) {
         setOpen(false);
         hasCollapsedSidebar.current = true;
@@ -70,7 +76,16 @@ function NetworkDiagramContent({
       hasCollapsedSidebar.current = false;
       lastLoadedFilename.current = null;
     }
-  }, [topology, filename, loadTopology, isMobile, setOpen]);
+  }, [network, filename, loadTopology, isMobile, setOpen]);
+
+  // Show simulation status
+  useEffect(() => {
+    if (isSimulationReady && simulation) {
+      toast.success(
+        `Simulation ready: ${Object.keys(simulation.nodes).length} nodes, ${simulation.links.length} links`
+      );
+    }
+  }, [isSimulationReady, simulation]);
 
   useEffect(() => {
     if (error) {
@@ -82,10 +97,11 @@ function NetworkDiagramContent({
     setSelectedDevice(null);
   };
 
-  // Show upload zone when no topology is loaded
-  if (!topology) {
+  // Show upload zone when no network is loaded
+  if (!network) {
     return (
       <div className="h-full flex flex-col">
+        <SimulationControls />
         <FileUploader
           onFileSelect={handleFileUpload}
           onStartEmpty={startEmpty}
@@ -95,9 +111,10 @@ function NetworkDiagramContent({
     );
   }
 
-  // Show diagram editor when topology is loaded
+  // Show diagram editor when network is loaded
   return (
     <div className="h-full flex flex-col">
+      <SimulationControls />
       <div className="flex-1 flex overflow-hidden">
         <DeviceToolbar
           onDeviceSelect={setSelectedDevice}
@@ -136,19 +153,21 @@ export default function NetworkDiagram() {
     setBreadcrumbs('Development', 'Network Diagram');
   }, [setBreadcrumbs]);
 
-  const { topology, filename, isLoading, error, handleFileUpload, startEmpty } =
+  const { network, filename, isLoading, error, handleFileUpload, startEmpty } =
     useNetworkFile();
 
   return (
     <ReactFlowProvider>
-      <NetworkDiagramContent
-        topology={topology}
-        filename={filename}
-        isLoading={isLoading}
-        error={error}
-        handleFileUpload={handleFileUpload}
-        startEmpty={startEmpty}
-      />
+      <NetworkSimulationProvider>
+        <NetworkDiagramContent
+          network={network}
+          filename={filename}
+          isLoading={isLoading}
+          error={error}
+          handleFileUpload={handleFileUpload}
+          startEmpty={startEmpty}
+        />
+      </NetworkSimulationProvider>
     </ReactFlowProvider>
   );
 }

@@ -174,6 +174,69 @@ export interface NetworkSender extends GenericClassListener {
   sendPacket(message: NetworkMessage, from: Interface): void;
 }
 
-// Note: SimpleListener and LinkLayerSpy helper classes removed
-// These were test utilities that used RxJS Subjects
-// If needed, they can be reimplemented with callbacks in test files
+// Packet transmission event for visualization
+export interface PacketTransmission {
+  message: PhysicalMessage;
+  source: Interface;
+  destination: Interface;
+  delay: number;
+}
+
+/**
+ * LinkLayerSpy - Listener for physical layer packet transmission events
+ * Used for visualizing packet movement in the network diagram
+ */
+export class LinkLayerSpy implements PhysicalSender, PhysicalListener {
+  private sendBitsCallbacks: Array<(transmission: PacketTransmission) => void> =
+    [];
+
+  private receiveBitsCallbacks: Array<
+    (transmission: PacketTransmission) => void
+  > = [];
+
+  public receiveBits(
+    message: PhysicalMessage,
+    from: Interface,
+    to: Interface
+  ): ActionHandle {
+    this.receiveBitsCallbacks.forEach((callback) => {
+      callback({ message, source: from, destination: to, delay: 0 });
+    });
+    return ActionHandle.Continue;
+  }
+
+  public sendBits(
+    message: PhysicalMessage,
+    from: Interface,
+    to: Interface,
+    delay: number = 0
+  ): void {
+    this.sendBitsCallbacks.forEach((callback) => {
+      callback({ message, source: from, destination: to, delay });
+    });
+  }
+
+  public onSendBits(
+    callback: (transmission: PacketTransmission) => void
+  ): () => void {
+    this.sendBitsCallbacks.push(callback);
+    // Return unsubscribe function
+    return () => {
+      this.sendBitsCallbacks = this.sendBitsCallbacks.filter(
+        (cb) => cb !== callback
+      );
+    };
+  }
+
+  public onReceiveBits(
+    callback: (transmission: PacketTransmission) => void
+  ): () => void {
+    this.receiveBitsCallbacks.push(callback);
+    // Return unsubscribe function
+    return () => {
+      this.receiveBitsCallbacks = this.receiveBitsCallbacks.filter(
+        (cb) => cb !== callback
+      );
+    };
+  }
+}

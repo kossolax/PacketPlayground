@@ -3,7 +3,51 @@
  * Catalog of available network devices for the simulator
  */
 
-import type { Device, DeviceCatalogEntry, DeviceType } from './types';
+/**
+ * Device types supported by Packet Tracer
+ */
+export type DeviceType =
+  | 'pc'
+  | 'laptop'
+  | 'server'
+  | 'router'
+  | 'switch'
+  | 'hub'
+  | 'printer'
+  | 'cloud'
+  | 'bridge';
+
+/**
+ * Network interface (port) on a device - UI representation
+ */
+export interface NetworkInterface {
+  name: string;
+  type: string;
+  isConnected: boolean;
+}
+
+/**
+ * Network device (node in the topology) - UI representation
+ */
+export interface Device {
+  guid: string;
+  name: string;
+  type: DeviceType;
+  x: number;
+  y: number;
+  interfaces: NetworkInterface[];
+}
+
+/**
+ * Device catalog entry for creating new devices
+ */
+export interface DeviceCatalogEntry {
+  type: DeviceType;
+  displayName: string;
+  icon: string;
+  defaultName: string;
+  description: string;
+}
 
 /**
  * Catalog of available devices

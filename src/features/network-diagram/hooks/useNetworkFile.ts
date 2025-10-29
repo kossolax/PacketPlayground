@@ -7,13 +7,10 @@
 
 import { useState, useCallback } from 'react';
 import { decryptPacketTracerFile } from '../lib/pkt-parser';
-import {
-  parsePacketTracerXML,
-  type NetworkTopology,
-} from '../lib/network-simulator';
+import { parseXMLToJSON, Network } from '../lib/network-simulator';
 
 interface UseNetworkFileState {
-  topology: NetworkTopology | null;
+  network: Network | null;
   filename: string | null;
   isLoading: boolean;
   error: string | null;
@@ -21,7 +18,7 @@ interface UseNetworkFileState {
 
 interface UseNetworkFileReturn extends UseNetworkFileState {
   handleFileUpload: (file: File) => Promise<void>;
-  clearTopology: () => void;
+  clearNetwork: () => void;
   startEmpty: () => void;
 }
 
@@ -30,7 +27,7 @@ interface UseNetworkFileReturn extends UseNetworkFileState {
  */
 export function useNetworkFile(): UseNetworkFileReturn {
   const [state, setState] = useState<UseNetworkFileState>({
-    topology: null,
+    network: null,
     filename: null,
     isLoading: false,
     error: null,
@@ -38,7 +35,7 @@ export function useNetworkFile(): UseNetworkFileReturn {
 
   const handleFileUpload = useCallback(async (file: File) => {
     setState({
-      topology: null,
+      network: null,
       filename: file.name,
       isLoading: true,
       error: null,
@@ -48,19 +45,24 @@ export function useNetworkFile(): UseNetworkFileReturn {
       const arrayBuffer = await file.arrayBuffer();
       const uint8Array = new Uint8Array(arrayBuffer);
 
+      // Decrypt PKT/PKA file to XML
       const xmlString = decryptPacketTracerFile(uint8Array);
 
-      const topology = parsePacketTracerXML(xmlString);
+      // Parse XML to JSON
+      const json = await parseXMLToJSON(xmlString);
+
+      // Create Network instance from JSON (like Angular)
+      const network = Network.fromPacketTracer(json);
 
       setState({
-        topology,
+        network,
         filename: file.name,
         isLoading: false,
         error: null,
       });
     } catch (err) {
       setState({
-        topology: null,
+        network: null,
         filename: file.name,
         isLoading: false,
         error: err instanceof Error ? err.message : 'Unknown error occurred',
@@ -68,9 +70,9 @@ export function useNetworkFile(): UseNetworkFileReturn {
     }
   }, []);
 
-  const clearTopology = useCallback(() => {
+  const clearNetwork = useCallback(() => {
     setState({
-      topology: null,
+      network: null,
       filename: null,
       isLoading: false,
       error: null,
@@ -78,14 +80,11 @@ export function useNetworkFile(): UseNetworkFileReturn {
   }, []);
 
   const startEmpty = useCallback(() => {
+    // Create empty network
+    const emptyNetwork = new Network();
+
     setState({
-      topology: {
-        devices: [],
-        links: [],
-        metadata: {
-          filename: 'Empty Diagram',
-        },
-      },
+      network: emptyNetwork,
       filename: 'Empty Diagram',
       isLoading: false,
       error: null,
@@ -95,7 +94,7 @@ export function useNetworkFile(): UseNetworkFileReturn {
   return {
     ...state,
     handleFileUpload,
-    clearTopology,
+    clearNetwork,
     startEmpty,
   };
 }
