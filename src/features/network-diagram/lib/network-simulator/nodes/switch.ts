@@ -1,5 +1,9 @@
 import { Scheduler } from '@/features/network-diagram/lib/scheduler';
-import { Dot1QInterface, type HardwareInterface } from '../layers/datalink';
+import {
+  Dot1QInterface,
+  type HardwareInterface,
+  type Interface,
+} from '../layers/datalink';
 import {
   ActionHandle,
   type DatalinkListener,

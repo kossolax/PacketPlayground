@@ -5,6 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import type { Network } from '../lib/network-simulator';
+import { Node } from '../lib/network-simulator';
 import { useNetworkSimulation } from '../context/NetworkSimulationContext';
 
 interface UseSimulationNetworkReturn {
@@ -37,9 +38,12 @@ export default function useSimulationNetwork(
       setTimeout(() => {
         // Bring up all interfaces on all nodes (triggers autonegotiation)
         Object.values(network.nodes).forEach((node) => {
-          node.getInterfaces().forEach((ifaceName) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const nodeWithMethods = node as Node<any>; // Cast to access getInterfaces()
+
+          nodeWithMethods.getInterfaces().forEach((ifaceName: string) => {
             try {
-              const iface = node.getInterface(ifaceName);
+              const iface = nodeWithMethods.getInterface(ifaceName);
               iface.up(); // Activates interface + triggers autonegotiation
             } catch (error) {
               // eslint-disable-next-line no-console

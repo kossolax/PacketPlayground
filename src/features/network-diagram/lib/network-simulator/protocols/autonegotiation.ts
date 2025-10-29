@@ -1,4 +1,4 @@
-import type { HardwareInterface } from '../layers/datalink';
+import type { HardwareInterface, Interface } from '../layers/datalink';
 import { PhysicalMessage, type Payload } from '../message';
 import { ActionHandle, type PhysicalListener } from './base';
 

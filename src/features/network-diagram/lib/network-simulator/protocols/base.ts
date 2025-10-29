@@ -61,7 +61,7 @@ export function handleChain(
             'hwInterfaceMarker' in i &&
             i.hwInterfaceMarker instanceof HardwareInterfaceMarker
           )
-            (i as DatalinkSender).sendTrame(
+            (i as unknown as DatalinkSender).sendTrame(
               message as DatalinkMessage,
               sender as Interface
             );
@@ -81,7 +81,7 @@ export function handleChain(
             'netInterfaceMarker' in i &&
             i.netInterfaceMarker instanceof NetworkInterfaceMarker
           )
-            (i as NetworkSender).sendPacket(
+            (i as unknown as NetworkSender).sendPacket(
               message as NetworkMessage,
               sender as Interface
             );

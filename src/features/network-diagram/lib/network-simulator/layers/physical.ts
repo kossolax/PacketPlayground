@@ -138,7 +138,8 @@ export abstract class AbstractLink implements PhysicalListener, PhysicalSender {
       switchMap((delay) => Scheduler.getInstance().once$(delay)),
       tap(() => {
         this.receiveBits(message, source, destination);
-      })
+      }),
+      map(() => 0)
     );
   }
 

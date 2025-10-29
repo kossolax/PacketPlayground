@@ -2,7 +2,7 @@
 // This file has no dependencies to avoid circular imports
 
 // Base marker class for hardware interfaces (Ethernet, Dot1Q, etc.)
-export abstract class HardwareInterfaceMarker {}
+export class HardwareInterfaceMarker {}
 
 // Base marker class for network interfaces (IP, IPv6, etc.)
-export abstract class NetworkInterfaceMarker {}
+export class NetworkInterfaceMarker {}

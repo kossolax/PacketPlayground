@@ -19,7 +19,7 @@ import {
   type OnConnect,
 } from '@xyflow/react';
 import type { Device, Network, DeviceType } from '../lib/network-simulator';
-import { DEVICE_CATALOG } from '../lib/network-simulator';
+import { Node as SimNode, DEVICE_CATALOG } from '../lib/network-simulator';
 
 interface UseNetworkEditorReturn {
   nodes: Node[];
@@ -44,6 +44,9 @@ export function useNetworkEditor(): UseNetworkEditorReturn {
     (network: Network) => {
       // Convert Network.nodes (Record<string, GenericNode>) to UI nodes
       const newNodes: Node[] = Object.values(network.nodes).map((simNode) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const nodeWithMethods = simNode as SimNode<any>; // Cast to access getInterfaces()
+
         const node = {
           id: simNode.guid,
           type: 'customNode',
@@ -54,15 +57,18 @@ export function useNetworkEditor(): UseNetworkEditorReturn {
             icon:
               DEVICE_CATALOG[simNode.type as DeviceType]?.icon ||
               '/network-icons/pc.png',
-            interfaces: simNode.interfaces
-              ? Object.values(simNode.interfaces).map((iface) => ({
-                  name: iface.name,
-                  type: iface.name.includes('Gigabit')
+            interfaces: nodeWithMethods
+              .getInterfaces()
+              .map((ifaceName: string) => {
+                const iface = nodeWithMethods.getInterface(ifaceName);
+                return {
+                  name: ifaceName,
+                  type: ifaceName.includes('Gigabit')
                     ? 'GigabitEthernet'
                     : 'FastEthernet',
-                  isConnected: false,
-                }))
-              : [],
+                  isConnected: iface.isConnected,
+                };
+              }),
           },
         };
 
@@ -77,23 +83,30 @@ export function useNetworkEditor(): UseNetworkEditorReturn {
       // Convert Network.links (Link[]) to UI edges
       // Filter out invalid links (missing interfaces or hosts) then map to edges
       const newEdges: Edge[] = network.links
-        .filter((link) => link.iface1?.host && link.iface2?.host)
+        .filter((link) => {
+          const iface1 = link.getInterface(0);
+          const iface2 = link.getInterface(1);
+          return iface1?.Host && iface2?.Host;
+        })
         .map((link, index) => {
+          const iface1 = link.getInterface(0)!;
+          const iface2 = link.getInterface(1)!;
+
           const edge = {
             id: `link-${index}`,
-            source: link.iface1!.host.guid,
-            target: link.iface2!.host.guid,
+            source: iface1.Host.guid,
+            target: iface2.Host.guid,
             type: 'customEdge',
             data: {
-              sourcePort: link.iface1!.name,
-              targetPort: link.iface2!.name,
+              sourcePort: iface1.toString(),
+              targetPort: iface2.toString(),
               cableType: 'ethernet',
             },
           };
 
           // eslint-disable-next-line no-console
           console.log(
-            `[Edge Created] ${link.iface1!.host.guid}[${link.iface1!.name}] ↔ ${link.iface2!.host.guid}[${link.iface2!.name}]`
+            `[Edge Created] ${iface1.Host.guid}[${iface1.toString()}] ↔ ${iface2.Host.guid}[${iface2.toString()}]`
           );
 
           return edge;
