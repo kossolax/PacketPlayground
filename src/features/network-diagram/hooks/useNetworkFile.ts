@@ -8,6 +8,7 @@
 import { useState, useCallback } from 'react';
 import { decryptPacketTracerFile } from '../lib/pkt-parser';
 import { parseXMLToJSON, Network } from '../lib/network-simulator';
+import { getExampleById } from '../lib/network-simulator/examples';
 
 interface UseNetworkFileState {
   network: Network | null;
@@ -20,6 +21,7 @@ interface UseNetworkFileReturn extends UseNetworkFileState {
   handleFileUpload: (file: File) => Promise<void>;
   clearNetwork: () => void;
   startEmpty: () => void;
+  startWithExample: (exampleId: string) => void;
 }
 
 /**
@@ -91,10 +93,48 @@ export function useNetworkFile(): UseNetworkFileReturn {
     });
   }, []);
 
+  const startWithExample = useCallback(async (exampleId: string) => {
+    setState((prev) => ({
+      ...prev,
+      isLoading: true,
+      error: null,
+    }));
+
+    try {
+      const example = getExampleById(exampleId);
+
+      if (!example) {
+        throw new Error(`Example with ID "${exampleId}" not found`);
+      }
+
+      if (!example.available) {
+        throw new Error(`Example "${example.name}" is not yet available`);
+      }
+
+      // Create network from example (handle both sync and async)
+      const network = await example.createNetwork();
+
+      setState({
+        network,
+        filename: example.name,
+        isLoading: false,
+        error: null,
+      });
+    } catch (err) {
+      setState({
+        network: null,
+        filename: null,
+        isLoading: false,
+        error: err instanceof Error ? err.message : 'Failed to load example',
+      });
+    }
+  }, []);
+
   return {
     ...state,
     handleFileUpload,
     clearNetwork,
     startEmpty,
+    startWithExample,
   };
 }

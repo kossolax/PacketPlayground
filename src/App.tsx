@@ -33,6 +33,11 @@ export default function App() {
           element={<NetworkDiagram />}
           handle={{ fullWidth: true }}
         />
+        <Route
+          path="network-diagram/:exampleId"
+          element={<NetworkDiagram />}
+          handle={{ fullWidth: true }}
+        />
         <Route path="theme" element={<Theme />} />
         <Route path="*" element={<NotFound />} />
       </Route>

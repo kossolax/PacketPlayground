@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
+import { useParams } from 'react-router-dom';
 import { ReactFlowProvider } from '@xyflow/react';
 import { toast } from 'sonner';
 import { useBreadcrumb } from '@/hooks/use-breadcrumb';
@@ -29,6 +30,7 @@ interface NetworkDiagramContentProps {
   error: string | null;
   handleFileUpload: (file: File) => Promise<void>;
   startEmpty: () => void;
+  startWithExample: (exampleId: string) => void;
 }
 
 function NetworkDiagramContent({
@@ -38,6 +40,7 @@ function NetworkDiagramContent({
   error,
   handleFileUpload,
   startEmpty,
+  startWithExample,
 }: NetworkDiagramContentProps) {
   const [selectedDevice, setSelectedDevice] = useState<DeviceType | null>(null);
   const { setOpen, isMobile } = useSidebar();
@@ -105,6 +108,7 @@ function NetworkDiagramContent({
         <FileUploader
           onFileSelect={handleFileUpload}
           onStartEmpty={startEmpty}
+          onStartWithExample={startWithExample}
           isLoading={isLoading}
         />
       </div>
@@ -149,13 +153,28 @@ function NetworkDiagramContent({
  */
 export default function NetworkDiagram() {
   const { setBreadcrumbs } = useBreadcrumb();
+  const { exampleId } = useParams<{ exampleId?: string }>();
 
   useEffect(() => {
     setBreadcrumbs('Development', 'Network Diagram');
   }, [setBreadcrumbs]);
 
-  const { network, filename, isLoading, error, handleFileUpload, startEmpty } =
-    useNetworkFile();
+  const {
+    network,
+    filename,
+    isLoading,
+    error,
+    handleFileUpload,
+    startEmpty,
+    startWithExample,
+  } = useNetworkFile();
+
+  // Auto-load example from URL parameter
+  useEffect(() => {
+    if (exampleId && !network && !isLoading) {
+      startWithExample(exampleId);
+    }
+  }, [exampleId, network, isLoading, startWithExample]);
 
   return (
     <ReactFlowProvider>
@@ -167,6 +186,7 @@ export default function NetworkDiagram() {
           error={error}
           handleFileUpload={handleFileUpload}
           startEmpty={startEmpty}
+          startWithExample={startWithExample}
         />
       </NetworkSimulationProvider>
     </ReactFlowProvider>
