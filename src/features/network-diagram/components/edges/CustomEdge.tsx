@@ -12,6 +12,7 @@ import {
 } from '@xyflow/react';
 import { memo, useEffect, useRef } from 'react';
 import getEdgeParams from '../../utils/edgeUtils';
+import { SpanningTreeState } from '../../lib/network-simulator/services/spanningtree';
 
 export interface AnimatedPacket {
   id?: string; // unique key for React mounting
@@ -20,12 +21,83 @@ export interface AnimatedPacket {
   reverse?: boolean; // if true, animate from target to source
 }
 
+export interface InterfaceState {
+  isActive: boolean;
+  speed?: number; // Mbps
+  fullDuplex?: boolean;
+  isSwitch?: boolean;
+  spanningTreeState?: SpanningTreeState;
+}
+
 export interface CustomEdgeData {
   sourcePort?: string;
   targetPort?: string;
   cableType?: string;
   isBlinking?: boolean;
   animatedPackets?: AnimatedPacket[]; // Packets currently animating on this edge
+  sourceInterfaceState?: InterfaceState;
+  targetInterfaceState?: InterfaceState;
+}
+
+/**
+ * Get LED color based on interface state
+ * Colors:
+ * - Black: not initialized (system error)
+ * - Red: interface down
+ * - Orange: STP Blocking (only if STP enabled)
+ * - Blue: STP Listening/Learning (only if STP enabled)
+ * - Green: interface up (default for switches without STP, routers, PCs)
+ */
+function getLEDColor(state?: InterfaceState): string {
+  if (!state) return '#505050'; // Black - not initialized (system error)
+
+  if (!state.isActive) return '#f44336'; // Red - interface down
+
+  // If switch WITH STP enabled, show STP state colors
+  if (state.isSwitch && state.spanningTreeState !== undefined) {
+    switch (state.spanningTreeState) {
+      case SpanningTreeState.Blocking:
+        return '#f4af50'; // Orange
+      case SpanningTreeState.Listening:
+      case SpanningTreeState.Learning:
+        return '#2196f3'; // Blue
+      case SpanningTreeState.Forwarding:
+        return '#4caf50'; // Green
+      case SpanningTreeState.Disabled:
+        return '#f44336'; // Red - STP disabled this port
+      default:
+        break;
+    }
+  }
+
+  // Default: interface up (switch without STP, router, PC, or unknown STP state)
+  return '#4caf50'; // Green
+}
+
+/**
+ * Get tooltip text describing the interface state
+ */
+function getInterfaceTooltip(state?: InterfaceState): string {
+  if (!state) return 'Interface not initialized';
+
+  if (!state.isActive) return 'Interface DOWN';
+
+  const parts: string[] = ['Interface UP'];
+
+  if (state.speed) {
+    parts.push(`${state.speed} Mbps`);
+  }
+
+  if (state.fullDuplex !== undefined) {
+    parts.push(state.fullDuplex ? 'Full Duplex' : 'Half Duplex');
+  }
+
+  if (state.isSwitch && state.spanningTreeState !== undefined) {
+    const stpState = SpanningTreeState[state.spanningTreeState];
+    parts.push(`STP: ${stpState}`);
+  }
+
+  return parts.join(' | ');
 }
 
 // JS-driven packet animator
@@ -135,6 +207,35 @@ function CustomEdge({ id, source, target, data, selected }: EdgeProps) {
           opacity: edgeData?.isBlinking ? 0.5 : 1,
         }}
       />
+
+      {/* LED Status Indicators at edge endpoints */}
+      <g className="pointer-events-none">
+        {/* Source LED */}
+        <circle
+          cx={sx}
+          cy={sy}
+          r="6"
+          fill={getLEDColor(edgeData?.sourceInterfaceState)}
+          stroke="#fff"
+          strokeWidth="1.5"
+          style={{ transition: 'fill 0.2s ease' }}
+        >
+          <title>{getInterfaceTooltip(edgeData?.sourceInterfaceState)}</title>
+        </circle>
+
+        {/* Target LED */}
+        <circle
+          cx={tx}
+          cy={ty}
+          r="6"
+          fill={getLEDColor(edgeData?.targetInterfaceState)}
+          stroke="#fff"
+          strokeWidth="1.5"
+          style={{ transition: 'fill 0.2s ease' }}
+        >
+          <title>{getInterfaceTooltip(edgeData?.targetInterfaceState)}</title>
+        </circle>
+      </g>
 
       {/* Animated packets as SVG circles (JS-driven) */}
       {edgeData?.animatedPackets?.map((packet) => (

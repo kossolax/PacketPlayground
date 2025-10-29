@@ -20,6 +20,9 @@ import {
 } from '@xyflow/react';
 import type { Device, Network, DeviceType } from '../lib/network-simulator';
 import { Node as SimNode, DEVICE_CATALOG } from '../lib/network-simulator';
+import type { InterfaceState } from '../components/edges/CustomEdge';
+import type { HardwareInterface } from '../lib/network-simulator/layers/datalink';
+import { SwitchHost } from '../lib/network-simulator/nodes/switch';
 
 interface UseNetworkEditorReturn {
   nodes: Node[];
@@ -30,6 +33,25 @@ interface UseNetworkEditorReturn {
   loadTopology: (network: Network) => void;
   addDevice: (device: Device) => void;
   clearDiagram: () => void;
+}
+
+/**
+ * Extract interface state for LED display
+ */
+function getInterfaceState(iface: HardwareInterface): InterfaceState {
+  const state: InterfaceState = {
+    isActive: iface.isActive(),
+    speed: iface.Speed,
+    fullDuplex: iface.FullDuplex,
+    isSwitch: iface.Host instanceof SwitchHost,
+  };
+
+  // Add Spanning Tree state ONLY if switch has STP enabled
+  if (iface.Host instanceof SwitchHost && iface.Host.spanningTree.Enable) {
+    state.spanningTreeState = iface.Host.spanningTree.State(iface);
+  }
+
+  return state;
 }
 
 /**
@@ -101,6 +123,8 @@ export function useNetworkEditor(): UseNetworkEditorReturn {
               sourcePort: iface1.toString(),
               targetPort: iface2.toString(),
               cableType: 'ethernet',
+              sourceInterfaceState: getInterfaceState(iface1),
+              targetInterfaceState: getInterfaceState(iface2),
             },
           };
 

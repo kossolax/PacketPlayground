@@ -130,6 +130,7 @@ function NetworkDiagramContent({
           onAddDevice={addDevice}
           selectedDevice={selectedDevice}
           onDeviceAdded={handleDeviceAdded}
+          network={simulation}
         />
       </div>
 

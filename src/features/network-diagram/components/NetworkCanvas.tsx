@@ -23,8 +23,10 @@ import {
   createDevice,
   type Device,
   type DeviceType,
+  type Network,
 } from '../lib/network-simulator';
 import { usePacketAnimation } from '../hooks/usePacketAnimation';
+import { useInterfaceStateMonitor } from '../hooks/useInterfaceStateMonitor';
 
 interface NetworkCanvasProps {
   nodes: Node[];
@@ -35,6 +37,7 @@ interface NetworkCanvasProps {
   onAddDevice: (device: Device) => void;
   selectedDevice: DeviceType | null;
   onDeviceAdded: () => void;
+  network: Network | null;
 }
 
 export default function NetworkCanvas({
@@ -46,9 +49,30 @@ export default function NetworkCanvas({
   onAddDevice,
   selectedDevice,
   onDeviceAdded,
+  network,
 }: NetworkCanvasProps) {
   const { screenToFlowPosition } = useReactFlow();
   const { edgesWithPackets } = usePacketAnimation({ edges });
+  const interfaceStates = useInterfaceStateMonitor(network);
+
+  // Merge LED states into edges
+  const edgesWithLEDs = useMemo(
+    () =>
+      edgesWithPackets.map((edge) => {
+        const ledStates = interfaceStates.get(edge.id);
+        if (!ledStates) return edge;
+
+        return {
+          ...edge,
+          data: {
+            ...edge.data,
+            sourceInterfaceState: ledStates.sourceState,
+            targetInterfaceState: ledStates.targetState,
+          },
+        };
+      }),
+    [edgesWithPackets, interfaceStates]
+  );
 
   const nodeTypes = useMemo(
     () => ({
@@ -104,7 +128,7 @@ export default function NetworkCanvas({
     >
       <ReactFlow
         nodes={nodes}
-        edges={edgesWithPackets}
+        edges={edgesWithLEDs}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
