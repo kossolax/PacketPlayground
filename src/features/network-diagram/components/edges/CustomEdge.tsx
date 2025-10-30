@@ -100,7 +100,7 @@ function getInterfaceTooltip(state?: InterfaceState): string {
   return parts.join(' | ');
 }
 
-// JS-driven packet animator
+// JS-driven packet animator with badge display
 function PacketDot({
   edgeId,
   packet,
@@ -108,14 +108,14 @@ function PacketDot({
   edgeId: string;
   packet: AnimatedPacket;
 }) {
-  const circleRef = useRef<SVGCircleElement | null>(null);
+  const groupRef = useRef<SVGGElement | null>(null);
 
   useEffect(() => {
     const path = document.getElementById(
       `edge-path-${edgeId}`
     ) as SVGPathElement | null;
-    const circle = circleRef.current;
-    if (!path || !circle) return undefined;
+    const group = groupRef.current;
+    if (!path || !group) return undefined;
 
     const total = path.getTotalLength();
     const durMs = Math.max(0, packet.delay * 1000);
@@ -124,7 +124,7 @@ function PacketDot({
     // Position immediately at start to avoid initial blink
     const initProgress = packet.reverse ? 1 : 0;
     const initPoint = path.getPointAtLength(initProgress * total);
-    circle.setAttribute(
+    group.setAttribute(
       'transform',
       `translate(${initPoint.x},${initPoint.y})`
     );
@@ -135,7 +135,7 @@ function PacketDot({
       const t = durMs === 0 ? 1 : Math.min(1, elapsed / durMs);
       const prog = packet.reverse ? 1 - t : t;
       const pt = path.getPointAtLength(prog * total);
-      circle.setAttribute('transform', `translate(${pt.x},${pt.y})`);
+      group.setAttribute('transform', `translate(${pt.x},${pt.y})`);
       if (t < 1) {
         raf = requestAnimationFrame(step);
       }
@@ -145,14 +145,51 @@ function PacketDot({
     return () => cancelAnimationFrame(raf);
   }, [edgeId, packet.id, packet.delay, packet.reverse]);
 
+  // Parse message lines
+  const lines = packet.message.split('\n').filter((line) => line.trim() !== '');
+  const lineHeight = 12;
+  const padding = 6;
+  const minWidth = 40;
+
+  // Calculate dynamic width based on text length (rough estimate)
+  const maxLineLength = Math.max(...lines.map((line) => line.length));
+  const width = Math.max(minWidth, maxLineLength * 6 + padding * 2);
+  const height = lines.length * lineHeight + padding * 2;
+
   return (
-    <circle
-      ref={circleRef}
-      r="8"
-      fill="#ef4444"
-      stroke="#fff"
-      strokeWidth="2"
-    />
+    <g ref={groupRef}>
+      {/* Rectangle badge with rounded corners */}
+      <rect
+        x={-width / 2}
+        y={-height / 2}
+        width={width}
+        height={height}
+        rx="4"
+        fill="#ef4444"
+        stroke="#fff"
+        strokeWidth="2"
+      />
+
+      {/* Multi-line text centered */}
+      <text
+        textAnchor="middle"
+        dominantBaseline="central"
+        fill="#fff"
+        fontSize="9"
+        fontWeight="bold"
+        fontFamily="monospace"
+      >
+        {lines.map((line, i) => (
+          <tspan
+            key={i}
+            x="0"
+            dy={i === 0 ? -(lines.length - 1) * lineHeight / 2 : lineHeight}
+          >
+            {line}
+          </tspan>
+        ))}
+      </text>
+    </g>
   );
 }
 
@@ -243,21 +280,6 @@ function CustomEdge({ id, source, target, data, selected }: EdgeProps) {
           <PacketDot edgeId={id} packet={packet} />
         </g>
       ))}
-
-      {edgeData?.sourcePort && edgeData?.targetPort && (
-        <EdgeLabelRenderer>
-          <div
-            style={{
-              position: 'absolute',
-              transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
-              pointerEvents: 'all',
-            }}
-            className="text-xs bg-background border border-border px-1.5 py-0.5 rounded nodrag nopan"
-          >
-            {edgeData.sourcePort} ↔ {edgeData.targetPort}
-          </div>
-        </EdgeLabelRenderer>
-      )}
     </>
   );
 }

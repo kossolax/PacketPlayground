@@ -26,12 +26,12 @@ export function useSimulation(): UseSimulationReturn {
 
   // Subscribe to timer updates
   useEffect(() => {
-    const unsubscribe = scheduler.subscribeToTimer((currentTime) => {
+    const subscription = scheduler.Timer$.subscribe((currentTime) => {
       setTime(currentTime);
     });
 
     return () => {
-      unsubscribe();
+      subscription.unsubscribe();
     };
   }, [scheduler]);
 

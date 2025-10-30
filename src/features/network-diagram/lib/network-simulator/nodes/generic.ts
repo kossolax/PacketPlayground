@@ -8,6 +8,7 @@ import { EthernetInterface, type Interface } from '../layers/datalink';
 import { IPInterface, type NetworkInterface } from '../layers/network';
 import { NetworkMessage } from '../message';
 import { type GenericEventListener, handleChain } from '../protocols/base';
+import { normalizeInterfaceName } from '../utils/interface-names';
 
 export abstract class GenericNode {
   public guid: string = Math.random().toString(36).substring(2, 9);
@@ -118,6 +119,9 @@ export abstract class NetworkHost extends Node<NetworkInterface> {
     let interfaceName = name;
     if (interfaceName === '')
       interfaceName = `gig0/${Object.keys(this.interfaces).length}`;
+
+    // Normalize interface name to full format for internal storage
+    interfaceName = normalizeInterfaceName(interfaceName);
 
     const ip = IPAddress.generateAddress();
     const mac = MacAddress.generateAddress();

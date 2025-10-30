@@ -1,4 +1,4 @@
-import { Observable } from 'rxjs';
+import { BehaviorSubject, map, Observable, switchMap, take, tap, timer } from 'rxjs';
 
 export enum SchedulerState {
   FASTER,
@@ -6,18 +6,6 @@ export enum SchedulerState {
   SLOWER,
   PAUSED,
 }
-
-type TimerListener = {
-  delay: number;
-  timeoutId: NodeJS.Timeout | null;
-  callback: () => void;
-  isRepeating: boolean;
-};
-
-type TimerSubscription = {
-  intervalId: NodeJS.Timeout | null;
-  callback: (time: string) => void;
-};
 
 export class Scheduler {
   private static instance: Scheduler;
@@ -32,9 +20,7 @@ export class Scheduler {
 
   private startPause: number = 0;
 
-  private listeners: TimerListener[] = [];
-
-  private timerSubscriptions: TimerSubscription[] = [];
+  private listener: { delay: number; callback: BehaviorSubject<number> }[] = [];
 
   get Transmission(): number {
     return this.transmissionMultiplier;
@@ -48,10 +34,10 @@ export class Scheduler {
     return this.currentState;
   }
 
-  set Speed(state: SchedulerState) {
+  set Speed(delay: SchedulerState) {
     const delta = this.getDeltaTime();
 
-    switch (state) {
+    switch (delay) {
       case SchedulerState.FASTER: {
         this.transmissionMultiplier = 100 * 1000;
         this.speedOfLightMultiplier = 10;
@@ -72,14 +58,12 @@ export class Scheduler {
         this.speedOfLightMultiplier = 0;
         break;
       }
-      default:
-        break;
     }
 
-    this.currentState = state;
+    this.currentState = delay;
 
-    // Recalculate start time to compensate for the change in speed
-    if (state === SchedulerState.PAUSED) {
+    // recalculate start time to compensate for the change in speed
+    if (delay === SchedulerState.PAUSED) {
       this.startTime = Date.now() - delta;
       this.startPause = Date.now();
     } else {
@@ -87,6 +71,10 @@ export class Scheduler {
     }
 
     this.reset();
+  }
+
+  get Timer$(): Observable<string> {
+    return timer(1, 10).pipe(map(() => this.calculateStringTime()));
   }
 
   static getInstance(): Scheduler {
@@ -138,156 +126,27 @@ export class Scheduler {
     return (delay / this.speedOfLightMultiplier) * 1000;
   }
 
-  public once(delay: number, callback: () => void): () => void {
-    const actualDelay = this.getDelay(delay);
-    const listener: TimerListener = {
-      delay,
-      timeoutId: null,
-      callback,
-      isRepeating: false,
-    };
-
-    listener.timeoutId = setTimeout(() => {
-      callback();
-      // Remove listener after execution
-      const index = this.listeners.indexOf(listener);
-      if (index > -1) {
-        this.listeners.splice(index, 1);
-      }
-    }, actualDelay);
-
-    this.listeners.push(listener);
-
-    // Return unsubscribe function
-    return () => {
-      if (listener.timeoutId) {
-        clearTimeout(listener.timeoutId);
-      }
-      const index = this.listeners.indexOf(listener);
-      if (index > -1) {
-        this.listeners.splice(index, 1);
-      }
-    };
+  public once(delay: number): Observable<0> {
+    return this.repeat(delay).pipe(take(1));
   }
 
-  /**
-   * RxJS Observable version of once() - returns an Observable that completes after the delay
-   * Used for RxJS-based code in network simulator layers
-   */
-  public once$(delay: number): Observable<void> {
-    return new Observable<void>((subscriber) => {
-      const unsubscribe = this.once(delay, () => {
-        subscriber.next();
-        subscriber.complete();
-      });
+  public repeat(delay: number, firstDelay: number = -1): Observable<0> {
+    const actualFirstDelay = firstDelay === -1 ? delay : firstDelay;
 
-      // Return teardown logic
-      return () => {
-        unsubscribe();
-      };
-    });
-  }
+    const interval$: BehaviorSubject<number> = new BehaviorSubject<number>(
+      this.getDelay(actualFirstDelay)
+    );
+    this.listener.push({ delay, callback: interval$ });
 
-  public repeat(
-    delay: number,
-    callback: () => void,
-    firstDelay: number = -1
-  ): () => void {
-    const initialDelay = firstDelay === -1 ? delay : firstDelay;
-    const listener: TimerListener = {
-      delay,
-      timeoutId: null,
-      callback,
-      isRepeating: true,
-    };
-
-    const scheduleNext = () => {
-      const actualDelay = this.getDelay(delay);
-      listener.timeoutId = setTimeout(() => {
-        callback();
-        scheduleNext();
-      }, actualDelay);
-    };
-
-    // Schedule first execution
-    const actualFirstDelay = this.getDelay(initialDelay);
-    listener.timeoutId = setTimeout(() => {
-      callback();
-      scheduleNext();
-    }, actualFirstDelay);
-
-    this.listeners.push(listener);
-
-    // Return unsubscribe function
-    return () => {
-      if (listener.timeoutId) {
-        clearTimeout(listener.timeoutId);
-      }
-      const index = this.listeners.indexOf(listener);
-      if (index > -1) {
-        this.listeners.splice(index, 1);
-      }
-    };
-  }
-
-  public subscribeToTimer(callback: (time: string) => void): () => void {
-    const subscription: TimerSubscription = {
-      intervalId: null,
-      callback,
-    };
-
-    subscription.intervalId = setInterval(() => {
-      const time = this.calculateStringTime();
-      callback(time);
-    }, 10);
-
-    this.timerSubscriptions.push(subscription);
-
-    // Return unsubscribe function
-    return () => {
-      if (subscription.intervalId) {
-        clearInterval(subscription.intervalId);
-      }
-      const index = this.timerSubscriptions.indexOf(subscription);
-      if (index > -1) {
-        this.timerSubscriptions.splice(index, 1);
-      }
-    };
+    return interval$.pipe(
+      switchMap((duration) => timer(duration)),
+      tap(() => interval$.next(this.getDelay(delay)))
+    );
   }
 
   private reset(): void {
-    // Cancel all existing timers and reschedule them
-    this.listeners.forEach((listener) => {
-      if (listener.timeoutId) {
-        clearTimeout(listener.timeoutId);
-      }
-
-      const actualDelay = this.getDelay(listener.delay);
-      const listenerRef = listener; // Create reference to satisfy eslint
-
-      if (listenerRef.isRepeating) {
-        const scheduleNext = () => {
-          const nextDelay = this.getDelay(listenerRef.delay);
-          listenerRef.timeoutId = setTimeout(() => {
-            listenerRef.callback();
-            scheduleNext();
-          }, nextDelay);
-        };
-
-        listenerRef.timeoutId = setTimeout(() => {
-          listenerRef.callback();
-          scheduleNext();
-        }, actualDelay);
-      } else {
-        listenerRef.timeoutId = setTimeout(() => {
-          listenerRef.callback();
-          // Remove listener after execution
-          const index = this.listeners.indexOf(listenerRef);
-          if (index > -1) {
-            this.listeners.splice(index, 1);
-          }
-        }, actualDelay);
-      }
+    this.listener.forEach((i) => {
+      i.callback.next(this.getDelay(i.delay));
     });
   }
 }

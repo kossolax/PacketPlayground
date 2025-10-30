@@ -4,6 +4,7 @@ import type { NetworkInterface } from '../../layers/network';
 import type { SwitchHost } from '../../nodes/switch';
 import { VlanMode } from '../../protocols/ethernet';
 import { TerminalCommand } from '../command-base';
+import { parseInterfaceName, toShortName } from '../../utils/interface-names';
 
 export { VlanMode };
 
@@ -196,14 +197,16 @@ export class InterfaceCommand extends TerminalCommand {
   ): void {
     if (command === this.name) {
       if (args.length === 2) {
+        // Parse interface name using utility (supports both short and full names)
+        const requestedName = parseInterfaceName(args[0], args[1]);
+
+        // Find matching interface
         const ifaces = this.Terminal.Node.getInterfaces()
-          .map((iface) => {
-            const match = iface.matchAll(/^([a-zA-Z]+)\s?(\d+(?:\/\d+)*)/g);
-            return match.next().value;
-          })
-          .filter((iface) => iface[1].startsWith(args[0]))
-          .filter((iface) => iface[2].startsWith(args[1]))
-          .map((iface) => iface[0]);
+          .filter((iface) => {
+            // Match against both the stored name and parsed request
+            return iface === requestedName ||
+                   iface.toLowerCase() === requestedName.toLowerCase();
+          });
 
         if (ifaces.length !== 1)
           throw new Error(`${this.name} requires a valid interface`);
@@ -225,23 +228,34 @@ export class InterfaceCommand extends TerminalCommand {
   ): string[] {
     if (command === this.name) {
       if (args.length === 1) {
+        // Show short interface type names for autocomplete
         const ifaces = this.Terminal.Node.getInterfaces()
-          .filter((iface) => iface.startsWith(args[0]))
           .map((iface) => {
-            const match = iface.matchAll(/^([a-zA-Z]+)\s?(\d+(?:\/\d+)*)/g);
-            return match.next().value[1];
-          });
+            const match = iface.match(/^([a-zA-Z-]+)(\d+(?:\/\d+)*)$/);
+            return match ? toShortName(iface) : null;
+          })
+          .filter((iface): iface is string => iface !== null)
+          .map((iface) => {
+            const match = iface.match(/^([a-z-]+)(\d+(?:\/\d+)*)$/);
+            return match ? match[1] : iface;
+          })
+          .filter((type) => type.startsWith(args[0].toLowerCase()));
 
         return Array.from(new Set(ifaces));
       }
       if (args.length === 2) {
+        // Show port numbers for matching interface types
         const ifaces = this.Terminal.Node.getInterfaces()
-          .filter((iface) => iface.startsWith(args[0]))
+          .map((iface) => toShortName(iface))
           .map((iface) => {
-            const match = iface.matchAll(/^([a-zA-Z]+)\s?(\d+(?:\/\d+)*)/g);
-            return match.next().value[2];
+            const match = iface.match(/^([a-z-]+)(\d+(?:\/\d+)*)$/);
+            return match ? { type: match[1], port: match[2] } : null;
           })
-          .filter((iface) => iface.startsWith(args[1]));
+          .filter((iface): iface is { type: string; port: string } =>
+            iface !== null && iface.type.startsWith(args[0].toLowerCase())
+          )
+          .map((iface) => iface.port)
+          .filter((port) => port.startsWith(args[1]));
 
         return Array.from(new Set(ifaces));
       }

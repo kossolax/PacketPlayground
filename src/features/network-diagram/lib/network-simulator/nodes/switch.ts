@@ -18,6 +18,7 @@ import {
 } from '../services/spanningtree';
 import { HardwareAddress, MacAddress } from '../address';
 import { Dot1QMessage, EthernetMessage, VlanMode } from '../protocols/ethernet';
+import { normalizeInterfaceName } from '../utils/interface-names';
 
 export type MACTableEntry = { iface: HardwareInterface; lastSeen: number };
 
@@ -74,6 +75,9 @@ export class SwitchHost
     let interfaceName = name;
     if (interfaceName === '')
       interfaceName = `gig0/${Object.keys(this.interfaces).length}`;
+
+    // Normalize interface name to full format for internal storage
+    interfaceName = normalizeInterfaceName(interfaceName);
 
     const iface = new Dot1QInterface(this, mac, interfaceName, 10, 1000, true);
     iface.addListener(this);

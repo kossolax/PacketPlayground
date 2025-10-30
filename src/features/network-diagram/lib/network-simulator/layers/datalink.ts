@@ -20,6 +20,7 @@ import {
 import type { GenericNode } from '../nodes/generic';
 import { HardwareInterfaceMarker } from './layer-base';
 import { Scheduler } from '@/features/network-diagram/lib/scheduler';
+import { toShortName } from '../utils/interface-names';
 
 export abstract class Interface {
   protected host: GenericNode;
@@ -43,7 +44,7 @@ export abstract class Interface {
   }
 
   public toString(): string {
-    return `${this.host.name}(${this.name})`;
+    return `${this.host.name}(${toShortName(this.name)})`;
   }
 
   // ---
@@ -233,7 +234,7 @@ export class EthernetInterface extends HardwareInterface {
     fullDuplexCapable: boolean = true,
     autonegotiate: boolean = true
   ) {
-    super(node, addr, `eth${name}`);
+    super(node, addr, name);
     this.minSpeed = minSpeed;
     this.maxSpeed = maxSpeed;
     this.Speed = maxSpeed;

@@ -143,7 +143,7 @@ export class ICMPProtocol implements NetworkListener {
     this.iface.sendPacket(request);
 
     const timeout$ = Scheduler.getInstance()
-      .once$(timeout)
+      .once(timeout)
       .pipe(map(() => null));
     return race(subject, timeout$).pipe(
       tap(() => this.queue.delete(request.identification))
