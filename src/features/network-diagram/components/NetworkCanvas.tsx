@@ -3,7 +3,7 @@
  * Main ReactFlow canvas for displaying and editing network topology
  */
 
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useEffect } from 'react';
 import {
   ReactFlow,
   Background,
@@ -15,6 +15,7 @@ import {
   type OnNodesChange,
   type OnEdgesChange,
   type OnConnect,
+  type NodeMouseHandler,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import CustomNode from './nodes/CustomNode';
@@ -27,6 +28,7 @@ import {
 } from '../lib/network-simulator';
 import { usePacketAnimation } from '../hooks/usePacketAnimation';
 import { useInterfaceStateMonitor } from '../hooks/useInterfaceStateMonitor';
+import type { CableType } from '../lib/network-simulator/cables';
 
 interface NetworkCanvasProps {
   nodes: Node[];
@@ -38,6 +40,10 @@ interface NetworkCanvasProps {
   selectedDevice: DeviceType | null;
   onDeviceAdded: () => void;
   network: Network | null;
+  selectedCable: CableType | null;
+  connectionInProgress: { sourceNodeId: string; cableType: CableType } | null;
+  onStartConnection: (nodeId: string) => void;
+  onCancelConnection: () => void;
 }
 
 export default function NetworkCanvas({
@@ -50,10 +56,25 @@ export default function NetworkCanvas({
   selectedDevice,
   onDeviceAdded,
   network,
+  selectedCable,
+  connectionInProgress,
+  onStartConnection,
+  onCancelConnection,
 }: NetworkCanvasProps) {
   const { screenToFlowPosition } = useReactFlow();
   const { edgesWithPackets } = usePacketAnimation({ edges });
   const interfaceStates = useInterfaceStateMonitor(network);
+
+  // Handle ESC key to cancel connection
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && connectionInProgress) {
+        onCancelConnection();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [connectionInProgress, onCancelConnection]);
 
   // Merge LED states into edges
   const edgesWithLEDs = useMemo(
@@ -88,8 +109,53 @@ export default function NetworkCanvas({
     []
   );
 
+  // Handle node click for cable connection
+  const handleNodeClick: NodeMouseHandler = useCallback(
+    (event, node) => {
+      // Only handle clicks when cable is selected
+      if (!selectedCable) return;
+
+      // First click: start connection
+      if (!connectionInProgress) {
+        onStartConnection(node.id);
+        return;
+      }
+
+      // Second click on same node: cancel
+      if (connectionInProgress.sourceNodeId === node.id) {
+        onCancelConnection();
+        return;
+      }
+
+      // Second click on different node: create connection
+      // Trigger onConnect manually
+      onConnect({
+        source: connectionInProgress.sourceNodeId,
+        target: node.id,
+        sourceHandle: null,
+        targetHandle: null,
+      });
+
+      // Clear connection state
+      onCancelConnection();
+    },
+    [
+      selectedCable,
+      connectionInProgress,
+      onStartConnection,
+      onCancelConnection,
+      onConnect,
+    ]
+  );
+
   const handlePaneClick = useCallback(
     (event: React.MouseEvent) => {
+      // Cancel connection if clicking on pane while connection in progress
+      if (connectionInProgress) {
+        onCancelConnection();
+        return;
+      }
+
       if (!selectedDevice) return;
 
       const target = event.target as HTMLElement;
@@ -111,7 +177,14 @@ export default function NetworkCanvas({
       onAddDevice(device);
       onDeviceAdded();
     },
-    [selectedDevice, onAddDevice, onDeviceAdded, screenToFlowPosition]
+    [
+      selectedDevice,
+      onAddDevice,
+      onDeviceAdded,
+      screenToFlowPosition,
+      connectionInProgress,
+      onCancelConnection,
+    ]
   );
 
   return (
@@ -132,6 +205,7 @@ export default function NetworkCanvas({
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        onNodeClick={handleNodeClick}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         minZoom={0.1}

@@ -5,7 +5,6 @@
 
 import {
   BaseEdge,
-  EdgeLabelRenderer,
   getStraightPath,
   useStore,
   type EdgeProps,
@@ -120,16 +119,16 @@ function PacketDot({
 
     const total = path.getTotalLength();
     // Convert simulator time to real time by dividing by speed multiplier
-    const durMs = Math.max(0, (packet.delay * 1000) / Scheduler.getInstance().SpeedOfLight);
+    const durMs = Math.max(
+      0,
+      (packet.delay * 1000) / Scheduler.getInstance().SpeedOfLight
+    );
     const start = performance.now();
 
     // Position immediately at start to avoid initial blink
     const initProgress = packet.reverse ? 1 : 0;
     const initPoint = path.getPointAtLength(initProgress * total);
-    group.setAttribute(
-      'transform',
-      `translate(${initPoint.x},${initPoint.y})`
-    );
+    group.setAttribute('transform', `translate(${initPoint.x},${initPoint.y})`);
 
     let raf = 0;
     const step = (now: number) => {
@@ -181,11 +180,15 @@ function PacketDot({
         fontWeight="bold"
         fontFamily="monospace"
       >
-        {lines.map((line, i) => (
+        {lines.map((line) => (
           <tspan
-            key={i}
+            key={line}
             x="0"
-            dy={i === 0 ? -(lines.length - 1) * lineHeight / 2 : lineHeight}
+            dy={
+              line === lines[0]
+                ? (-(lines.length - 1) * lineHeight) / 2
+                : lineHeight
+            }
           >
             {line}
           </tspan>
@@ -207,7 +210,7 @@ function CustomEdge({ id, source, target, data, selected }: EdgeProps) {
 
   const { sx, sy, tx, ty } = getEdgeParams(sourceNode, targetNode);
 
-  const [edgePath, labelX, labelY] = getStraightPath({
+  const [edgePath] = getStraightPath({
     sourceX: sx,
     sourceY: sy,
     targetX: tx,
@@ -218,7 +221,10 @@ function CustomEdge({ id, source, target, data, selected }: EdgeProps) {
   const getStrokeColor = () => {
     if (edgeData?.isBlinking) return '#f59e0b';
     if (selected) return '#3b82f6';
-    return '#94a3b8';
+    // Crossover cables use amber color
+    if (edgeData?.cableType === 'crossover') return '#f59e0b';
+    // Standard ethernet cables use blue-gray
+    return '#3b82f6';
   };
 
   // Determine stroke width

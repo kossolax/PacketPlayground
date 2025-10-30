@@ -11,13 +11,16 @@ import { useBreadcrumb } from '@/hooks/use-breadcrumb';
 import { useSidebar } from '@/components/ui/sidebar';
 import FileUploader from './components/FileUploader';
 import DeviceToolbar from './components/DeviceToolbar';
+import CableToolbar from './components/CableToolbar';
 import NetworkCanvas from './components/NetworkCanvas';
 import SimulationControls from './components/SimulationControls';
 import { useNetworkFile } from './hooks/useNetworkFile';
 import { useNetworkEditor } from './hooks/useNetworkEditor';
 import useSimulationNetwork from './hooks/useSimulationNetwork';
 import { NetworkSimulationProvider } from './context/NetworkSimulationContext';
+import { NetworkEditorProvider } from './contexts/NetworkEditorContext';
 import type { DeviceType, Network } from './lib/network-simulator';
+import type { CableType } from './lib/network-simulator/cables';
 
 /**
  * NetworkDiagramContent - Inner component that uses ReactFlow hooks
@@ -47,6 +50,9 @@ function NetworkDiagramContent({
   const hasCollapsedSidebar = useRef(false);
   const lastLoadedFilename = useRef<string | null>(null);
 
+  // Create simulation objects from network
+  const { simulation } = useSimulationNetwork(network);
+
   const {
     nodes,
     edges,
@@ -55,10 +61,13 @@ function NetworkDiagramContent({
     onConnect,
     loadTopology,
     addDevice,
-  } = useNetworkEditor();
-
-  // Create simulation objects from network
-  const { simulation, isSimulationReady } = useSimulationNetwork(network);
+    selectedCable,
+    selectCable,
+    clearCableSelection,
+    connectionInProgress,
+    startConnection,
+    cancelConnection,
+  } = useNetworkEditor(simulation);
 
   useEffect(() => {
     if (network) {
@@ -91,6 +100,11 @@ function NetworkDiagramContent({
     setSelectedDevice(null);
   };
 
+  const handleCableSelect = (cableType: CableType) => {
+    selectCable(cableType);
+    setSelectedDevice(null); // Deselect device when cable is selected
+  };
+
   // Show upload zone when no network is loaded
   if (!network) {
     return (
@@ -111,27 +125,54 @@ function NetworkDiagramContent({
     <div className="h-full flex flex-col">
       <SimulationControls />
       <div className="flex-1 flex overflow-hidden">
-        <DeviceToolbar
-          onDeviceSelect={setSelectedDevice}
-          selectedDevice={selectedDevice}
-        />
+        <div className="flex flex-col h-full justify-start bg-muted/50 border-r border-border">
+          <DeviceToolbar
+            onDeviceSelect={(deviceType) => {
+              setSelectedDevice(deviceType);
+              clearCableSelection(); // Deselect cable when device is selected
+            }}
+            selectedDevice={selectedDevice}
+          />
+          <CableToolbar
+            onCableSelect={handleCableSelect}
+            selectedCable={selectedCable}
+          />
+        </div>
 
-        <NetworkCanvas
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onAddDevice={addDevice}
-          selectedDevice={selectedDevice}
-          onDeviceAdded={handleDeviceAdded}
-          network={simulation}
-        />
+        <NetworkEditorProvider value={{ selectedCable, connectionInProgress }}>
+          <NetworkCanvas
+            nodes={nodes}
+            edges={edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            onAddDevice={addDevice}
+            selectedDevice={selectedDevice}
+            onDeviceAdded={handleDeviceAdded}
+            network={simulation}
+            selectedCable={selectedCable}
+            connectionInProgress={connectionInProgress}
+            onStartConnection={startConnection}
+            onCancelConnection={cancelConnection}
+          />
+        </NetworkEditorProvider>
       </div>
 
       {selectedDevice && (
         <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-primary text-primary-foreground px-4 py-2 rounded-md shadow-lg">
           Click on the canvas to place a {selectedDevice}
+        </div>
+      )}
+
+      {selectedCable && !connectionInProgress && (
+        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-primary text-primary-foreground px-4 py-2 rounded-md shadow-lg">
+          Click on a device to start connecting with {selectedCable} cable
+        </div>
+      )}
+
+      {connectionInProgress && (
+        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-primary text-primary-foreground px-4 py-2 rounded-md shadow-lg">
+          Click on another device to complete connection (ESC to cancel)
         </div>
       )}
     </div>

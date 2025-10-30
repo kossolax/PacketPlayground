@@ -5,7 +5,7 @@
 
 /* eslint-disable import/prefer-default-export */
 
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import {
   useNodesState,
   useEdgesState,
@@ -18,11 +18,32 @@ import {
   type OnEdgesChange,
   type OnConnect,
 } from '@xyflow/react';
+import { toast } from 'sonner';
 import type { Device, Network, DeviceType } from '../lib/network-simulator';
-import { Node as SimNode, DEVICE_CATALOG } from '../lib/network-simulator';
+import {
+  Node as SimNode,
+  DEVICE_CATALOG,
+  Link,
+  GenericNode,
+} from '../lib/network-simulator';
+import {
+  ServerHost,
+  ComputerHost,
+} from '../lib/network-simulator/nodes/server';
+import { SwitchHost } from '../lib/network-simulator/nodes/switch';
+import { RouterHost } from '../lib/network-simulator/nodes/router';
 import type { InterfaceState } from '../components/edges/CustomEdge';
 import type { HardwareInterface } from '../lib/network-simulator/layers/datalink';
-import { SwitchHost } from '../lib/network-simulator/nodes/switch';
+import type { CableUIType } from '../lib/network-simulator/cables';
+import {
+  detectCableType,
+  getCableVisualProps,
+} from '../lib/network-simulator/cables';
+
+interface ConnectionInProgress {
+  sourceNodeId: string;
+  cableType: CableUIType;
+}
 
 interface UseNetworkEditorReturn {
   nodes: Node[];
@@ -33,6 +54,50 @@ interface UseNetworkEditorReturn {
   loadTopology: (network: Network) => void;
   addDevice: (device: Device) => void;
   clearDiagram: () => void;
+  selectedCable: CableUIType | null;
+  selectCable: (cableType: CableUIType) => void;
+  clearCableSelection: () => void;
+  connectionInProgress: ConnectionInProgress | null;
+  startConnection: (nodeId: string) => void;
+  cancelConnection: () => void;
+}
+
+/**
+ * Create a simulator node based on device type
+ */
+function createSimulatorNode(device: Device): GenericNode {
+  const { name, type, guid } = device;
+
+  let simNode: GenericNode;
+
+  switch (type) {
+    case 'router':
+      simNode = new RouterHost(name, 2); // Router with 2 interfaces
+      break;
+    case 'switch':
+      simNode = new SwitchHost(name, 24, false); // Switch with 24 ports, STP disabled
+      break;
+    case 'hub':
+      simNode = new SwitchHost(name, 8, false); // Hub is a switch with 8 ports
+      break;
+    case 'server':
+      simNode = new ServerHost(name, type, 1); // Server with 1 interface
+      break;
+    case 'pc':
+    case 'laptop':
+    case 'printer':
+    default:
+      simNode = new ComputerHost(name, type, 1); // PC/Laptop/Printer with 1 interface
+      break;
+  }
+
+  // Set position and guid
+  simNode.guid = guid;
+  simNode.x = device.x;
+  simNode.y = device.y;
+  simNode.type = type;
+
+  return simNode;
 }
 
 /**
@@ -57,10 +122,42 @@ function getInterfaceState(iface: HardwareInterface): InterfaceState {
 /**
  * Hook to manage network diagram state
  */
-export function useNetworkEditor(): UseNetworkEditorReturn {
+export function useNetworkEditor(
+  simulationNetwork?: Network | null
+): UseNetworkEditorReturn {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const { fitView } = useReactFlow();
+
+  // Cable selection state
+  const [selectedCable, setSelectedCable] = useState<CableUIType | null>(null);
+  const [connectionInProgress, setConnectionInProgress] =
+    useState<ConnectionInProgress | null>(null);
+
+  const selectCable = useCallback((cableType: CableUIType) => {
+    setSelectedCable(cableType);
+    setConnectionInProgress(null);
+  }, []);
+
+  const clearCableSelection = useCallback(() => {
+    setSelectedCable(null);
+    setConnectionInProgress(null);
+  }, []);
+
+  const startConnection = useCallback(
+    (nodeId: string) => {
+      if (!selectedCable) return;
+      setConnectionInProgress({
+        sourceNodeId: nodeId,
+        cableType: selectedCable,
+      });
+    },
+    [selectedCable]
+  );
+
+  const cancelConnection = useCallback(() => {
+    setConnectionInProgress(null);
+  }, []);
 
   const loadTopology = useCallback(
     (network: Network) => {
@@ -155,6 +252,36 @@ export function useNetworkEditor(): UseNetworkEditorReturn {
 
   const addDevice = useCallback(
     (device: Device) => {
+      let { interfaces } = device;
+
+      // Create simulator node if network exists
+      if (simulationNetwork) {
+        const simNode = createSimulatorNode(device);
+
+        // Cast to SimNode to access getInterfaces()
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const nodeWithMethods = simNode as SimNode<any>;
+
+        // Add to network (we need to mutate this)
+        // eslint-disable-next-line no-param-reassign
+        simulationNetwork.nodes[device.guid] = simNode;
+
+        // Get interface list for UI
+        interfaces = nodeWithMethods
+          .getInterfaces()
+          .map((ifaceName: string) => {
+            const iface = nodeWithMethods.getInterface(ifaceName);
+            return {
+              name: ifaceName,
+              type: ifaceName.includes('Gigabit')
+                ? 'GigabitEthernet'
+                : 'FastEthernet',
+              isConnected: iface.isConnected,
+            };
+          });
+      }
+
+      // Create ReactFlow node
       const newNode: Node = {
         id: device.guid,
         type: 'customNode',
@@ -163,28 +290,139 @@ export function useNetworkEditor(): UseNetworkEditorReturn {
           label: device.name,
           deviceType: device.type,
           icon: DEVICE_CATALOG[device.type]?.icon || '/network-icons/pc.png',
-          interfaces: device.interfaces,
+          interfaces,
         },
       };
 
       setNodes((nds) => [...nds, newNode]);
     },
-    [setNodes]
+    [setNodes, simulationNetwork]
   );
 
   const onConnect = useCallback(
     (connection: Connection) => {
+      // If no network simulator is available, just add the edge visually
+      if (!simulationNetwork) {
+        // For visual-only mode, default to ethernet (no device type info available)
+        setEdges((eds) =>
+          addEdge(
+            {
+              ...connection,
+              type: 'customEdge',
+              data: {
+                cableType: 'ethernet',
+              },
+            },
+            eds
+          )
+        );
+        // Auto-deselect cable after visual connection
+        clearCableSelection();
+        return;
+      }
+
+      // Get source and target nodes from simulator
+      const sourceSimNode = simulationNetwork.nodes[connection.source];
+      const targetSimNode = simulationNetwork.nodes[connection.target];
+
+      if (!sourceSimNode || !targetSimNode) {
+        toast.error('Cannot connect: Device not found in network');
+        return;
+      }
+
+      // Cast to Node to access getInterfaces() method
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sourceNode = sourceSimNode as SimNode<any>;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const targetNode = targetSimNode as SimNode<any>;
+
+      // Get first available interface on each device
+      const sourceInterfaces = sourceNode.getInterfaces();
+      const targetInterfaces = targetNode.getInterfaces();
+
+      if (sourceInterfaces.length === 0) {
+        toast.error(`${sourceNode.guid} has no interfaces`);
+        return;
+      }
+
+      if (targetInterfaces.length === 0) {
+        toast.error(`${targetNode.guid} has no interfaces`);
+        return;
+      }
+
+      // Find first available (unconnected) interface
+      const availableSourceIface = sourceInterfaces.find((ifaceName) => {
+        const iface = sourceNode.getInterface(ifaceName);
+        return !iface.isConnected;
+      });
+      const sourceIface = availableSourceIface
+        ? sourceNode.getInterface(availableSourceIface)
+        : null;
+
+      const availableTargetIface = targetInterfaces.find((ifaceName) => {
+        const iface = targetNode.getInterface(ifaceName);
+        return !iface.isConnected;
+      });
+      const targetIface = availableTargetIface
+        ? targetNode.getInterface(availableTargetIface)
+        : null;
+
+      if (!sourceIface) {
+        toast.error(`${sourceNode.guid}: No available interfaces`);
+        return;
+      }
+
+      if (!targetIface) {
+        toast.error(`${targetNode.guid}: No available interfaces`);
+        return;
+      }
+
+      // Create physical link
+      const link = new Link(sourceIface, targetIface, 10); // 10 meters cable
+      simulationNetwork.links.push(link);
+
+      // Auto-enable interfaces
+      try {
+        sourceIface.up();
+        targetIface.up();
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.warn('[Connection] Failed to enable interfaces:', error);
+      }
+
+      // Auto-detect cable type based on device types
+      const detectedCableType = detectCableType(
+        sourceSimNode.type,
+        targetSimNode.type
+      );
+      const cableProps = getCableVisualProps(detectedCableType);
+
+      // Add edge to ReactFlow with detected cable type
       setEdges((eds) =>
         addEdge(
           {
             ...connection,
             type: 'customEdge',
+            data: {
+              sourcePort: sourceIface.toString(),
+              targetPort: targetIface.toString(),
+              cableType: detectedCableType,
+              sourceInterfaceState: getInterfaceState(sourceIface),
+              targetInterfaceState: getInterfaceState(targetIface),
+            },
           },
           eds
         )
       );
+
+      toast.success(
+        `Connected ${sourceNode.guid}[${sourceIface.toString()}] ↔ ${targetNode.guid}[${targetIface.toString()}] using ${cableProps.displayName} cable`
+      );
+
+      // Auto-deselect cable after successful connection
+      clearCableSelection();
     },
-    [setEdges]
+    [setEdges, simulationNetwork, selectedCable, clearCableSelection]
   );
 
   const clearDiagram = useCallback(() => {
@@ -201,5 +439,11 @@ export function useNetworkEditor(): UseNetworkEditorReturn {
     loadTopology,
     addDevice,
     clearDiagram,
+    selectedCable,
+    selectCable,
+    clearCableSelection,
+    connectionInProgress,
+    startConnection,
+    cancelConnection,
   };
 }

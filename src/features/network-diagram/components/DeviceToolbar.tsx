@@ -27,7 +27,7 @@ export default function DeviceToolbar({
   selectedDevice,
 }: DeviceToolbarProps) {
   return (
-    <div className="w-20 bg-muted/50 border-r border-border flex flex-col gap-2 p-2">
+    <div className="w-20 flex flex-col gap-2 p-2">
       <div className="text-xs font-semibold text-muted-foreground px-1">
         Devices
       </div>
