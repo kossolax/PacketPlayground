@@ -81,7 +81,7 @@ export abstract class AbstractLink implements PhysicalListener, PhysicalSender {
     // Link type specific transmission delays could be implemented here
     // using this.type for different cable types (fiber, copper, etc.)
     if (Scheduler.getInstance().Speed === SchedulerState.SLOWER) {
-      return Math.max(1.0, Math.log2(bytes) / Math.log10(speed) / 10);
+      return Math.max(0.1, Math.log2(bytes) / Math.log10(speed) / 10);
     }
 
     // Standard transmission delay calculation

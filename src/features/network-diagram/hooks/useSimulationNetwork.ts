@@ -34,6 +34,12 @@ export default function useSimulationNetwork(
     try {
       setSimulation(network);
 
+      // Connect spy to all links BEFORE bringing up interfaces
+      // This ensures we capture all packets from the very start
+      network.links.forEach((link) => {
+        link.addListener(spy);
+      });
+
       // Initialize interfaces after delay (matches Angular's scheduler.once(0.1) pattern)
       setTimeout(() => {
         // Bring up all interfaces on all nodes (triggers autonegotiation)
@@ -53,11 +59,6 @@ export default function useSimulationNetwork(
               );
             }
           });
-        });
-
-        // Connect spy to all links for packet animation (matches Angular behavior)
-        network.links.forEach((link) => {
-          link.addListener(spy);
         });
 
         setIsSimulationReady(true);

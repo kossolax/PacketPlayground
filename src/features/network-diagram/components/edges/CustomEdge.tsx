@@ -13,6 +13,7 @@ import {
 import { memo, useEffect, useRef } from 'react';
 import getEdgeParams from '../../utils/edgeUtils';
 import { SpanningTreeState } from '../../lib/network-simulator/services/spanningtree';
+import { Scheduler } from '../../lib/scheduler';
 
 export interface AnimatedPacket {
   id?: string; // unique key for React mounting
@@ -118,7 +119,8 @@ function PacketDot({
     if (!path || !group) return undefined;
 
     const total = path.getTotalLength();
-    const durMs = Math.max(0, packet.delay * 1000);
+    // Convert simulator time to real time by dividing by speed multiplier
+    const durMs = Math.max(0, (packet.delay * 1000) / Scheduler.getInstance().SpeedOfLight);
     const start = performance.now();
 
     // Position immediately at start to avoid initial blink

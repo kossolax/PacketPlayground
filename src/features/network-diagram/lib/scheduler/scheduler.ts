@@ -1,4 +1,12 @@
-import { BehaviorSubject, map, Observable, switchMap, take, tap, timer } from 'rxjs';
+import {
+  BehaviorSubject,
+  map,
+  Observable,
+  switchMap,
+  take,
+  tap,
+  timer,
+} from 'rxjs';
 
 export enum SchedulerState {
   FASTER,
@@ -58,6 +66,8 @@ export class Scheduler {
         this.speedOfLightMultiplier = 0;
         break;
       }
+      default:
+        break;
     }
 
     this.currentState = delay;

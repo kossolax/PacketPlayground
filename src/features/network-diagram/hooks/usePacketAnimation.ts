@@ -8,6 +8,7 @@ import type { Edge } from '@xyflow/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { AnimatedPacket } from '../components/edges/CustomEdge';
 import { useNetworkSimulation } from '../context/NetworkSimulationContext';
+import { Scheduler } from '../lib/scheduler';
 import { type PacketTransmission } from '../lib/network-simulator';
 
 interface PacketOnEdge {
@@ -75,9 +76,11 @@ export function usePacketAnimation({
       setActivePackets((prev) => [...prev, packetOnEdge]);
 
       // Remove packet after animation completes
+      // Convert simulator time to real time by dividing by speed multiplier
+      const realTimeMs = (visualDelay * 1000) / Scheduler.getInstance().SpeedOfLight;
       setTimeout(() => {
         setActivePackets((prev) => prev.filter((p) => p.id !== uid));
-      }, visualDelay * 1000);
+      }, realTimeMs);
     });
 
     return unsubscribe;

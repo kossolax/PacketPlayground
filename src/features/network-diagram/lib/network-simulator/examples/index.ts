@@ -60,6 +60,16 @@ export const networkExamples: NetworkExample[] = [
     },
   },
   {
+    id: 'autonegotiation',
+    name: 'Auto-Negotiation Test',
+    description: 'PC (100Mbps) & Switch (1000Mbps)',
+    available: true,
+    createNetwork: async () => {
+      const module = await import('./autonegotiation');
+      return module.default();
+    },
+  },
+  {
     id: 'ospf-routing',
     name: 'OSPF Routing',
     description: 'Dynamic routing protocol',
