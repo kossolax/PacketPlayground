@@ -141,7 +141,10 @@ export default function NetworkCanvas({
         className="bg-background"
       >
         <Background color="hsl(var(--muted-foreground))" gap={16} />
-        <Controls className="bg-background border border-border" />
+        <Controls
+          showInteractive={false}
+          className="bg-background border border-border"
+        />
       </ReactFlow>
     </div>
   );

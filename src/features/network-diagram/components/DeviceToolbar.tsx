@@ -20,7 +20,6 @@ const DEVICE_ORDER: DeviceType[] = [
   'switch',
   'hub',
   'printer',
-  'cloud',
 ];
 
 export default function DeviceToolbar({

@@ -69,15 +69,6 @@ export const networkExamples: NetworkExample[] = [
       return module.default();
     },
   },
-  {
-    id: 'ospf-routing',
-    name: 'OSPF Routing',
-    description: 'Dynamic routing protocol',
-    available: false,
-    createNetwork: () => {
-      throw new Error('Example not yet implemented');
-    },
-  },
 ];
 
 export function getExampleById(id: string): NetworkExample | undefined {

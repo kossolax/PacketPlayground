@@ -81,15 +81,6 @@ function NetworkDiagramContent({
     }
   }, [network, filename, loadTopology, isMobile, setOpen]);
 
-  // Show simulation status
-  useEffect(() => {
-    if (isSimulationReady && simulation) {
-      toast.success(
-        `Simulation ready: ${Object.keys(simulation.nodes).length} nodes, ${simulation.links.length} links`
-      );
-    }
-  }, [isSimulationReady, simulation]);
-
   useEffect(() => {
     if (error) {
       toast.error(`Error: ${error}`);
