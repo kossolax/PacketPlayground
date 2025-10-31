@@ -199,9 +199,10 @@ export class PVSTPService
     });
 
     this.setDefaultRoot();
-    this.repeatCleanup = Scheduler.getInstance().repeat(this.helloTime, () =>
-      this.negociate()
-    );
+    const subscription = Scheduler.getInstance()
+      .repeat(this.helloTime)
+      .subscribe(() => this.negociate());
+    this.repeatCleanup = () => subscription.unsubscribe();
   }
 
   public destroy(): void {
@@ -280,30 +281,33 @@ export class PVSTPService
       if (existing) existing();
 
       switch (state) {
-        case SpanningTreeState.Blocking:
-          this.changingState.set(
-            iface,
-            Scheduler.getInstance().once(this.maxAge, () => {
+        case SpanningTreeState.Blocking: {
+          const subscription = Scheduler.getInstance()
+            .once(this.maxAge)
+            .subscribe(() => {
               this.changeState(iface, SpanningTreeState.Listening);
-            })
-          );
+            });
+          this.changingState.set(iface, () => subscription.unsubscribe());
           break;
-        case SpanningTreeState.Listening:
-          this.changingState.set(
-            iface,
-            Scheduler.getInstance().once(this.forwardDelay, () => {
+        }
+        case SpanningTreeState.Listening: {
+          const subscription = Scheduler.getInstance()
+            .once(this.forwardDelay)
+            .subscribe(() => {
               this.changeState(iface, SpanningTreeState.Learning);
-            })
-          );
+            });
+          this.changingState.set(iface, () => subscription.unsubscribe());
           break;
-        case SpanningTreeState.Learning:
-          this.changingState.set(
-            iface,
-            Scheduler.getInstance().once(this.forwardDelay, () => {
+        }
+        case SpanningTreeState.Learning: {
+          const subscription = Scheduler.getInstance()
+            .once(this.forwardDelay)
+            .subscribe(() => {
               this.changeState(iface, SpanningTreeState.Forwarding);
-            })
-          );
+            });
+          this.changingState.set(iface, () => subscription.unsubscribe());
           break;
+        }
         case SpanningTreeState.Forwarding:
           break;
         default:
@@ -331,15 +335,48 @@ export class PVSTPService
     }
   }
 
+  /**
+   * Compare BPDU priority: returns true if 'message' is better (should be designated)
+   * Compares in order: root cost, bridge ID (priority + MAC), port ID
+   */
+  private static isBetterBPDU(
+    message: SpanningTreeMessage,
+    myCost: number,
+    myBridgeId: { priority: number; mac: MacAddress },
+    myPortId: number
+  ): boolean {
+    // Compare root path cost (lower is better)
+    if (message.rootPathCost < myCost) return true;
+    if (message.rootPathCost > myCost) return false;
+
+    // Compare bridge priority (lower is better)
+    if (message.bridgeId.priority < myBridgeId.priority) return true;
+    if (message.bridgeId.priority > myBridgeId.priority) return false;
+
+    // Compare bridge MAC (lower is better)
+    const macCompare = message.bridgeId.mac.compareTo(myBridgeId.mac);
+    if (macCompare < 0) return true;
+    if (macCompare > 0) return false;
+
+    // Compare port ID (lower is better)
+    return message.portId.globalId < myPortId;
+  }
+
   public negociate(): void {
     if (!this.enabled) return;
 
-    if (this.rootId.mac.equals(this.bridgeId.mac)) {
-      this.host.getInterfaces().forEach((i) => {
-        const iface = this.host.getInterface(i);
-        if (iface.isActive() === false || iface.isConnected === false) return;
-        if (this.State(iface) === SpanningTreeState.Blocking) return;
+    const isRoot = this.rootId.mac.equals(this.bridgeId.mac);
 
+    this.host.getInterfaces().forEach((i) => {
+      const iface = this.host.getInterface(i);
+      if (iface.isActive() === false || iface.isConnected === false) return;
+      if (this.State(iface) === SpanningTreeState.Blocking) return;
+
+      const role = this.Role(iface);
+
+      // Root sends on all ports except blocked
+      // Non-root sends only on designated ports
+      if (isRoot || role === SpanningTreePortRole.Designated) {
         const message = new SpanningTreeMessage.Builder()
           .setMacSource(iface.getMacAddress() as MacAddress)
           .setBridge(this.bridgeId.mac)
@@ -350,8 +387,8 @@ export class PVSTPService
           .build();
 
         iface.sendTrame(message);
-      });
-    }
+      }
+    });
   }
 
   public receiveTrame(message: DatalinkMessage, from: Interface): ActionHandle {
@@ -364,9 +401,9 @@ export class PVSTPService
       if (message.bridgeId.mac.equals(this.bridgeId.mac))
         return ActionHandle.Stop;
 
-      // We have a new root:
+      // We have a new root (lower priority wins):
       if (
-        this.rootId.priority < message.rootId.priority ||
+        message.rootId.priority < this.rootId.priority ||
         (this.rootId.priority === message.rootId.priority &&
           message.rootId.mac.compareTo(this.rootId.mac) < 0)
       ) {
@@ -380,11 +417,30 @@ export class PVSTPService
         this.cost.clear();
       }
 
-      if (
-        this.rootId.mac.equals(message.rootId.mac) &&
-        this.Cost(from) > message.rootPathCost
-      ) {
-        this.cost.set(from, message.rootPathCost + 10);
+      // Update cost if we receive BPDU from same root
+      // Always update to reflect current topology (even if cost increases)
+      if (this.rootId.mac.equals(message.rootId.mac)) {
+        const newCost = message.rootPathCost + 10;
+        const currentCost = this.Cost(from);
+
+        // Update if different (better or worse)
+        if (currentCost !== newCost) {
+          this.cost.set(from, newCost);
+
+          // If cost changed, may need to recalculate root port
+          if (currentCost !== Number.MAX_VALUE) {
+            // Trigger recalculation by clearing all costs and relying on next BPDUs
+            // This ensures we pick the best path after topology changes
+            const savedCosts = new Map(this.cost);
+            this.cost.clear();
+            savedCosts.forEach((_cost, iface) => {
+              if (iface === from) this.cost.set(iface, newCost);
+              // Other costs will be updated by their next BPDUs
+            });
+          } else {
+            this.cost.set(from, newCost);
+          }
+        }
       }
 
       // I'm not the root
@@ -428,9 +484,24 @@ export class PVSTPService
         ) {
           const iface = from as HardwareInterface;
 
-          if (iface.getMacAddress().compareTo(message.macSrc) >= 0)
+          // Compare BPDUs: if received BPDU is better, block this port
+          const interfaceName = this.host
+            .getInterfaces()
+            .find((name) => this.host.getInterface(name) === iface);
+          const myPortId = interfaceName ? Number(interfaceName) : 0;
+
+          if (
+            PVSTPService.isBetterBPDU(
+              message,
+              this.Cost(iface),
+              this.bridgeId,
+              myPortId
+            )
+          ) {
             this.changeRole(iface, SpanningTreePortRole.Blocked);
-          else this.changeRole(iface, SpanningTreePortRole.Designated);
+          } else {
+            this.changeRole(iface, SpanningTreePortRole.Designated);
+          }
         }
 
         if (

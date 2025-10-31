@@ -392,8 +392,8 @@ export function useNetworkEditor(
 
       // Auto-detect cable type based on device types
       const detectedCableType = detectCableType(
-        sourceSimNode.type,
-        targetSimNode.type
+        sourceSimNode.type as DeviceType,
+        targetSimNode.type as DeviceType
       );
       const cableProps = getCableVisualProps(detectedCableType);
 
@@ -422,7 +422,7 @@ export function useNetworkEditor(
       // Auto-deselect cable after successful connection
       clearCableSelection();
     },
-    [setEdges, simulationNetwork, selectedCable, clearCableSelection]
+    [setEdges, simulationNetwork, clearCableSelection]
   );
 
   const clearDiagram = useCallback(() => {

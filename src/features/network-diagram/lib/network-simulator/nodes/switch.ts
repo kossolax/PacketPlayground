@@ -57,9 +57,12 @@ export class SwitchHost
     this.spanningTree = new PVSTPService(this);
     this.spanningTree.Enable = spanningTreeSupport;
 
-    this.cleanupTimer = Scheduler.getInstance().repeat(10, () => {
-      this.cleanARPTable();
-    });
+    const subscription = Scheduler.getInstance()
+      .repeat(10)
+      .subscribe(() => {
+        this.cleanARPTable();
+      });
+    this.cleanupTimer = () => subscription.unsubscribe();
   }
 
   public destroy(): void {

@@ -20,7 +20,7 @@ import useSimulationNetwork from './hooks/useSimulationNetwork';
 import { NetworkSimulationProvider } from './context/NetworkSimulationContext';
 import { NetworkEditorProvider } from './contexts/NetworkEditorContext';
 import type { DeviceType, Network } from './lib/network-simulator';
-import type { CableType } from './lib/network-simulator/cables';
+import type { CableUIType } from './lib/network-simulator/cables';
 
 /**
  * NetworkDiagramContent - Inner component that uses ReactFlow hooks
@@ -100,8 +100,13 @@ function NetworkDiagramContent({
     setSelectedDevice(null);
   };
 
-  const handleCableSelect = (cableType: CableType) => {
-    selectCable(cableType);
+  const handleCableSelect = (cableType: CableUIType) => {
+    // Toggle cable: deselect if same cable clicked, otherwise select new cable
+    if (selectedCable === cableType) {
+      clearCableSelection();
+    } else {
+      selectCable(cableType);
+    }
     setSelectedDevice(null); // Deselect device when cable is selected
   };
 

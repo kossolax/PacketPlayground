@@ -196,9 +196,12 @@ export class IPv4Protocol implements NetworkListener {
     this.queue = new Map();
 
     iface.addListener(this);
-    this.cleanupTimer = Scheduler.getInstance().repeat(10, () => {
-      this.cleanQueue();
-    });
+    const subscription = Scheduler.getInstance()
+      .repeat(10)
+      .subscribe(() => {
+        this.cleanQueue();
+      });
+    this.cleanupTimer = () => subscription.unsubscribe();
   }
 
   public destroy(): void {

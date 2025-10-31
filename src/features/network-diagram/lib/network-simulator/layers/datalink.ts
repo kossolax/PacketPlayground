@@ -199,9 +199,11 @@ export abstract class HardwareInterface
     const loopback = this.address.equals(message.macDst);
     if (loopback) {
       // Schedule loopback asynchronously to allow listeners to be added
-      Scheduler.getInstance().once(0, () => {
-        this.receiveTrame(message);
-      });
+      Scheduler.getInstance()
+        .once(0)
+        .subscribe(() => {
+          this.receiveTrame(message);
+        });
       return;
     }
 

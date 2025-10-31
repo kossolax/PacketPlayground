@@ -4,11 +4,11 @@
  */
 
 import { createContext, useContext, type ReactNode } from 'react';
-import type { CableType } from '../lib/network-simulator/cables';
+import type { CableUIType } from '../lib/network-simulator/cables';
 
 interface NetworkEditorContextValue {
-  selectedCable: CableType | null;
-  connectionInProgress: { sourceNodeId: string; cableType: CableType } | null;
+  selectedCable: CableUIType | null;
+  connectionInProgress: { sourceNodeId: string; cableType: CableUIType } | null;
 }
 
 const NetworkEditorContext = createContext<NetworkEditorContextValue | null>(
@@ -29,6 +29,7 @@ export function NetworkEditorProvider({
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useNetworkEditorContext() {
   const context = useContext(NetworkEditorContext);
   if (!context) {

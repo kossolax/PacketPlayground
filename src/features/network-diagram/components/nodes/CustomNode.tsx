@@ -3,10 +3,9 @@
  * Displays network device with icon and label
  */
 
-import { memo, useState } from 'react';
-import { Handle, Position, useConnection, type NodeProps } from '@xyflow/react';
+import { memo } from 'react';
+import { Handle, Position, type NodeProps } from '@xyflow/react';
 import type { DeviceType, NetworkInterface } from '../../lib/network-simulator';
-import { useNetworkEditorContext } from '../../contexts/NetworkEditorContext';
 
 export interface CustomNodeData {
   label: string;
@@ -17,80 +16,57 @@ export interface CustomNodeData {
 
 function CustomNode({ data, selected }: NodeProps) {
   const nodeData = data as unknown as CustomNodeData;
-  const [isHovered, setIsHovered] = useState(false);
-  const connection = useConnection();
-  const { selectedCable, connectionInProgress } = useNetworkEditorContext();
-
-  // Show handles when:
-  // 1. Node is hovered
-  // 2. Cable is selected
-  // 3. ReactFlow connection is in progress
-  const showHandles =
-    isHovered ||
-    selectedCable !== null ||
-    connectionInProgress !== null ||
-    connection.inProgress;
-
-  const handleClassName = `!bg-primary transition-opacity duration-200 ${showHandles ? 'opacity-100' : 'opacity-0'}`;
 
   return (
-    <div
-      className="relative"
-      style={{ width: 80, height: 90 }}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-    >
-      {/* Top handles */}
+    <div className="relative" style={{ width: 80, height: 90 }}>
+      {/* Invisible handles - needed for ReactFlow edges but hidden from view */}
       <Handle
         type="source"
         position={Position.Top}
         id="top-source"
-        className={handleClassName}
+        className="!opacity-0 !pointer-events-none"
       />
       <Handle
         type="target"
         position={Position.Top}
         id="top-target"
-        className={handleClassName}
+        className="!opacity-0 !pointer-events-none"
       />
-      {/* Bottom handles */}
       <Handle
         type="source"
         position={Position.Bottom}
         id="bottom-source"
-        className={handleClassName}
+        className="!opacity-0 !pointer-events-none"
       />
       <Handle
         type="target"
         position={Position.Bottom}
         id="bottom-target"
-        className={handleClassName}
+        className="!opacity-0 !pointer-events-none"
       />
-      {/* Left handles */}
       <Handle
         type="source"
         position={Position.Left}
         id="left-source"
-        className={handleClassName}
+        className="!opacity-0 !pointer-events-none"
       />
       <Handle
         type="target"
         position={Position.Left}
         id="left-target"
-        className={handleClassName}
+        className="!opacity-0 !pointer-events-none"
       />
-      {/* Right handles */}
       <Handle
         type="source"
         position={Position.Right}
         id="right-source"
-        className={handleClassName}
+        className="!opacity-0 !pointer-events-none"
       />
       <Handle
         type="target"
         position={Position.Right}
         id="right-target"
-        className={handleClassName}
+        className="!opacity-0 !pointer-events-none"
       />
 
       <div

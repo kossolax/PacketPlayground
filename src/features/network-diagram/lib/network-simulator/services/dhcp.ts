@@ -153,9 +153,12 @@ export class DhcpPool {
     const existing = this.IPReserved.get(ip.toString());
     if (existing) existing();
 
-    const cleanup = Scheduler.getInstance().once(howLong, () => {
-      this.IPReserved.delete(ip.toString());
-    });
+    const subscription = Scheduler.getInstance()
+      .once(howLong)
+      .subscribe(() => {
+        this.IPReserved.delete(ip.toString());
+      });
+    const cleanup = () => subscription.unsubscribe();
 
     this.IPReserved.set(ip.toString(), cleanup);
   }
@@ -400,7 +403,9 @@ export class DhcpClient implements NetworkListener {
     });
 
     const timeoutPromise = new Promise<IPAddress | null>((resolve) => {
-      Scheduler.getInstance().once(timeout, () => resolve(null));
+      Scheduler.getInstance()
+        .once(timeout)
+        .subscribe(() => resolve(null));
     });
 
     this.iface.sendPacket(request);

@@ -201,12 +201,12 @@ export class InterfaceCommand extends TerminalCommand {
         const requestedName = parseInterfaceName(args[0], args[1]);
 
         // Find matching interface
-        const ifaces = this.Terminal.Node.getInterfaces()
-          .filter((iface) => {
+        const ifaces = this.Terminal.Node.getInterfaces().filter(
+          (iface) =>
             // Match against both the stored name and parsed request
-            return iface === requestedName ||
-                   iface.toLowerCase() === requestedName.toLowerCase();
-          });
+            iface === requestedName ||
+            iface.toLowerCase() === requestedName.toLowerCase()
+        );
 
         if (ifaces.length !== 1)
           throw new Error(`${this.name} requires a valid interface`);
@@ -251,8 +251,9 @@ export class InterfaceCommand extends TerminalCommand {
             const match = iface.match(/^([a-z-]+)(\d+(?:\/\d+)*)$/);
             return match ? { type: match[1], port: match[2] } : null;
           })
-          .filter((iface): iface is { type: string; port: string } =>
-            iface !== null && iface.type.startsWith(args[0].toLowerCase())
+          .filter(
+            (iface): iface is { type: string; port: string } =>
+              iface !== null && iface.type.startsWith(args[0].toLowerCase())
           )
           .map((iface) => iface.port)
           .filter((port) => port.startsWith(args[1]));

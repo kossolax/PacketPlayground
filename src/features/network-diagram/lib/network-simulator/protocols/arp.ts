@@ -72,9 +72,12 @@ export class ArpProtocol implements DatalinkListener {
     this.interface = netface;
     hardface.addListener(this);
 
-    this.cleanupTimer = Scheduler.getInstance().repeat(10, () => {
-      this.cleanARPTable();
-    });
+    const subscription = Scheduler.getInstance()
+      .repeat(10)
+      .subscribe(() => {
+        this.cleanARPTable();
+      });
+    this.cleanupTimer = () => subscription.unsubscribe();
   }
 
   public destroy(): void {

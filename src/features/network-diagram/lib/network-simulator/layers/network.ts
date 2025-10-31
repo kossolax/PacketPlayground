@@ -167,9 +167,11 @@ export abstract class NetworkInterface
     );
     if (loopback.length > 0) {
       // Schedule loopback asynchronously to allow listeners to be added
-      Scheduler.getInstance().once(0, () => {
-        this.receivePacket(message);
-      });
+      Scheduler.getInstance()
+        .once(0)
+        .subscribe(() => {
+          this.receivePacket(message);
+        });
       return;
     }
 

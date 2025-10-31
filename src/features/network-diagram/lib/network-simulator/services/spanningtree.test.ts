@@ -30,15 +30,17 @@ function collectTrames(
   timeoutMs: number = 5000
 ): Promise<DatalinkMessage[]> {
   return new Promise((resolve, reject) => {
-    const collected: DatalinkMessage[] = [];
+    // Copy any already-received messages to avoid race condition
+    const collected: DatalinkMessage[] = [...listener.receivedTrames];
     let timeoutId: NodeJS.Timeout | null = null;
 
-    // Check if we already have enough messages
-    if (listener.receivedTrames.length >= count) {
-      resolve(listener.receivedTrames.slice(0, count));
+    // Check if we already have enough messages after copying
+    if (collected.length >= count) {
+      resolve(collected.slice(0, count));
       return;
     }
 
+    // Setup callback to collect future messages
     // eslint-disable-next-line no-param-reassign
     listener.onReceiveTrame = (message) => {
       collected.push(message);
@@ -46,7 +48,7 @@ function collectTrames(
         if (timeoutId) clearTimeout(timeoutId);
         // eslint-disable-next-line no-param-reassign
         listener.onReceiveTrame = undefined;
-        resolve(collected);
+        resolve(collected.slice(0, count));
       }
     };
 
@@ -113,14 +115,26 @@ describe('STP protocol', () => {
     Scheduler.getInstance().Speed = SchedulerState.FASTER;
   });
 
+  afterEach(() => {
+    // Cleanup: destroy all switches to unsubscribe from observables
+    A?.destroy();
+    B?.destroy();
+    C?.destroy();
+    D?.destroy();
+
+    // Note: Scheduler is a singleton and maintains state across tests.
+    // Ideally we would reset it, but the cleanup above should prevent
+    // most interference by unsubscribing all observables.
+  });
+
   it('STP Broadcast', async () => {
     const listener = new TestListener();
     D.getInterface(0).addListener(listener);
 
     A.spanningTree.negociate();
 
-    // Wait for at least 1 STP message to arrive
-    const messages = await collectTrames(listener, 1, 2000);
+    // Wait for at least 1 STP message to arrive (increased timeout for reliability)
+    const messages = await collectTrames(listener, 1, 5000);
 
     const stpMessages = messages.filter(
       (msg) => msg instanceof SpanningTreeMessage

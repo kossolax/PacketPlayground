@@ -28,7 +28,7 @@ import {
 } from '../lib/network-simulator';
 import { usePacketAnimation } from '../hooks/usePacketAnimation';
 import { useInterfaceStateMonitor } from '../hooks/useInterfaceStateMonitor';
-import type { CableType } from '../lib/network-simulator/cables';
+import type { CableUIType } from '../lib/network-simulator/cables';
 
 interface NetworkCanvasProps {
   nodes: Node[];
@@ -40,8 +40,8 @@ interface NetworkCanvasProps {
   selectedDevice: DeviceType | null;
   onDeviceAdded: () => void;
   network: Network | null;
-  selectedCable: CableType | null;
-  connectionInProgress: { sourceNodeId: string; cableType: CableType } | null;
+  selectedCable: CableUIType | null;
+  connectionInProgress: { sourceNodeId: string; cableType: CableUIType } | null;
   onStartConnection: (nodeId: string) => void;
   onCancelConnection: () => void;
 }
@@ -111,7 +111,7 @@ export default function NetworkCanvas({
 
   // Handle node click for cable connection
   const handleNodeClick: NodeMouseHandler = useCallback(
-    (event, node) => {
+    (_event, node) => {
       // Only handle clicks when cable is selected
       if (!selectedCable) return;
 

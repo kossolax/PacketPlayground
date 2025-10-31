@@ -45,7 +45,7 @@ const SHORTCUT_TO_FULL: Record<string, string> = {
  */
 export function toShortName(name: string): string {
   // Remove common prefixes that shouldn't be there
-  let cleaned = name.replace(/^eth([A-Z])/g, '$1'); // Remove "eth" prefix before capital letter
+  const cleaned = name.replace(/^eth([A-Z])/g, '$1'); // Remove "eth" prefix before capital letter
 
   // Match pattern: InterfaceType + optional space + port number
   const match = cleaned.match(/^([a-zA-Z-]+)\s?(\d+(?:\/\d+)*)$/);

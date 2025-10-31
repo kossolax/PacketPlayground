@@ -77,7 +77,8 @@ export function usePacketAnimation({
 
       // Remove packet after animation completes
       // Convert simulator time to real time by dividing by speed multiplier
-      const realTimeMs = (visualDelay * 1000) / Scheduler.getInstance().SpeedOfLight;
+      const realTimeMs =
+        (visualDelay * 1000) / Scheduler.getInstance().SpeedOfLight;
       setTimeout(() => {
         setActivePackets((prev) => prev.filter((p) => p.id !== uid));
       }, realTimeMs);
