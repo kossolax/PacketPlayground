@@ -25,6 +25,7 @@ import {
   type Device,
   type DeviceType,
   type Network,
+  type GenericNode,
 } from '../lib/network-simulator';
 import { usePacketAnimation } from '../hooks/usePacketAnimation';
 import { useInterfaceStateMonitor } from '../hooks/useInterfaceStateMonitor';
@@ -44,6 +45,7 @@ interface NetworkCanvasProps {
   connectionInProgress: { sourceNodeId: string; cableType: CableUIType } | null;
   onStartConnection: (nodeId: string) => void;
   onCancelConnection: () => void;
+  onNodeDoubleClick: (node: GenericNode) => void;
 }
 
 export default function NetworkCanvas({
@@ -60,6 +62,7 @@ export default function NetworkCanvas({
   connectionInProgress,
   onStartConnection,
   onCancelConnection,
+  onNodeDoubleClick,
 }: NetworkCanvasProps) {
   const { screenToFlowPosition } = useReactFlow();
   const { edgesWithPackets } = usePacketAnimation({ edges });
@@ -187,6 +190,19 @@ export default function NetworkCanvas({
     ]
   );
 
+  // Handle node double-click to open configuration
+  const handleNodeDoubleClick: NodeMouseHandler = useCallback(
+    (_event, node) => {
+      if (!network) return;
+
+      const simNode = network.nodes[node.id];
+      if (!simNode) return;
+
+      onNodeDoubleClick(simNode);
+    },
+    [network, onNodeDoubleClick]
+  );
+
   return (
     <div
       className="flex-1 h-full"
@@ -206,6 +222,7 @@ export default function NetworkCanvas({
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onNodeClick={handleNodeClick}
+        onNodeDoubleClick={handleNodeDoubleClick}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         minZoom={0.1}

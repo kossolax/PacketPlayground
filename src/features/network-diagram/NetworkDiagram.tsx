@@ -14,12 +14,13 @@ import DeviceToolbar from './components/DeviceToolbar';
 import CableToolbar from './components/CableToolbar';
 import NetworkCanvas from './components/NetworkCanvas';
 import SimulationControls from './components/SimulationControls';
+import DeviceConfigDialog from './components/DeviceConfigDialog';
 import { useNetworkFile } from './hooks/useNetworkFile';
 import { useNetworkEditor } from './hooks/useNetworkEditor';
 import useSimulationNetwork from './hooks/useSimulationNetwork';
 import { NetworkSimulationProvider } from './context/NetworkSimulationContext';
 import { NetworkEditorProvider } from './contexts/NetworkEditorContext';
-import type { DeviceType, Network } from './lib/network-simulator';
+import type { DeviceType, Network, GenericNode } from './lib/network-simulator';
 import type { CableUIType } from './lib/network-simulator/cables';
 
 /**
@@ -46,6 +47,8 @@ function NetworkDiagramContent({
   startWithExample,
 }: NetworkDiagramContentProps) {
   const [selectedDevice, setSelectedDevice] = useState<DeviceType | null>(null);
+  const [selectedNodeForConfig, setSelectedNodeForConfig] =
+    useState<GenericNode | null>(null);
   const { setOpen, isMobile } = useSidebar();
   const hasCollapsedSidebar = useRef(false);
   const lastLoadedFilename = useRef<string | null>(null);
@@ -159,6 +162,7 @@ function NetworkDiagramContent({
             connectionInProgress={connectionInProgress}
             onStartConnection={startConnection}
             onCancelConnection={cancelConnection}
+            onNodeDoubleClick={setSelectedNodeForConfig}
           />
         </NetworkEditorProvider>
       </div>
@@ -180,6 +184,11 @@ function NetworkDiagramContent({
           Click on another device to complete connection (ESC to cancel)
         </div>
       )}
+
+      <DeviceConfigDialog
+        node={selectedNodeForConfig}
+        onClose={() => setSelectedNodeForConfig(null)}
+      />
     </div>
   );
 }
