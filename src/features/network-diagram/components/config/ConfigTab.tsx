@@ -22,7 +22,10 @@ export default function ConfigTab({ node }: ConfigTabProps) {
   return (
     <Tabs className="flex w-full flex-row gap-6 h-full" defaultValue="general">
       <TabsList className="flex h-full flex-col items-start justify-start">
-        <TabsTrigger className="w-40 shrink-0 grow-0 justify-start" value="general">
+        <TabsTrigger
+          className="w-40 shrink-0 grow-0 justify-start"
+          value="general"
+        >
           General
         </TabsTrigger>
         {interfaces.map((interfaceName) => (

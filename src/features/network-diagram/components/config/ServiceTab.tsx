@@ -14,13 +14,19 @@ export default function ServiceTab({ node }: ServiceTabProps) {
   return (
     <Tabs className="flex w-full flex-row gap-6 h-full" defaultValue="dhcp">
       <TabsList className="flex h-full flex-col items-start justify-start">
-        <TabsTrigger className="w-40 shrink-0 grow-0 justify-start" value="dhcp">
+        <TabsTrigger
+          className="w-40 shrink-0 grow-0 justify-start"
+          value="dhcp"
+        >
           DHCP
         </TabsTrigger>
         <TabsTrigger className="w-40 shrink-0 grow-0 justify-start" value="dns">
           DNS
         </TabsTrigger>
-        <TabsTrigger className="w-40 shrink-0 grow-0 justify-start" value="http">
+        <TabsTrigger
+          className="w-40 shrink-0 grow-0 justify-start"
+          value="http"
+        >
           HTTP
         </TabsTrigger>
       </TabsList>

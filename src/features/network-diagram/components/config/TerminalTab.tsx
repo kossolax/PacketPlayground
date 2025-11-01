@@ -3,25 +3,42 @@
  * Displays terminal interface for device command-line access
  */
 
+import { useEffect, useRef } from 'react';
+import '@xterm/xterm/css/xterm.css';
 import type { GenericNode } from '../../lib/network-simulator';
+import useTerminal from '../../hooks/useTerminal';
 
 interface TerminalTabProps {
   node: GenericNode;
 }
 
 export default function TerminalTab({ node }: TerminalTabProps) {
+  const terminalContainerRef = useRef<HTMLDivElement>(null);
+  const { xterm, fitAddon, isReady } = useTerminal(node);
+
+  useEffect(() => {
+    if (isReady && xterm && fitAddon && terminalContainerRef.current) {
+      xterm.open(terminalContainerRef.current);
+      fitAddon.fit();
+
+      // Handle window resize
+      const handleResize = () => {
+        fitAddon.fit();
+      };
+
+      window.addEventListener('resize', handleResize);
+
+      return () => {
+        window.removeEventListener('resize', handleResize);
+      };
+    }
+
+    return undefined;
+  }, [isReady, xterm, fitAddon]);
+
   return (
-    <div className="rounded-lg border bg-card p-6 text-card-foreground shadow-sm">
-      <h3 className="mb-2 font-semibold text-lg">Terminal</h3>
-      <p className="text-muted-foreground text-sm">Device: {node.name}</p>
-      <p className="text-muted-foreground text-sm mt-4">
-        Terminal interface will be implemented here.
-      </p>
-      <p className="text-muted-foreground text-sm mt-2">
-        This will provide a command-line interface to interact with the device,
-        similar to the Angular version using the Terminal model from the
-        simulator.
-      </p>
+    <div className="h-full flex flex-col bg-black rounded-lg overflow-hidden p-2">
+      <div ref={terminalContainerRef} className="flex-1" />
     </div>
   );
 }

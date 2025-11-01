@@ -234,3 +234,13 @@
 .react-flow__edge.selected .react-flow__edge-path {
   stroke-width: 2.5;
 }
+
+/* Hide scrollbar for xterm.js terminal */
+.xterm-viewport {
+  scrollbar-width: none !important; /* Firefox */
+  -ms-overflow-style: none !important; /* IE and Edge */
+}
+
+.xterm-viewport::-webkit-scrollbar {
+  display: none !important; /* Chrome, Safari, Opera */
+}
