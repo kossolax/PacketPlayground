@@ -72,7 +72,7 @@ export abstract class TerminalCommand {
 
   public autocomplete(
     command: string,
-    args: string[],
+    _args: string[],
     negated: boolean
   ): string[] {
     const commands = Object.keys(this.subCommands).filter(

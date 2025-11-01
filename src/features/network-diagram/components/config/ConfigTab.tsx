@@ -4,9 +4,10 @@
  */
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { GenericNode } from '../../lib/network-simulator';
 import { Node } from '../../lib/network-simulator/nodes/generic';
-import type { Interface } from '../../lib/network-simulator/layers/datalink';
+import { HardwareInterface } from '../../lib/network-simulator/layers/datalink';
 import GeneralTab from './GeneralTab';
 import InterfaceTab from './InterfaceTab';
 
@@ -18,7 +19,7 @@ export default function ConfigTab({ node }: ConfigTabProps) {
   // Check if node has interfaces (is instance of Node)
   const hasInterfaces = node instanceof Node;
   const interfaces = hasInterfaces
-    ? (node as Node<Interface>).getInterfaces()
+    ? (node as Node<HardwareInterface>).getInterfaces()
     : [];
 
   return (
@@ -43,16 +44,20 @@ export default function ConfigTab({ node }: ConfigTabProps) {
 
       <div className="flex-1 overflow-auto">
         <TabsContent value="general">
-          <div className="rounded-lg border bg-card p-6 text-card-foreground shadow-sm">
-            <h3 className="mb-4 font-semibold text-lg">General Settings</h3>
-            <GeneralTab node={node} />
-          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>General Settings</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <GeneralTab node={node} />
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {interfaces.map((interfaceName) => (
           <TabsContent key={interfaceName} value={interfaceName}>
             <InterfaceTab
-              node={node as Node<Interface>}
+              node={node as Node<HardwareInterface>}
               interfaceName={interfaceName}
             />
           </TabsContent>

@@ -8,13 +8,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import type { Interface } from '../../lib/network-simulator/layers/datalink';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { HardwareInterface } from '../../lib/network-simulator/layers/datalink';
 import { NetworkInterface } from '../../lib/network-simulator/layers/network';
 import { MacAddress, IPAddress } from '../../lib/network-simulator/address';
 import type { Node } from '../../lib/network-simulator/nodes/generic';
 
 interface InterfaceTabProps {
-  node: Node<Interface>;
+  node: Node<HardwareInterface>;
   interfaceName: string;
 }
 
@@ -137,142 +138,155 @@ export default function InterfaceTab({
   return (
     <div className="space-y-4">
       {/* Interface Configuration Card */}
-      <div className="rounded-lg border border-border bg-card p-6 space-y-4">
-        {/* Interface Status */}
-        <div className="flex items-center gap-3">
-          <Label htmlFor={`${interfaceName}-status`}>Interface Status</Label>
-          <Switch
-            id={`${interfaceName}-status`}
-            checked={isActive}
-            onCheckedChange={handleStatusChange}
-          />
-          <span className="text-muted-foreground text-sm">
-            {isActive ? 'ON' : 'OFF'}
-          </span>
-        </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Interface Configuration</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Interface Status */}
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor={`${interfaceName}-status`}>
+                Interface Status
+              </Label>
+              <p className="text-muted-foreground text-xs">
+                {isActive ? 'Interface is active' : 'Interface is disabled'}
+              </p>
+            </div>
+            <Switch
+              id={`${interfaceName}-status`}
+              checked={isActive}
+              onCheckedChange={handleStatusChange}
+            />
+          </div>
 
-        {/* Speed Selection */}
-        <div className="space-y-3">
-          <Label>Interface Speed</Label>
-          <RadioGroup
-            value={speed.toString()}
-            onValueChange={handleSpeedChange}
-            className="flex flex-row gap-4"
-          >
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="0" id={`${interfaceName}-speed-auto`} />
-              <Label htmlFor={`${interfaceName}-speed-auto`}>Auto</Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem
-                value="10"
-                id={`${interfaceName}-speed-10`}
-                disabled={!iface.isConnected}
-              />
-              <Label
-                htmlFor={`${interfaceName}-speed-10`}
-                className={!iface.isConnected ? 'text-muted-foreground' : ''}
-              >
-                10 Mbps
-              </Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem
-                value="100"
-                id={`${interfaceName}-speed-100`}
-                disabled={!iface.isConnected}
-              />
-              <Label
-                htmlFor={`${interfaceName}-speed-100`}
-                className={!iface.isConnected ? 'text-muted-foreground' : ''}
-              >
-                100 Mbps
-              </Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem
-                value="1000"
-                id={`${interfaceName}-speed-1000`}
-                disabled={!iface.isConnected}
-              />
-              <Label
-                htmlFor={`${interfaceName}-speed-1000`}
-                className={!iface.isConnected ? 'text-muted-foreground' : ''}
-              >
-                1000 Mbps
-              </Label>
-            </div>
-          </RadioGroup>
-          {!iface.isConnected && speed !== 0 && (
-            <p className="text-muted-foreground text-sm">
-              Connect a cable to configure manual speed
-            </p>
-          )}
-        </div>
+          {/* Speed Selection */}
+          <div className="space-y-3">
+            <Label>Interface Speed</Label>
+            <RadioGroup
+              value={speed.toString()}
+              onValueChange={handleSpeedChange}
+              className="flex flex-row gap-4"
+            >
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="0" id={`${interfaceName}-speed-auto`} />
+                <Label htmlFor={`${interfaceName}-speed-auto`}>Auto</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem
+                  value="10"
+                  id={`${interfaceName}-speed-10`}
+                  disabled={!iface.isConnected}
+                />
+                <Label
+                  htmlFor={`${interfaceName}-speed-10`}
+                  className={!iface.isConnected ? 'text-muted-foreground' : ''}
+                >
+                  10 Mbps
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem
+                  value="100"
+                  id={`${interfaceName}-speed-100`}
+                  disabled={!iface.isConnected}
+                />
+                <Label
+                  htmlFor={`${interfaceName}-speed-100`}
+                  className={!iface.isConnected ? 'text-muted-foreground' : ''}
+                >
+                  100 Mbps
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem
+                  value="1000"
+                  id={`${interfaceName}-speed-1000`}
+                  disabled={!iface.isConnected}
+                />
+                <Label
+                  htmlFor={`${interfaceName}-speed-1000`}
+                  className={!iface.isConnected ? 'text-muted-foreground' : ''}
+                >
+                  1000 Mbps
+                </Label>
+              </div>
+            </RadioGroup>
+          </div>
 
-        {/* MAC Address */}
-        <div className="space-y-2">
-          <Label htmlFor={`${interfaceName}-mac`}>MAC Address</Label>
-          <Input
-            id={`${interfaceName}-mac`}
-            value={macAddress}
-            onChange={handleMacChange}
-            placeholder="AA:BB:CC:DD:EE:FF"
-            aria-invalid={!!macError}
-            className={`${macError ? 'border-destructive' : ''}`}
-          />
-          {macError && <p className="text-destructive text-sm">{macError}</p>}
-        </div>
-      </div>
+          {/* MAC Address */}
+          <div className="space-y-2">
+            <Label htmlFor={`${interfaceName}-mac`}>MAC Address</Label>
+            <Input
+              id={`${interfaceName}-mac`}
+              value={macAddress}
+              onChange={handleMacChange}
+              placeholder="AA:BB:CC:DD:EE:FF"
+              aria-invalid={!!macError}
+              className={`${macError ? 'border-destructive' : ''}`}
+            />
+            {macError && <p className="text-destructive text-sm">{macError}</p>}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* DHCP & IP Configuration Card - Only for NetworkInterface */}
       {isNetworkInterface && (
-        <div className="rounded-lg border border-border bg-card p-6 space-y-4">
-          {/* DHCP Toggle */}
-          <div className="flex items-center gap-3">
-            <Label htmlFor={`${interfaceName}-dhcp`}>DHCP</Label>
-            <Switch
-              id={`${interfaceName}-dhcp`}
-              checked={isDhcp}
-              onCheckedChange={handleDhcpChange}
-            />
-            <span className="text-muted-foreground text-sm">
-              {isDhcp ? 'ON' : 'OFF'}
-            </span>
-          </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>IP Configuration</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* DHCP Toggle */}
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor={`${interfaceName}-dhcp`}>DHCP</Label>
+                <p className="text-muted-foreground text-xs">
+                  {isDhcp
+                    ? 'Automatically obtain IP address'
+                    : 'Use static IP configuration'}
+                </p>
+              </div>
+              <Switch
+                id={`${interfaceName}-dhcp`}
+                checked={isDhcp}
+                onCheckedChange={handleDhcpChange}
+              />
+            </div>
 
-          {/* IP Address */}
-          <div className="space-y-2">
-            <Label htmlFor={`${interfaceName}-ip`}>IP Address</Label>
-            <Input
-              id={`${interfaceName}-ip`}
-              value={ipAddress}
-              onChange={handleIpChange}
-              disabled={isDhcp}
-              placeholder="192.168.1.1"
-              aria-invalid={!!ipError}
-              className={`${ipError ? 'border-destructive' : ''}`}
-            />
-            {ipError && <p className="text-destructive text-sm">{ipError}</p>}
-          </div>
+            {/* IP Address */}
+            <div className="space-y-2">
+              <Label htmlFor={`${interfaceName}-ip`}>IP Address</Label>
+              <Input
+                id={`${interfaceName}-ip`}
+                value={ipAddress}
+                onChange={handleIpChange}
+                disabled={isDhcp}
+                placeholder="192.168.1.1"
+                aria-invalid={!!ipError}
+                className={`${ipError ? 'border-destructive' : ''}`}
+              />
+              {ipError && <p className="text-destructive text-sm">{ipError}</p>}
+            </div>
 
-          {/* Subnet Mask */}
-          <div className="space-y-2">
-            <Label htmlFor={`${interfaceName}-mask`}>Subnet Mask</Label>
-            <Input
-              id={`${interfaceName}-mask`}
-              value={subnetMask}
-              onChange={handleMaskChange}
-              disabled={isDhcp}
-              placeholder="255.255.255.0"
-              aria-invalid={!!maskError}
-              className={`${maskError ? 'border-destructive' : ''}`}
-            />
-            {maskError && (
-              <p className="text-destructive text-sm">{maskError}</p>
-            )}
-          </div>
-        </div>
+            {/* Subnet Mask */}
+            <div className="space-y-2">
+              <Label htmlFor={`${interfaceName}-mask`}>Subnet Mask</Label>
+              <Input
+                id={`${interfaceName}-mask`}
+                value={subnetMask}
+                onChange={handleMaskChange}
+                disabled={isDhcp}
+                placeholder="255.255.255.0"
+                aria-invalid={!!maskError}
+                className={`${maskError ? 'border-destructive' : ''}`}
+              />
+              {maskError && (
+                <p className="text-destructive text-sm">{maskError}</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   );

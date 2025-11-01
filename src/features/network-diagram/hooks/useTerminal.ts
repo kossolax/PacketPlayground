@@ -7,7 +7,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal } from '../lib/network-simulator/terminal/terminal';
-import type { GenericNode } from '../lib/network-simulator';
+import type { GenericNode, NetworkHost } from '../lib/network-simulator';
+import type { SwitchHost } from '../lib/network-simulator/nodes/switch';
 
 export default function useTerminal(node: GenericNode | null) {
   const [isReady, setIsReady] = useState(false);
@@ -55,7 +56,7 @@ export default function useTerminal(node: GenericNode | null) {
     fitAddonRef.current = fitAddon;
 
     // Create terminal simulator instance
-    const terminal = new Terminal(node);
+    const terminal = new Terminal(node as NetworkHost | SwitchHost);
     terminalRef.current = terminal;
 
     // Setup terminal callbacks

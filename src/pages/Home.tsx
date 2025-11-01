@@ -14,9 +14,13 @@ export default function Home() {
       {/* Hero Section */}
       <section className="relative px-6 py-24 mx-auto max-w-7xl lg:px-8g">
         <div className="text-center">
-          <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-6xl">
-            Net<span className="text-primary">Play</span>
-          </h1>
+          {/* Logo and Title */}
+          <div className="flex items-center justify-center gap-4 mb-6">
+            <img src="/favicon.svg" alt="NetPlay Logo" width="80" height="80" />
+            <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-6xl">
+              Net<span className="text-primary">Play</span>
+            </h1>
+          </div>
           <p className="mt-6 text-lg leading-8 text-muted-foreground max-w-3xl mx-auto">
             Explorez et comprenez les protocoles réseau à travers des
             simulations interactives et visuelles. Apprenez les concepts

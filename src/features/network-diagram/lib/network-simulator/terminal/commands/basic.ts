@@ -12,7 +12,7 @@ export class PingCommand extends TerminalCommand {
     this.parent = parent;
   }
 
-  public override exec(command: string, args: string[]): void {
+  public override exec(_command: string, args: string[]): void {
     if (args.length < 1) throw new Error(`${this.name} requires a hostname`);
 
     const nethost = this.terminal.Node as NetworkHost;
