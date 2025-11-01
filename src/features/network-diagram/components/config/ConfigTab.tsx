@@ -7,6 +7,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { GenericNode } from '../../lib/network-simulator';
 import { Node } from '../../lib/network-simulator/nodes/generic';
 import type { Interface } from '../../lib/network-simulator/layers/datalink';
+import GeneralTab from './GeneralTab';
+import InterfaceTab from './InterfaceTab';
 
 interface ConfigTabProps {
   node: GenericNode;
@@ -42,31 +44,17 @@ export default function ConfigTab({ node }: ConfigTabProps) {
       <div className="flex-1 overflow-auto">
         <TabsContent value="general">
           <div className="rounded-lg border bg-card p-6 text-card-foreground shadow-sm">
-            <h3 className="mb-2 font-semibold text-lg">General Settings</h3>
-            <p className="text-muted-foreground text-sm">
-              Device name: {node.name}
-            </p>
-            <p className="text-muted-foreground text-sm">
-              Device type: {node.type}
-            </p>
-            <p className="text-muted-foreground text-sm mt-4">
-              Configuration forms will be implemented here.
-            </p>
+            <h3 className="mb-4 font-semibold text-lg">General Settings</h3>
+            <GeneralTab node={node} />
           </div>
         </TabsContent>
 
         {interfaces.map((interfaceName) => (
           <TabsContent key={interfaceName} value={interfaceName}>
-            <div className="rounded-lg border bg-card p-6 text-card-foreground shadow-sm">
-              <h3 className="mb-2 font-semibold text-lg">{interfaceName}</h3>
-              <p className="text-muted-foreground text-sm">
-                Interface configuration will be implemented here.
-              </p>
-              <p className="text-muted-foreground text-sm mt-4">
-                This will include: On/Off toggle, Speed selection, MAC address,
-                IP address & subnet mask, DHCP toggle, etc.
-              </p>
-            </div>
+            <InterfaceTab
+              node={node as Node<Interface>}
+              interfaceName={interfaceName}
+            />
           </TabsContent>
         ))}
       </div>

@@ -1,26 +1,22 @@
-/**
- * Network Diagram Page
- * Main page for network topology visualization and editing
- */
-
-import { useState, useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
 import { ReactFlowProvider } from '@xyflow/react';
+import { useEffect, useRef, useState } from 'react';
+import { useParams } from 'react-router-dom';
 import { toast } from 'sonner';
+
 import { useBreadcrumb } from '@/hooks/use-breadcrumb';
-import { useSidebar } from '@/components/ui/sidebar';
-import FileUploader from './components/FileUploader';
-import DeviceToolbar from './components/DeviceToolbar';
+
 import CableToolbar from './components/CableToolbar';
+import DeviceConfigDialog from './components/DeviceConfigDialog';
+import DeviceToolbar from './components/DeviceToolbar';
+import FileUploader from './components/FileUploader';
 import NetworkCanvas from './components/NetworkCanvas';
 import SimulationControls from './components/SimulationControls';
-import DeviceConfigDialog from './components/DeviceConfigDialog';
-import { useNetworkFile } from './hooks/useNetworkFile';
-import { useNetworkEditor } from './hooks/useNetworkEditor';
-import useSimulationNetwork from './hooks/useSimulationNetwork';
 import { NetworkSimulationProvider } from './context/NetworkSimulationContext';
 import { NetworkEditorProvider } from './contexts/NetworkEditorContext';
-import type { DeviceType, Network, GenericNode } from './lib/network-simulator';
+import { useNetworkEditor } from './hooks/useNetworkEditor';
+import { useNetworkFile } from './hooks/useNetworkFile';
+import useSimulationNetwork from './hooks/useSimulationNetwork';
+import type { DeviceType, GenericNode, Network } from './lib/network-simulator';
 import type { CableUIType } from './lib/network-simulator/cables';
 
 /**
@@ -49,8 +45,6 @@ function NetworkDiagramContent({
   const [selectedDevice, setSelectedDevice] = useState<DeviceType | null>(null);
   const [selectedNodeForConfig, setSelectedNodeForConfig] =
     useState<GenericNode | null>(null);
-  const { setOpen, isMobile } = useSidebar();
-  const hasCollapsedSidebar = useRef(false);
   const lastLoadedFilename = useRef<string | null>(null);
 
   // Create simulation objects from network
@@ -80,18 +74,11 @@ function NetworkDiagramContent({
         toast.success(`Loaded: ${filename}`);
         lastLoadedFilename.current = filename;
       }
-
-      // Collapse sidebar on desktop when network is loaded (only once)
-      if (!isMobile && !hasCollapsedSidebar.current) {
-        setOpen(false);
-        hasCollapsedSidebar.current = true;
-      }
     } else {
       // Reset when returning to upload state
-      hasCollapsedSidebar.current = false;
       lastLoadedFilename.current = null;
     }
-  }, [network, filename, loadTopology, isMobile, setOpen]);
+  }, [network, filename, loadTopology]);
 
   useEffect(() => {
     if (error) {

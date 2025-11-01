@@ -4,7 +4,9 @@
  */
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { ServerHost } from '../../lib/network-simulator/nodes/server';
+import DhcpServiceConfig from './DhcpServiceConfig';
 
 interface ServiceTabProps {
   node: ServerHost;
@@ -33,43 +35,39 @@ export default function ServiceTab({ node }: ServiceTabProps) {
 
       <div className="flex-1 overflow-auto">
         <TabsContent value="dhcp">
-          <div className="rounded-lg border bg-card p-6 text-card-foreground shadow-sm">
-            <h3 className="mb-2 font-semibold text-lg">DHCP Server</h3>
-            <p className="text-muted-foreground text-sm">Server: {node.name}</p>
-            <p className="text-muted-foreground text-sm mt-4">
-              DHCP server configuration will be implemented here.
-            </p>
-            <p className="text-muted-foreground text-sm mt-2">
-              This will include: IP range, subnet mask, default gateway, DNS
-              servers, lease time, etc.
-            </p>
-          </div>
+          <DhcpServiceConfig node={node} />
         </TabsContent>
 
         <TabsContent value="dns">
-          <div className="rounded-lg border bg-card p-6 text-card-foreground shadow-sm">
-            <h3 className="mb-2 font-semibold text-lg">DNS Server</h3>
-            <p className="text-muted-foreground text-sm">Server: {node.name}</p>
-            <p className="text-muted-foreground text-sm mt-4">
-              DNS server configuration will be implemented here.
-            </p>
-            <p className="text-muted-foreground text-sm mt-2">
-              This will include: DNS records, forwarders, zones, etc.
-            </p>
-          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>DNS Server Configuration</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground text-sm">
+                DNS server configuration will be implemented here.
+              </p>
+              <p className="text-muted-foreground text-sm mt-2">
+                This will include: DNS records, forwarders, zones, etc.
+              </p>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="http">
-          <div className="rounded-lg border bg-card p-6 text-card-foreground shadow-sm">
-            <h3 className="mb-2 font-semibold text-lg">HTTP Server</h3>
-            <p className="text-muted-foreground text-sm">Server: {node.name}</p>
-            <p className="text-muted-foreground text-sm mt-4">
-              HTTP server configuration will be implemented here.
-            </p>
-            <p className="text-muted-foreground text-sm mt-2">
-              This will include: Port, document root, virtual hosts, etc.
-            </p>
-          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle>HTTP Server Configuration</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground text-sm">
+                HTTP server configuration will be implemented here.
+              </p>
+              <p className="text-muted-foreground text-sm mt-2">
+                This will include: Port, document root, virtual hosts, etc.
+              </p>
+            </CardContent>
+          </Card>
         </TabsContent>
       </div>
     </Tabs>
