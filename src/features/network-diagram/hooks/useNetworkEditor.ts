@@ -85,9 +85,8 @@ function createSimulatorNode(device: Device): GenericNode {
       break;
     case 'pc':
     case 'laptop':
-    case 'printer':
     default:
-      simNode = new ComputerHost(name, type, 1); // PC/Laptop/Printer with 1 interface
+      simNode = new ComputerHost(name, type, 1); // PC/Laptop with 1 interface
       break;
   }
 

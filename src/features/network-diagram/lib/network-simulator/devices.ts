@@ -12,10 +12,7 @@ export type DeviceType =
   | 'server'
   | 'router'
   | 'switch'
-  | 'hub'
-  | 'printer'
-  | 'cloud'
-  | 'bridge';
+  | 'hub';
 
 /**
  * Network interface (port) on a device - UI representation
@@ -56,65 +53,44 @@ export const DEVICE_CATALOG: Record<DeviceType, DeviceCatalogEntry> = {
   pc: {
     type: 'pc',
     displayName: 'PC',
-    icon: '/network-icons/pc.png',
+    icon: '/network-icons/pc.svg',
     defaultName: 'PC',
     description: 'Desktop computer',
   },
   laptop: {
     type: 'laptop',
     displayName: 'Laptop',
-    icon: '/network-icons/laptop.png',
+    icon: '/network-icons/laptop.svg',
     defaultName: 'Laptop',
     description: 'Portable computer',
   },
   server: {
     type: 'server',
     displayName: 'Server',
-    icon: '/network-icons/server.png',
+    icon: '/network-icons/server.svg',
     defaultName: 'Server',
     description: 'Network server',
   },
   router: {
     type: 'router',
     displayName: 'Router',
-    icon: '/network-icons/router.png',
+    icon: '/network-icons/router.svg',
     defaultName: 'Router',
     description: 'Network router',
   },
   switch: {
     type: 'switch',
     displayName: 'Switch',
-    icon: '/network-icons/switch.png',
+    icon: '/network-icons/switch.svg',
     defaultName: 'Switch',
     description: 'Network switch',
   },
   hub: {
     type: 'hub',
     displayName: 'Hub',
-    icon: '/network-icons/hub.png',
+    icon: '/network-icons/hub.svg',
     defaultName: 'Hub',
     description: 'Network hub',
-  },
-  printer: {
-    type: 'printer',
-    displayName: 'Printer',
-    icon: '/network-icons/printer.png',
-    defaultName: 'Printer',
-    description: 'Network printer',
-  },
-  cloud: {
-    type: 'cloud',
-    displayName: 'Cloud',
-    icon: '/network-icons/cloud.png',
-    defaultName: 'Cloud',
-    description: 'Cloud/Internet',
-  },
-  bridge: {
-    type: 'bridge',
-    displayName: 'Bridge',
-    icon: '/network-icons/bridge.png',
-    defaultName: 'Bridge',
-    description: 'Network bridge',
   },
 };
 
@@ -154,9 +130,6 @@ export function mapPacketTracerType(ptType: string): DeviceType {
     router: 'router',
     switch: 'switch',
     hub: 'hub',
-    printer: 'printer',
-    cloud: 'cloud',
-    bridge: 'bridge',
   };
 
   return typeMap[normalized] || 'pc';

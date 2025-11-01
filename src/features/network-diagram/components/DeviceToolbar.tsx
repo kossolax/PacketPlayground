@@ -5,6 +5,7 @@
 
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import NetworkIcon from '@/components/NetworkIcon';
 import { DEVICE_CATALOG, type DeviceType } from '../lib/network-simulator';
 
 interface DeviceToolbarProps {
@@ -19,7 +20,6 @@ const DEVICE_ORDER: DeviceType[] = [
   'router',
   'switch',
   'hub',
-  'printer',
 ];
 
 export default function DeviceToolbar({
@@ -44,11 +44,9 @@ export default function DeviceToolbar({
               onClick={() => onDeviceSelect(deviceType)}
               title={catalog.description}
             >
-              <img
-                src={catalog.icon}
-                alt={catalog.displayName}
-                className="h-8 w-8 object-contain"
-                draggable={false}
+              <NetworkIcon
+                deviceType={deviceType}
+                className="size-10 text-primary"
               />
               <span className="text-[10px]">{catalog.displayName}</span>
             </Button>

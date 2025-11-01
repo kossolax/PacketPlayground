@@ -36,7 +36,7 @@ export default function CableToolbar({
           onClick={() => onCableSelect('auto')}
           title={cable.description}
         >
-          <Cable className="h-8 w-8" strokeWidth={1.5} />
+          <Cable className="size-10" strokeWidth={1.5} />
           <span className="text-[10px]">{cable.displayName}</span>
         </Button>
       </div>

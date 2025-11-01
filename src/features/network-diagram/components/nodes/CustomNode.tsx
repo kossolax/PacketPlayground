@@ -5,6 +5,7 @@
 
 import { memo } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
+import NetworkIcon from '@/components/NetworkIcon';
 import type { DeviceType, NetworkInterface } from '../../lib/network-simulator';
 
 export interface CustomNodeData {
@@ -75,14 +76,9 @@ function CustomNode({ data, selected }: NodeProps) {
         }`}
         style={{ width: 80 }}
       >
-        <img
-          src={nodeData.icon}
-          alt={nodeData.deviceType}
-          className="h-12 w-12 object-contain"
-          draggable={false}
-          onError={(e) => {
-            e.currentTarget.src = '/network-icons/pc.png';
-          }}
+        <NetworkIcon
+          deviceType={nodeData.deviceType}
+          className="h-12 w-12 text-primary"
         />
         <div className="bg-background px-2 py-0.5 text-xs font-medium rounded border border-border max-w-full truncate">
           {nodeData.label}

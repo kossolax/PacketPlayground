@@ -51,7 +51,7 @@ export function detectCableType(
   targetType: DeviceType
 ): CableType {
   // Define device categories
-  const endDevices: DeviceType[] = ['pc', 'laptop', 'server', 'printer'];
+  const endDevices: DeviceType[] = ['pc', 'laptop', 'server'];
   const networkDevices: DeviceType[] = ['switch', 'hub'];
   const routingDevices: DeviceType[] = ['router'];
 

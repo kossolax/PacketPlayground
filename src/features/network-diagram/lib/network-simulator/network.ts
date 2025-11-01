@@ -114,13 +114,7 @@ export class Network {
 
       const type = i.ENGINE.TYPE['#text'].toLowerCase();
 
-      if (
-        type === 'pc' ||
-        type === 'laptop' ||
-        type === 'server' ||
-        type === 'printer' ||
-        type === 'cloud'
-      ) {
+      if (type === 'pc' || type === 'laptop' || type === 'server') {
         node = new ServerHost();
       } else if (type === 'router') {
         node = new RouterHost();
