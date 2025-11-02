@@ -26,6 +26,7 @@ import {
   Link,
   GenericNode,
 } from '../lib/network-simulator';
+import { useNetworkSimulation } from '../context/NetworkSimulationContext';
 import {
   ServerHost,
   ComputerHost,
@@ -127,6 +128,7 @@ export function useNetworkEditor(
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const { fitView } = useReactFlow();
+  const { spy } = useNetworkSimulation();
 
   // Cable selection state
   const [selectedCable, setSelectedCable] = useState<CableUIType | null>(null);
@@ -320,6 +322,28 @@ export function useNetworkEditor(
         return;
       }
 
+      // Helper to update edge interface states in UI
+      const updateEdgeInterfaceStates = (
+        linkId: string,
+        sourceIface: HardwareInterface,
+        targetIface: HardwareInterface
+      ) => {
+        setEdges((eds) =>
+          eds.map((edge) => {
+            if (edge.id !== linkId) return edge;
+
+            return {
+              ...edge,
+              data: {
+                ...edge.data,
+                sourceInterfaceState: getInterfaceState(sourceIface),
+                targetInterfaceState: getInterfaceState(targetIface),
+              },
+            };
+          })
+        );
+      };
+
       // Get source and target nodes from simulator
       const sourceSimNode = simulationNetwork.nodes[connection.source];
       const targetSimNode = simulationNetwork.nodes[connection.target];
@@ -376,14 +400,51 @@ export function useNetworkEditor(
         return;
       }
 
-      // Create physical link
+      // Create physical link (interfaces are inactive, no auto-negotiation yet)
       const link = new Link(sourceIface, targetIface, 10); // 10 meters cable
       simulationNetwork.links.push(link);
 
-      // Auto-enable interfaces
+      // CRITICAL: Get link index AFTER pushing to array
+      // This index must match the format used by useInterfaceStateMonitor
+      const linkIndex = simulationNetwork.links.length - 1;
+      const edgeId = `link-${linkIndex}`;
+
+      // Attach spy to new link BEFORE enabling interfaces
+      // This ensures we capture auto-negotiation packets
+      link.addListener(spy);
+
+      // Attach interface listeners for LED state updates
+      // This is needed because useInterfaceStateMonitor only sets up listeners once at init
+      const sourceListener = () => {
+        updateEdgeInterfaceStates(edgeId, sourceIface, targetIface);
+      };
+      const targetListener = () => {
+        updateEdgeInterfaceStates(edgeId, sourceIface, targetIface);
+      };
+
+      sourceIface.addListener(sourceListener);
+      targetIface.addListener(targetListener);
+
+      // Enable interfaces (this will trigger auto-negotiation)
       try {
         sourceIface.up();
         targetIface.up();
+
+        // Manually trigger auto-negotiation now that interfaces are up and spy is attached
+        if (sourceIface.discovery) {
+          sourceIface.discovery.negociate(
+            sourceIface.minSpeed,
+            sourceIface.maxSpeed,
+            sourceIface.fullDuplexCapable
+          );
+        }
+        if (targetIface.discovery) {
+          targetIface.discovery.negociate(
+            targetIface.minSpeed,
+            targetIface.maxSpeed,
+            targetIface.fullDuplexCapable
+          );
+        }
       } catch (error) {
         // eslint-disable-next-line no-console
         console.warn('[Connection] Failed to enable interfaces:', error);
@@ -397,10 +458,12 @@ export function useNetworkEditor(
       const cableProps = getCableVisualProps(detectedCableType);
 
       // Add edge to ReactFlow with detected cable type
+      // CRITICAL: Use edgeId that matches useInterfaceStateMonitor format
       setEdges((eds) =>
         addEdge(
           {
             ...connection,
+            id: edgeId,
             type: 'customEdge',
             data: {
               sourcePort: sourceIface.toString(),
