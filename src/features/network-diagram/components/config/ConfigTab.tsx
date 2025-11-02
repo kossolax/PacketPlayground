@@ -8,8 +8,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { GenericNode } from '../../lib/network-simulator';
 import { Node } from '../../lib/network-simulator/nodes/generic';
 import { HardwareInterface } from '../../lib/network-simulator/layers/datalink';
+import { RouterHost } from '../../lib/network-simulator/nodes/router';
 import GeneralTab from './GeneralTab';
 import InterfaceTab from './InterfaceTab';
+import RoutingTab from './RoutingTab';
 
 interface ConfigTabProps {
   node: GenericNode;
@@ -22,6 +24,9 @@ export default function ConfigTab({ node }: ConfigTabProps) {
     ? (node as Node<HardwareInterface>).getInterfaces()
     : [];
 
+  // Check if node is a router (for routing table)
+  const isRouter = node instanceof RouterHost;
+
   return (
     <Tabs className="flex w-full flex-row gap-6 h-full" defaultValue="general">
       <TabsList className="flex h-full flex-col items-start justify-start">
@@ -31,6 +36,14 @@ export default function ConfigTab({ node }: ConfigTabProps) {
         >
           General
         </TabsTrigger>
+        {isRouter && (
+          <TabsTrigger
+            className="w-40 shrink-0 grow-0 justify-start"
+            value="routage"
+          >
+            Routage
+          </TabsTrigger>
+        )}
         {interfaces.map((interfaceName) => (
           <TabsTrigger
             key={interfaceName}
@@ -53,6 +66,12 @@ export default function ConfigTab({ node }: ConfigTabProps) {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {isRouter && (
+          <TabsContent value="routage">
+            <RoutingTab node={node as RouterHost} />
+          </TabsContent>
+        )}
 
         {interfaces.map((interfaceName) => (
           <TabsContent key={interfaceName} value={interfaceName}>
