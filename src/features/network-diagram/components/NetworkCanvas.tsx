@@ -47,6 +47,12 @@ interface NetworkCanvasProps {
   onCancelConnection: () => void;
   onNodeDoubleClick: (node: GenericNode) => void;
   linkStates: Map<string, EdgeInterfaceStates>;
+  isPingMode: boolean;
+  pingInProgress: { sourceNodeId: string } | null;
+  onSetPingSource: (nodeId: string) => void;
+  onDisablePingMode: () => void;
+  onExecutePing: (sourceNodeId: string, targetNodeId: string) => void;
+  hasConfiguredIP: (nodeId: string) => boolean;
 }
 
 export default function NetworkCanvas({
@@ -65,20 +71,35 @@ export default function NetworkCanvas({
   onCancelConnection,
   onNodeDoubleClick,
   linkStates,
+  isPingMode,
+  pingInProgress,
+  onSetPingSource,
+  onDisablePingMode,
+  onExecutePing,
+  hasConfiguredIP,
 }: NetworkCanvasProps) {
   const { screenToFlowPosition } = useReactFlow();
   const { edgesWithPackets } = usePacketAnimation({ edges });
 
-  // Handle ESC key to cancel connection
+  // Handle ESC key to cancel connection or ping
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && connectionInProgress) {
-        onCancelConnection();
+      if (e.key === 'Escape') {
+        if (pingInProgress) {
+          onDisablePingMode();
+        } else if (connectionInProgress) {
+          onCancelConnection();
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [connectionInProgress, onCancelConnection]);
+  }, [
+    connectionInProgress,
+    onCancelConnection,
+    pingInProgress,
+    onDisablePingMode,
+  ]);
 
   // Merge LED states into edges
   const edgesWithLEDs = useMemo(
@@ -113,10 +134,37 @@ export default function NetworkCanvas({
     []
   );
 
-  // Handle node click for cable connection
+  // Handle node click for cable connection and ping
   const handleNodeClick: NodeMouseHandler = useCallback(
     (_event, node) => {
-      // Only handle clicks when cable is selected
+      // Handle ping mode
+      if (isPingMode) {
+        // Validate node has IP configured
+        if (!hasConfiguredIP(node.id)) {
+          return; // Silently ignore click on nodes without IP
+        }
+
+        // First click: set source
+        if (!pingInProgress) {
+          onSetPingSource(node.id);
+          return;
+        }
+
+        // Second click on same node: cancel
+        if (pingInProgress.sourceNodeId === node.id) {
+          onDisablePingMode();
+          return;
+        }
+
+        // Second click on different node: execute ping
+        onExecutePing(pingInProgress.sourceNodeId, node.id);
+
+        // Disable ping mode immediately (like cable mode)
+        onDisablePingMode();
+        return;
+      }
+
+      // Handle cable connection mode
       if (!selectedCable) return;
 
       // First click: start connection
@@ -144,6 +192,12 @@ export default function NetworkCanvas({
       onCancelConnection();
     },
     [
+      isPingMode,
+      pingInProgress,
+      hasConfiguredIP,
+      onSetPingSource,
+      onDisablePingMode,
+      onExecutePing,
       selectedCable,
       connectionInProgress,
       onStartConnection,
@@ -154,6 +208,12 @@ export default function NetworkCanvas({
 
   const handlePaneClick = useCallback(
     (event: React.MouseEvent) => {
+      // Cancel ping if clicking on pane while ping in progress
+      if (pingInProgress) {
+        onDisablePingMode();
+        return;
+      }
+
       // Cancel connection if clicking on pane while connection in progress
       if (connectionInProgress) {
         onCancelConnection();
@@ -186,6 +246,8 @@ export default function NetworkCanvas({
       onAddDevice,
       onDeviceAdded,
       screenToFlowPosition,
+      pingInProgress,
+      onDisablePingMode,
       connectionInProgress,
       onCancelConnection,
     ]

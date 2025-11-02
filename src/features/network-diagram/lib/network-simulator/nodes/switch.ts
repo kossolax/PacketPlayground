@@ -15,6 +15,7 @@ import {
   PVSTPService,
   SpanningTreeMessage,
   SpanningTreeState,
+  SpanningTreePortRole,
 } from '../services/spanningtree';
 import { HardwareAddress, MacAddress } from '../address';
 import { Dot1QMessage, EthernetMessage, VlanMode } from '../protocols/ethernet';
@@ -146,6 +147,16 @@ export class SwitchHost
 
     if (this.spanningTree.State(sourceInterface) === SpanningTreeState.Blocking)
       return ActionHandle.Stop;
+
+    // Also check port role - non-forwarding roles drop all data frames
+    const sourceRole = this.spanningTree.Role(sourceInterface);
+    if (
+      sourceRole === SpanningTreePortRole.Blocked ||
+      sourceRole === SpanningTreePortRole.Alternate ||
+      sourceRole === SpanningTreePortRole.Backup
+    )
+      return ActionHandle.Stop;
+
     if (
       this.spanningTree.State(sourceInterface) === SpanningTreeState.Listening
     )
@@ -199,7 +210,16 @@ export class SwitchHost
     interfaces.forEach((iface) => {
       let msg: DatalinkMessage = message;
 
+      // Check both state and role - non-forwarding roles/states drop frames
       if (this.spanningTree.State(iface) === SpanningTreeState.Blocking) return;
+
+      const ifaceRole = this.spanningTree.Role(iface);
+      if (
+        ifaceRole === SpanningTreePortRole.Blocked ||
+        ifaceRole === SpanningTreePortRole.Alternate ||
+        ifaceRole === SpanningTreePortRole.Backup
+      )
+        return;
 
       if (iface.VlanMode === VlanMode.Trunk) {
         if (!(message instanceof Dot1QMessage)) {

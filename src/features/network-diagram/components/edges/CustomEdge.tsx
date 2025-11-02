@@ -3,16 +3,14 @@
  * Displays network connection between devices using floating edges
  */
 
-import {
-  BaseEdge,
-  getStraightPath,
-  useStore,
-  type EdgeProps,
-} from '@xyflow/react';
+import { getStraightPath, useStore, type EdgeProps } from '@xyflow/react';
 import { memo, useEffect, useRef } from 'react';
-import getEdgeParams from '../../utils/edgeUtils';
-import { SpanningTreeState } from '../../lib/network-simulator/services/spanningtree';
+import {
+  SpanningTreePortRole,
+  SpanningTreeState,
+} from '../../lib/network-simulator/services/spanningtree';
 import { Scheduler } from '../../lib/scheduler';
+import getEdgeParams from '../../utils/edgeUtils';
 
 export interface AnimatedPacket {
   id?: string; // unique key for React mounting
@@ -27,6 +25,7 @@ export interface InterfaceState {
   fullDuplex?: boolean;
   isSwitch?: boolean;
   spanningTreeState?: SpanningTreeState;
+  spanningTreeRole?: SpanningTreePortRole;
 }
 
 export interface CustomEdgeData {
@@ -43,28 +42,34 @@ export interface CustomEdgeData {
  * Get LED color based on interface state
  * Colors:
  * - Black: not initialized (system error)
- * - Red: interface down
- * - Orange: STP Blocking (only if STP enabled)
- * - Blue: STP Listening/Learning (only if STP enabled)
- * - Green: interface up (default for switches without STP, routers, PCs)
+ * - Red: interface down or STP disabled
+ * - Orange: STP non-forwarding (Blocked/Alternate/Backup/Listening/Learning)
+ * - Green: interface up and forwarding
  */
 function getLEDColor(state?: InterfaceState): string {
   if (!state) return '#505050'; // Black - not initialized (system error)
 
   if (!state.isActive) return '#f44336'; // Red - interface down
 
-  // If switch WITH STP enabled, show STP state colors
-  if (state.isSwitch && state.spanningTreeState !== undefined) {
-    switch (state.spanningTreeState) {
-      case SpanningTreeState.Blocking:
-        return '#f4af50'; // Orange
-      case SpanningTreeState.Listening:
-      case SpanningTreeState.Learning:
-        return '#2196f3'; // Blue
-      case SpanningTreeState.Forwarding:
-        return '#4caf50'; // Green
-      case SpanningTreeState.Disabled:
+  // If switch WITH STP enabled, use STP role as primary indicator
+  if (state.isSwitch && state.spanningTreeRole !== undefined) {
+    switch (state.spanningTreeRole) {
+      case SpanningTreePortRole.Blocked:
+      case SpanningTreePortRole.Alternate:
+      case SpanningTreePortRole.Backup:
+        return '#f4af50'; // Orange - non-forwarding roles
+      case SpanningTreePortRole.Disabled:
         return '#f44336'; // Red - STP disabled this port
+      case SpanningTreePortRole.Root:
+      case SpanningTreePortRole.Designated:
+        // For forwarding roles, check transitional states
+        if (
+          state.spanningTreeState === SpanningTreeState.Listening ||
+          state.spanningTreeState === SpanningTreeState.Learning
+        ) {
+          return '#f4af50'; // Orange - learning, not yet forwarding
+        }
+        return '#4caf50'; // Green - actively forwarding
       default:
         break;
     }
@@ -109,6 +114,12 @@ function PacketDot({
   packet: AnimatedPacket;
 }) {
   const groupRef = useRef<SVGGElement | null>(null);
+
+  // Get theme primary color
+  const primaryColor = getComputedStyle(document.documentElement)
+    .getPropertyValue('--primary')
+    .trim();
+  const badgeColor = primaryColor || '#5082B0';
 
   useEffect(() => {
     const path = document.getElementById(
@@ -166,7 +177,7 @@ function PacketDot({
         width={width}
         height={height}
         rx="4"
-        fill="#ef4444"
+        fill={badgeColor}
         stroke="#fff"
         strokeWidth="2"
       />
@@ -217,14 +228,19 @@ function CustomEdge({ id, source, target, data, selected }: EdgeProps) {
     targetY: ty,
   });
 
+  // Get theme primary color for cables
+  const primaryColor = getComputedStyle(document.documentElement)
+    .getPropertyValue('--primary')
+    .trim();
+  const themeBlue = primaryColor || '#5082B0';
+
   // Determine stroke color
   const getStrokeColor = () => {
-    if (edgeData?.isBlinking) return '#f59e0b';
-    if (selected) return '#3b82f6';
-    // Crossover cables use amber color
-    if (edgeData?.cableType === 'crossover') return '#f59e0b';
-    // Standard ethernet cables use blue-gray
-    return '#3b82f6';
+    if (selected) return themeBlue;
+
+    // All cables use theme primary color
+    // Crossover cables are differentiated by dashed stroke
+    return themeBlue;
   };
 
   // Determine stroke width
@@ -241,16 +257,24 @@ function CustomEdge({ id, source, target, data, selected }: EdgeProps) {
         <path id={`edge-path-${id}`} d={edgePath} />
       </defs>
 
-      <BaseEdge
+      <path
         id={id}
-        path={edgePath}
-        style={{
-          stroke: getStrokeColor(),
-          strokeWidth: getStrokeWidth(),
-          strokeDasharray:
-            edgeData?.cableType === 'crossover' ? '5,5' : undefined,
-          opacity: edgeData?.isBlinking ? 0.5 : 1,
-        }}
+        d={edgePath}
+        fill="none"
+        className="react-flow__edge-path"
+        stroke={getStrokeColor()}
+        strokeWidth={getStrokeWidth()}
+        strokeDasharray={
+          edgeData?.cableType === 'crossover' ? '8 4' : undefined
+        }
+        opacity={edgeData?.isBlinking ? 0.5 : 1}
+      />
+      <path
+        d={edgePath}
+        fill="none"
+        strokeOpacity="0"
+        strokeWidth="20"
+        className="react-flow__edge-interaction"
       />
 
       {/* LED Status Indicators at edge endpoints */}

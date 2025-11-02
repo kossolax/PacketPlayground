@@ -11,8 +11,10 @@ import { Link, Node as SimNode } from '../lib/network-simulator';
 import type { InterfaceState } from '../components/edges/CustomEdge';
 import type { HardwareInterface } from '../lib/network-simulator/layers/datalink';
 import { SwitchHost } from '../lib/network-simulator/nodes/switch';
-import type { GenericListener } from '../lib/network-simulator/protocols/base';
-import type { LinkLayerSpy } from '../lib/network-simulator/services/spy';
+import type {
+  GenericListener,
+  LinkLayerSpy,
+} from '../lib/network-simulator/protocols/base';
 import type { CableUIType } from '../lib/network-simulator/cables';
 import {
   detectCableType,
@@ -53,9 +55,10 @@ function getInterfaceState(iface: HardwareInterface): InterfaceState {
     isSwitch: iface.Host instanceof SwitchHost,
   };
 
-  // Add Spanning Tree state ONLY if switch has STP enabled
+  // Add Spanning Tree state and role ONLY if switch has STP enabled
   if (iface.Host instanceof SwitchHost && iface.Host.spanningTree.Enable) {
     state.spanningTreeState = iface.Host.spanningTree.State(iface);
+    state.spanningTreeRole = iface.Host.spanningTree.Role(iface);
   }
 
   return state;
@@ -334,13 +337,12 @@ export function useNetworkLinks(
       }
 
       // Auto-detect cable type based on device types
-      const detectedCableType =
-        cableType ||
-        detectCableType(
-          sourceSimNode.type as DeviceType,
-          targetSimNode.type as DeviceType
-        );
-      const cableProps = getCableVisualProps(detectedCableType);
+      // When cableType is 'auto' or undefined, we detect the actual cable type
+      const actualCableType = detectCableType(
+        sourceSimNode.type as DeviceType,
+        targetSimNode.type as DeviceType
+      );
+      const cableProps = getCableVisualProps(actualCableType);
 
       return {
         success: true,
@@ -348,7 +350,7 @@ export function useNetworkLinks(
         linkId,
         sourcePort: sourceIface.toString(),
         targetPort: targetIface.toString(),
-        cableType: detectedCableType,
+        cableType: actualCableType,
       };
     },
     [network, spy]

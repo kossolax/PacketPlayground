@@ -119,7 +119,7 @@ export class Network {
       } else if (type === 'router') {
         node = new RouterHost();
       } else if (type === 'switch' || type === 'hub') {
-        node = new SwitchHost();
+        node = new SwitchHost('', 0, type === 'switch');
       } else if (type === 'power distribution device') {
         return null; // Skip power devices
       } else {

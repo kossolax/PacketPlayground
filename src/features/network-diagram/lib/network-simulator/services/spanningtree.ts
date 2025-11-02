@@ -20,7 +20,7 @@ enum MessageType {
   topologyChange,
 }
 
-enum SpanningTreePortRole {
+export enum SpanningTreePortRole {
   Disabled,
   Root,
   Designated,
@@ -92,9 +92,6 @@ export class SpanningTreeMessage extends EthernetMessage {
 
     public setBridge(bridge: MacAddress): this {
       this.bridge = bridge;
-
-      if (this.bridge.compareTo(this.root) < 0) this.root = this.bridge;
-
       return this;
     }
 
@@ -117,10 +114,8 @@ export class SpanningTreeMessage extends EthernetMessage {
     public setPort(port: number | string): this {
       // convert string to number using hashcode
       if (typeof port === 'string') {
-        let hash = 0;
-        for (let i = 0; i < port.length; i += 1)
-          hash = port.charCodeAt(i) + (hash << 5) - hash;
-        this.port = hash;
+        // eslint-disable-next-line @typescript-eslint/no-use-before-define
+        this.port = PVSTPService.getPortId(port);
       } else {
         this.port = port;
       }
@@ -135,19 +130,26 @@ export class SpanningTreeMessage extends EthernetMessage {
     }
 
     public override build(): SpanningTreeMessage {
+      // Validate that Layer 2 source MAC was set via setMacSource()
+      if (this.macSrc === null) {
+        throw new Error('MAC source address must be set via setMacSource()');
+      }
+
+      // Create BPDU with correct Layer 2 source MAC (interface MAC, not Bridge ID)
       const message = new SpanningTreeMessage(
         this.payload,
-        this.bridge,
+        this.macSrc,
         SpanningTreeMultiCastAddress
       );
-      message.macSrc = this.macSrc as MacAddress;
+
+      // Set Bridge ID in BPDU payload (lowest MAC of all interfaces)
       message.bridgeId.mac = this.bridge;
       message.rootId.mac = this.root;
       message.messageType = this.type;
       message.rootPathCost = this.cost;
       message.portId.globalId = this.port;
-      message.messageAge =
-        this.age > 0 ? this.age : Scheduler.getInstance().getDeltaTime();
+      // RFC 802.1D: messageAge is relative (0 for new BPDUs from root)
+      message.messageAge = this.age > 0 ? this.age : 0;
 
       return message;
     }
@@ -164,9 +166,13 @@ export class PVSTPService
 
   private cost = new Map<Interface, number>();
 
+  private bpduTimers = new Map<Interface, (() => void) | null>();
+
+  private receivedBPDUs = new Map<Interface, SpanningTreeMessage>();
+
   private maxAge = 20;
 
-  private helloTime = 15;
+  private helloTime = 2; // RFC 802.1D default: 2 seconds
 
   private forwardDelay = 15;
 
@@ -177,6 +183,10 @@ export class PVSTPService
 
   get Root(): MacAddress {
     return this.rootId.mac;
+  }
+
+  get BridgeId(): MacAddress {
+    return this.bridgeId.mac;
   }
 
   get IsRoot(): boolean {
@@ -190,12 +200,22 @@ export class PVSTPService
 
   private repeatCleanup: (() => void) | null = null;
 
+  // Track interfaces that already have event listeners
+  private interfacesWithListeners: Set<HardwareInterface> = new Set();
+
+  // Handler for interface up/down events (bound to preserve 'this')
+  private handleInterfaceEvent = (msg: string) => {
+    if (msg === 'OnInterfaceUp' || msg === 'OnInterfaceDown') {
+      // Re-evaluate roles and states when interface state changes
+      this.setDefaultRoot();
+    }
+  };
+
   constructor(host: SwitchHost) {
     super(host);
 
     host.addListener((msg) => {
-      if (msg === 'OnInterfaceAdded' || msg === 'OnInterfaceChange')
-        this.setDefaultRoot();
+      if (msg === 'OnInterfaceAdded') this.setDefaultRoot();
     });
 
     this.setDefaultRoot();
@@ -210,6 +230,12 @@ export class PVSTPService
       this.repeatCleanup();
       this.repeatCleanup = null;
     }
+
+    // Cancel all BPDU aging timers
+    this.bpduTimers.forEach((cleanup) => {
+      if (cleanup) cleanup();
+    });
+    this.bpduTimers.clear();
   }
 
   public State(iface: Interface): SpanningTreeState {
@@ -235,34 +261,86 @@ export class PVSTPService
   }
 
   private setDefaultRoot(): void {
-    this.rootId.mac = new MacAddress('FF:FF:FF:FF:FF:FF');
-    this.bridgeId.mac = new MacAddress('FF:FF:FF:FF:FF:FF');
+    // Save current root status and bridge ID for transition detection
+    const wasRoot = this.IsRoot;
+    const oldBridgeId = this.bridgeId.mac;
 
+    // Find lowest MAC among all interfaces (bridge ID)
+    let lowestMac = new MacAddress('FF:FF:FF:FF:FF:FF');
     this.host.getInterfaces().forEach((i) => {
       const iface = this.host.getInterface(i);
       const mac = iface.getMacAddress() as MacAddress;
+      if (mac.compareTo(lowestMac) < 0) lowestMac = mac;
+    });
 
-      if (mac.compareTo(this.rootId.mac) < 0) this.rootId.mac = mac;
+    this.bridgeId.mac = lowestMac;
 
-      if (mac.compareTo(this.bridgeId.mac) < 0) this.bridgeId.mac = mac;
+    // RFC 802.1D: Update rootId when:
+    // 1. First boot (rootId is still FF:FF:FF:FF:FF:FF)
+    // 2. We are currently root AND our bridge ID changed
+    // 3. Our new bridge ID is better than our current root
+    const isFirstBoot = this.rootId.mac.equals(
+      new MacAddress('FF:FF:FF:FF:FF:FF')
+    );
+    const bridgeIdChanged = !oldBridgeId.equals(lowestMac);
+    const bridgeBetterThanRoot = lowestMac.compareTo(this.rootId.mac) < 0;
+
+    if (isFirstBoot || (wasRoot && bridgeIdChanged) || bridgeBetterThanRoot) {
+      this.rootId.mac = lowestMac;
+    }
+
+    // Assign roles to interfaces
+    this.host.getInterfaces().forEach((i) => {
+      const iface = this.host.getInterface(i);
+
+      // Add interface up/down listener only once per interface
+      if (!this.interfacesWithListeners.has(iface)) {
+        iface.addListener(this.handleInterfaceEvent);
+        this.interfacesWithListeners.add(iface);
+      }
 
       if (this.enabled) {
-        // boot, we are the root. So the COST is set to default.
-
         if (this.roles.get(iface) === undefined) {
-          this.changeRole(iface, SpanningTreePortRole.Designated);
-          // Root bridge ports should start in Forwarding state
-          this.changeState(iface, SpanningTreeState.Forwarding);
-          this.cost.set(iface, 42);
+          // New interface: assign role based on current root status
+          if (this.IsRoot) {
+            this.changeRole(iface, SpanningTreePortRole.Designated);
+            this.cost.set(iface, 0);
+          } else {
+            // Non-root: new interfaces start as Blocked until they receive BPDUs
+            this.changeRole(iface, SpanningTreePortRole.Blocked);
+            this.cost.set(iface, Number.MAX_VALUE);
+          }
+        } else {
+          // Existing interface: re-sync state with role (handles up/down transitions)
+          const currentRole = this.roles.get(iface);
+          if (currentRole !== undefined) {
+            this.changeRole(iface, currentRole);
+          }
         }
       } else {
         this.changeRole(iface, SpanningTreePortRole.Disabled);
-        this.changeState(iface, SpanningTreeState.Disabled);
         this.roles.delete(iface);
         this.state.delete(iface);
         this.changingState.delete(iface);
       }
     });
+
+    // RFC 802.1D: If we just became root, reassign Blocked ports to Designated
+    const isNowRoot = this.IsRoot;
+    if (!wasRoot && isNowRoot) {
+      this.host.getInterfaces().forEach((i) => {
+        const iface = this.host.getInterface(i);
+        const role = this.Role(iface);
+        if (
+          role === SpanningTreePortRole.Blocked ||
+          role === SpanningTreePortRole.Alternate ||
+          role === SpanningTreePortRole.Backup
+        ) {
+          this.changeRole(iface, SpanningTreePortRole.Designated);
+          this.cost.set(iface, 0);
+        }
+      });
+    }
   }
 
   private changingState: Map<HardwareInterface, (() => void) | null> =
@@ -281,15 +359,11 @@ export class PVSTPService
       if (existing) existing();
 
       switch (state) {
-        case SpanningTreeState.Blocking: {
-          const subscription = Scheduler.getInstance()
-            .once(this.maxAge)
-            .subscribe(() => {
-              this.changeState(iface, SpanningTreeState.Listening);
-            });
-          this.changingState.set(iface, () => subscription.unsubscribe());
+        case SpanningTreeState.Blocking:
+          // RFC 802.1D: Blocked ports remain blocked until topology event
+          // (becoming root port or designated port based on BPDU comparison)
+          // No automatic transition after timer
           break;
-        }
         case SpanningTreeState.Listening: {
           const subscription = Scheduler.getInstance()
             .once(this.forwardDelay)
@@ -313,6 +387,8 @@ export class PVSTPService
         default:
           break;
       }
+      // Notify React listeners about state change
+      iface.trigger('OnInterfaceChange');
     }
   }
 
@@ -320,45 +396,107 @@ export class PVSTPService
     iface: HardwareInterface,
     role: SpanningTreePortRole
   ): void {
-    const oldRole = this.roles.get(iface);
+    // RFC 802.1D: Root bridge ports can ONLY be Designated or Disabled
+    // Root bridge must never have Blocked/Alternate/Backup ports
+    if (this.IsRoot) {
+      if (
+        role !== SpanningTreePortRole.Designated &&
+        role !== SpanningTreePortRole.Disabled
+      ) {
+        return; // Silently reject invalid role assignment
+      }
+    }
+
     this.roles.set(iface, role);
 
-    if (this.roles.get(iface) !== oldRole) {
-      switch (role) {
-        case SpanningTreePortRole.Backup:
-        case SpanningTreePortRole.Blocked:
-          this.changeState(iface, SpanningTreeState.Blocking, true);
-          break;
-        default:
-          break;
+    // RFC 802.1D: Interface down → Disabled state regardless of role
+    if (!iface.isActive()) {
+      this.changeState(iface, SpanningTreeState.Disabled);
+      return;
+    }
+
+    // RFC 802.1D: Always synchronize state with role (even if role unchanged)
+    // This fixes cases where port has correct role but wrong state
+    switch (role) {
+      case SpanningTreePortRole.Backup:
+      case SpanningTreePortRole.Blocked:
+      case SpanningTreePortRole.Alternate:
+        // RFC 802.1D: Non-forwarding roles → Blocking state
+        this.changeState(iface, SpanningTreeState.Blocking, true);
+        break;
+      case SpanningTreePortRole.Root:
+      case SpanningTreePortRole.Designated: {
+        // RFC 802.1D: Forwarding roles → Listening → Learning → Forwarding
+        // Only transition to Listening if not already in forwarding state chain
+        const currentState = this.State(iface);
+        if (
+          currentState !== SpanningTreeState.Listening &&
+          currentState !== SpanningTreeState.Learning &&
+          currentState !== SpanningTreeState.Forwarding
+        ) {
+          this.changeState(iface, SpanningTreeState.Listening);
+        }
+        break;
       }
+      case SpanningTreePortRole.Disabled:
+        this.changeState(iface, SpanningTreeState.Disabled);
+        break;
+      default:
+        break;
     }
   }
 
   /**
+   * Convert port name to port ID using hash function
+   * Same algorithm as Builder.setPort() (lines 117-128)
+   * Returns absolute value to ensure positive port IDs
+   */
+  public static getPortId(portName: string): number {
+    let hash = 0;
+    for (let i = 0; i < portName.length; i += 1) {
+      hash = portName.charCodeAt(i) + (hash << 5) - hash;
+    }
+    return Math.abs(hash);
+  }
+
+  /**
    * Compare BPDU priority: returns true if 'message' is better (should be designated)
-   * Compares in order: root cost, bridge ID (priority + MAC), port ID
+   * RFC 802.1D comparison order:
+   * 1. Root Bridge ID (priority + MAC) - lower is better
+   * 2. Root Path Cost - lower is better
+   * 3. Sender Bridge ID (priority + MAC) - lower is better
+   * 4. Sender Port ID - lower is better
    */
   private static isBetterBPDU(
     message: SpanningTreeMessage,
     myCost: number,
     myBridgeId: { priority: number; mac: MacAddress },
+    myRootId: { priority: number; mac: MacAddress },
     myPortId: number
   ): boolean {
-    // Compare root path cost (lower is better)
+    // 1. Compare root priority (lower is better)
+    if (message.rootId.priority < myRootId.priority) return true;
+    if (message.rootId.priority > myRootId.priority) return false;
+
+    // 2. Compare root MAC (lower is better)
+    const rootMacCompare = message.rootId.mac.compareTo(myRootId.mac);
+    if (rootMacCompare < 0) return true;
+    if (rootMacCompare > 0) return false;
+
+    // 3. Compare root path cost (lower is better)
     if (message.rootPathCost < myCost) return true;
     if (message.rootPathCost > myCost) return false;
 
-    // Compare bridge priority (lower is better)
+    // 4. Compare sender bridge priority (lower is better)
     if (message.bridgeId.priority < myBridgeId.priority) return true;
     if (message.bridgeId.priority > myBridgeId.priority) return false;
 
-    // Compare bridge MAC (lower is better)
+    // 5. Compare sender bridge MAC (lower is better)
     const macCompare = message.bridgeId.mac.compareTo(myBridgeId.mac);
     if (macCompare < 0) return true;
     if (macCompare > 0) return false;
 
-    // Compare port ID (lower is better)
+    // 6. Compare sender port ID (lower is better)
     return message.portId.globalId < myPortId;
   }
 
@@ -370,20 +508,56 @@ export class PVSTPService
     this.host.getInterfaces().forEach((i) => {
       const iface = this.host.getInterface(i);
       if (iface.isActive() === false || iface.isConnected === false) return;
-      if (this.State(iface) === SpanningTreeState.Blocking) return;
 
-      const role = this.Role(iface);
+      let role = this.Role(iface);
+
+      // RFC 802.1D: Re-evaluate Blocked/Alternate/Backup ports with expired BPDUs
+      // If cost is MAX_VALUE, the BPDU timer expired (neighbor died or stopped sending)
+      // This port should become Designated since there's no longer a better BPDU
+      if (
+        (role === SpanningTreePortRole.Blocked ||
+          role === SpanningTreePortRole.Alternate ||
+          role === SpanningTreePortRole.Backup) &&
+        this.cost.get(iface) === Number.MAX_VALUE
+      ) {
+        // Neighbor is dead or stopped sending BPDUs - become Designated
+        this.changeRole(iface, SpanningTreePortRole.Designated);
+        this.cost.set(iface, 0);
+        // Update role variable to reflect the change
+        role = SpanningTreePortRole.Designated;
+      }
+
+      // Blocked/Alternate/Backup roles don't send BPDUs
+      if (
+        role === SpanningTreePortRole.Blocked ||
+        role === SpanningTreePortRole.Alternate ||
+        role === SpanningTreePortRole.Backup
+      ) {
+        return;
+      }
 
       // Root sends on all ports except blocked
       // Non-root sends only on designated ports
       if (isRoot || role === SpanningTreePortRole.Designated) {
+        // RFC 802.1D: Advertise cost to reach root via best path
+        let advertisedCost = 0;
+        if (!isRoot) {
+          // Find root port and use its cost
+          const rootPortEntry = Array.from(this.roles.entries()).find(
+            ([_, portRole]) => portRole === SpanningTreePortRole.Root
+          );
+          if (rootPortEntry) {
+            advertisedCost = this.Cost(rootPortEntry[0]);
+          }
+        }
+
         const message = new SpanningTreeMessage.Builder()
           .setMacSource(iface.getMacAddress() as MacAddress)
           .setBridge(this.bridgeId.mac)
           .setRoot(this.rootId.mac)
           .setPort(i)
-          .setCost(this.Cost(iface))
-          .setMessageAge(Scheduler.getInstance().getDeltaTime())
+          .setCost(advertisedCost) // RFC 802.1D: Cost to root via best path
+          .setMessageAge(0) // RFC 802.1D: BPDUs generated by this bridge start with age 0
           .build();
 
         iface.sendTrame(message);
@@ -393,13 +567,49 @@ export class PVSTPService
 
   public receiveTrame(message: DatalinkMessage, from: Interface): ActionHandle {
     if (message instanceof SpanningTreeMessage) {
-      if (
-        message.messageAge + this.maxAge >
-        Scheduler.getInstance().getDeltaTime() + this.maxAge
-      )
+      // RFC 802.1D Section 8.6.4: Discard BPDU if messageAge >= maxAge
+      if (message.messageAge >= this.maxAge) {
         return ActionHandle.Stop;
+      }
       if (message.bridgeId.mac.equals(this.bridgeId.mac))
         return ActionHandle.Stop;
+
+      // RFC 802.1D Section 8.6.4: Reset BPDU aging timer for this port
+      const existingTimer = this.bpduTimers.get(from);
+      if (existingTimer) existingTimer(); // Cancel old timer
+
+      const subscription = Scheduler.getInstance()
+        .once(this.maxAge)
+        .subscribe(() => {
+          // BPDU timeout - this port hasn't received BPDUs for maxAge seconds
+          // Clear cost and check if we need to recompute spanning tree
+          const wasRootPort =
+            this.Role(from as HardwareInterface) === SpanningTreePortRole.Root;
+
+          this.cost.set(from, Number.MAX_VALUE);
+
+          // If this was the root port, we lost connection to root
+          if (wasRootPort && !this.IsRoot) {
+            // Clear root information and assume we're root until we hear otherwise
+            this.rootId.mac = this.bridgeId.mac;
+            this.rootId.priority = this.bridgeId.priority;
+
+            // Reassign all ports to Designated (will be corrected if we receive BPDUs)
+            this.host.getInterfaces().forEach((i) => {
+              const iface = this.host.getInterface(i);
+              if (iface.isActive() && iface.isConnected) {
+                this.changeRole(iface, SpanningTreePortRole.Designated);
+                this.cost.set(iface, 0);
+              }
+            });
+          }
+        });
+
+      this.bpduTimers.set(from, () => subscription.unsubscribe());
+
+      // RFC 802.1D: Check if we need to update root bridge
+      // Save current root status before updates
+      const wasRoot = this.IsRoot;
 
       // We have a new root (lower priority wins):
       if (
@@ -407,6 +617,11 @@ export class PVSTPService
         (this.rootId.priority === message.rootId.priority &&
           message.rootId.mac.compareTo(this.rootId.mac) < 0)
       ) {
+        // Check if root actually changed (not just receiving same BPDU again)
+        const rootChanged =
+          !this.rootId.mac.equals(message.rootId.mac) ||
+          this.rootId.priority !== message.rootId.priority;
+
         this.rootId.mac = message.rootId.mac;
         this.rootId.priority = message.rootId.priority;
 
@@ -414,60 +629,128 @@ export class PVSTPService
         this.helloTime = message.helloTime;
         this.maxAge = message.maxAge;
 
-        this.cost.clear();
+        // Only clear costs if root actually changed
+        if (rootChanged) {
+          this.cost.clear();
+          this.receivedBPDUs.clear();
+        }
+      }
+
+      // RFC 802.1D: If we just BECAME root (better root disappeared),
+      // reassign all Blocked/Alternate/Backup ports to Designated
+      const isNowRoot = this.IsRoot;
+      if (!wasRoot && isNowRoot) {
+        this.host.getInterfaces().forEach((i) => {
+          const iface = this.host.getInterface(i);
+          if (iface.isActive() === false || iface.isConnected === false) return;
+
+          const role = this.Role(iface);
+          if (
+            role === SpanningTreePortRole.Blocked ||
+            role === SpanningTreePortRole.Alternate ||
+            role === SpanningTreePortRole.Backup
+          ) {
+            // Reassign to Designated - changeRole() will update state
+            this.changeRole(iface, SpanningTreePortRole.Designated);
+            this.cost.set(iface, 0);
+          }
+        });
       }
 
       // Update cost if we receive BPDU from same root
-      // Always update to reflect current topology (even if cost increases)
       if (this.rootId.mac.equals(message.rootId.mac)) {
+        // Root bridge never updates costs from BPDUs - it IS the root
+        if (this.IsRoot) return ActionHandle.Handled;
+
+        // Update port cost: received cost + link cost (simplified to 10)
         const newCost = message.rootPathCost + 10;
-        const currentCost = this.Cost(from);
+        this.cost.set(from, newCost);
 
-        // Update if different (better or worse)
-        if (currentCost !== newCost) {
-          this.cost.set(from, newCost);
-
-          // If cost changed, may need to recalculate root port
-          if (currentCost !== Number.MAX_VALUE) {
-            // Trigger recalculation by clearing all costs and relying on next BPDUs
-            // This ensures we pick the best path after topology changes
-            const savedCosts = new Map(this.cost);
-            this.cost.clear();
-            savedCosts.forEach((_cost, iface) => {
-              if (iface === from) this.cost.set(iface, newCost);
-              // Other costs will be updated by their next BPDUs
-            });
-          } else {
-            this.cost.set(from, newCost);
-          }
-        }
+        // Store received BPDU for tie-breaking in root port selection
+        this.receivedBPDUs.set(from, message);
       }
 
       // I'm not the root
       if (this.bridgeId.mac.equals(this.rootId.mac) === false) {
         let bestInterface!: HardwareInterface;
         let bestCost = Number.MAX_VALUE;
+        let bestBPDU: SpanningTreeMessage | undefined;
 
+        // RFC 802.1D Section 8.6.5: Root Port Selection with Tie-Breaking
         this.host.getInterfaces().forEach((i) => {
           const iface = this.host.getInterface(i);
           if (iface.isActive() === false || iface.isConnected === false) return;
 
           const interfaceCost = this.Cost(iface);
+          const bpdu = this.receivedBPDUs.get(iface);
+          if (!bpdu) return; // No BPDU received on this port
+
           if (interfaceCost < bestCost) {
+            // Better cost - select this port
             bestInterface = iface;
             bestCost = interfaceCost;
+            bestBPDU = bpdu;
+          } else if (interfaceCost === bestCost && bestBPDU) {
+            // Tie in cost - use tie-breakers per RFC 802.1D
+
+            // Tie-breaker 1: Sender bridge priority (lower wins)
+            if (bpdu.bridgeId.priority < bestBPDU.bridgeId.priority) {
+              bestInterface = iface;
+              bestBPDU = bpdu;
+            } else if (bpdu.bridgeId.priority === bestBPDU.bridgeId.priority) {
+              // Tie-breaker 2: Sender bridge MAC (lower wins)
+              const macCompare = bpdu.bridgeId.mac.compareTo(
+                bestBPDU.bridgeId.mac
+              );
+              if (macCompare < 0) {
+                bestInterface = iface;
+                bestBPDU = bpdu;
+              } else if (macCompare === 0) {
+                // Tie-breaker 3: Sender port ID (lower wins)
+                if (bpdu.portId.globalId < bestBPDU.portId.globalId) {
+                  bestInterface = iface;
+                  bestBPDU = bpdu;
+                } else if (bpdu.portId.globalId === bestBPDU.portId.globalId) {
+                  // Tie-breaker 4: Receiver port ID (lower wins)
+                  const currentPortId = PVSTPService.getPortId(i);
+                  const bestInterfaceName = this.host
+                    .getInterfaces()
+                    .find(
+                      (name) => this.host.getInterface(name) === bestInterface
+                    );
+                  const bestPortId = bestInterfaceName
+                    ? PVSTPService.getPortId(bestInterfaceName)
+                    : 0;
+
+                  if (currentPortId < bestPortId) {
+                    bestInterface = iface;
+                    bestBPDU = bpdu;
+                  }
+                }
+              }
+            }
           }
         });
 
         if (bestInterface) {
+          // Assign root port
+          if (this.Role(bestInterface) !== SpanningTreePortRole.Root) {
+            this.changeRole(bestInterface, SpanningTreePortRole.Root);
+          }
+
+          // For ports that WERE root but aren't anymore, reset to designated
+          // (they will be re-evaluated when they receive BPDUs)
           this.host.getInterfaces().forEach((i) => {
             const iface = this.host.getInterface(i);
             if (iface.isActive() === false || iface.isConnected === false)
               return;
 
-            if (iface === bestInterface)
-              this.changeRole(iface, SpanningTreePortRole.Root);
-            else this.changeRole(iface, SpanningTreePortRole.Designated);
+            if (
+              iface !== bestInterface &&
+              this.Role(iface) === SpanningTreePortRole.Root
+            ) {
+              this.changeRole(iface, SpanningTreePortRole.Designated);
+            }
           });
         }
 
@@ -484,17 +767,21 @@ export class PVSTPService
         ) {
           const iface = from as HardwareInterface;
 
-          // Compare BPDUs: if received BPDU is better, block this port
+          // RFC 802.1D: Compare received BPDU with what we would advertise
+          // We advertise: cost to reach root via our root port (bestCost)
           const interfaceName = this.host
             .getInterfaces()
             .find((name) => this.host.getInterface(name) === iface);
-          const myPortId = interfaceName ? Number(interfaceName) : 0;
+          const myPortId = interfaceName
+            ? PVSTPService.getPortId(interfaceName)
+            : 0;
 
           if (
             PVSTPService.isBetterBPDU(
               message,
-              this.Cost(iface),
+              bestCost, // RFC 802.1D: Cost we would advertise (root port cost)
               this.bridgeId,
+              this.rootId,
               myPortId
             )
           ) {
@@ -504,28 +791,8 @@ export class PVSTPService
           }
         }
 
-        if (
-          this.State(from as HardwareInterface) === SpanningTreeState.Blocking
-        )
-          return ActionHandle.Stop;
-
-        this.host.getInterfaces().forEach((i) => {
-          const iface = this.host.getInterface(i);
-          if (iface.isActive() === false || iface.isConnected === false) return;
-          if (this.State(iface) === SpanningTreeState.Blocking) return;
-
-          if (iface !== from) {
-            const forwarded = new SpanningTreeMessage.Builder()
-              .setMacSource(iface.getMacAddress() as MacAddress)
-              .setBridge(this.bridgeId.mac)
-              .setRoot(message.rootId.mac)
-              .setCost(this.Cost(iface))
-              .setPort(message.portId.globalId)
-              .setMessageAge(message.messageAge)
-              .build();
-            iface.sendTrame(forwarded);
-          }
-        });
+        // RFC 802.1D: Non-root bridges do NOT forward/relay received BPDUs
+        // They only generate and send their own BPDUs on designated ports (via negociate())
       }
 
       return ActionHandle.Handled;

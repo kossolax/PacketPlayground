@@ -82,7 +82,9 @@ export class MacAddress extends HardwareAddress {
   public static generateAddress(): MacAddress {
     const mac = new Array(6);
     for (let i = 0; i < 6; i += 1)
-      mac[i] = Math.floor(Math.random() * 256).toString(16);
+      mac[i] = Math.floor(Math.random() * 256)
+        .toString(16)
+        .padStart(2, '0');
     return new MacAddress(mac.join(':'));
   }
 

@@ -15,7 +15,7 @@ export interface CustomNodeData {
   interfaces: NetworkInterface[];
 }
 
-function CustomNode({ data }: NodeProps) {
+function CustomNode({ data, selected }: NodeProps) {
   const nodeData = data as unknown as CustomNodeData;
 
   return (
@@ -70,7 +70,14 @@ function CustomNode({ data }: NodeProps) {
         className="!opacity-0 !pointer-events-none"
       />
 
-      <div className="flex flex-col items-center gap-1" style={{ width: 80 }}>
+      <div
+        className="flex flex-col items-center gap-1 rounded-lg p-2 transition-all duration-200"
+        style={{
+          width: 80,
+          border: '2px solid',
+          borderColor: selected ? 'var(--primary)' : 'transparent',
+        }}
+      >
         <NetworkIcon
           deviceType={nodeData.deviceType}
           className="h-12 w-12 text-primary"

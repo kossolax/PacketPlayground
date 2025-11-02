@@ -3,14 +3,30 @@
  * Controls for network simulation speed and displays current simulation time
  */
 
-import { Clock, FastForward, Pause, Play, PlayCircle, Zap } from 'lucide-react';
+import {
+  Activity,
+  Clock,
+  FastForward,
+  Pause,
+  Play,
+  PlayCircle,
+  Zap,
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useSimulation } from '../hooks/useSimulation';
 import { SchedulerState } from '../lib/scheduler/scheduler';
 
-export default function SimulationControls() {
+interface SimulationControlsProps {
+  isPingMode?: boolean;
+  onPingSelect?: () => void;
+}
+
+export default function SimulationControls({
+  isPingMode = false,
+  onPingSelect,
+}: SimulationControlsProps) {
   const { speed, setSpeed, time, speedOfLight, transmission } = useSimulation();
 
   const speedButtons = [
@@ -84,6 +100,24 @@ export default function SimulationControls() {
           </span>
         </Badge>
       </div>
+
+      {onPingSelect && (
+        <>
+          <Separator orientation="vertical" className="h-8" />
+
+          {/* Ping Button */}
+          <Button
+            variant={isPingMode ? 'default' : 'ghost'}
+            size="sm"
+            className="gap-2"
+            onClick={onPingSelect}
+            title="Send ICMP ping between two devices"
+          >
+            <Activity className="size-4" />
+            <span className="text-xs">Ping</span>
+          </Button>
+        </>
+      )}
     </div>
   );
 }

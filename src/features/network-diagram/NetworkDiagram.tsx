@@ -15,6 +15,7 @@ import { NetworkSimulationProvider } from './context/NetworkSimulationContext';
 import { NetworkEditorProvider } from './contexts/NetworkEditorContext';
 import { useNetworkEditor } from './hooks/useNetworkEditor';
 import { useNetworkFile } from './hooks/useNetworkFile';
+import { usePing } from './hooks/usePing';
 import useSimulationNetwork from './hooks/useSimulationNetwork';
 import type { DeviceType, GenericNode, Network } from './lib/network-simulator';
 import type { CableUIType } from './lib/network-simulator/cables';
@@ -65,7 +66,14 @@ function NetworkDiagramContent({
     startConnection,
     cancelConnection,
     linkStates,
+    isPingMode,
+    pingInProgress,
+    startPingMode,
+    disablePingMode,
+    setPingSource,
   } = useNetworkEditor(simulation);
+
+  const { executePing, hasConfiguredIP } = usePing(simulation);
 
   useEffect(() => {
     if (network) {
@@ -101,6 +109,11 @@ function NetworkDiagramContent({
     setSelectedDevice(null); // Deselect device when cable is selected
   };
 
+  const handlePingSelect = () => {
+    startPingMode();
+    setSelectedDevice(null); // Deselect device when ping is selected
+  };
+
   // Show upload zone when no network is loaded
   if (!network) {
     return (
@@ -119,7 +132,10 @@ function NetworkDiagramContent({
   // Show diagram editor when network is loaded
   return (
     <div className="h-full flex flex-col">
-      <SimulationControls />
+      <SimulationControls
+        isPingMode={isPingMode}
+        onPingSelect={handlePingSelect}
+      />
       <div className="flex-1 flex overflow-hidden">
         <div className="flex flex-col h-full justify-start bg-muted/50 border-r border-border">
           <DeviceToolbar
@@ -152,6 +168,12 @@ function NetworkDiagramContent({
             onCancelConnection={cancelConnection}
             onNodeDoubleClick={setSelectedNodeForConfig}
             linkStates={linkStates}
+            isPingMode={isPingMode}
+            pingInProgress={pingInProgress}
+            onSetPingSource={setPingSource}
+            onDisablePingMode={disablePingMode}
+            onExecutePing={executePing}
+            hasConfiguredIP={hasConfiguredIP}
           />
         </NetworkEditorProvider>
       </div>
@@ -171,6 +193,18 @@ function NetworkDiagramContent({
       {connectionInProgress && (
         <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-primary text-primary-foreground px-4 py-2 rounded-md shadow-lg">
           Click on another device to complete connection (ESC to cancel)
+        </div>
+      )}
+
+      {isPingMode && !pingInProgress && (
+        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-primary text-primary-foreground px-4 py-2 rounded-md shadow-lg">
+          Click on a device to select ping source
+        </div>
+      )}
+
+      {pingInProgress && (
+        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-primary text-primary-foreground px-4 py-2 rounded-md shadow-lg">
+          Click on another device to ping (ESC to cancel)
         </div>
       )}
 

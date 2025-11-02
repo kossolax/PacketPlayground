@@ -25,6 +25,7 @@ import {
   DEVICE_CATALOG,
   GenericNode,
 } from '../lib/network-simulator';
+import { detectCableType } from '../lib/network-simulator/cables';
 import { useNetworkSimulation } from '../context/NetworkSimulationContext';
 import {
   ServerHost,
@@ -38,6 +39,10 @@ import { useNetworkLinks, type EdgeInterfaceStates } from './useNetworkLinks';
 interface ConnectionInProgress {
   sourceNodeId: string;
   cableType: CableUIType;
+}
+
+interface PingInProgress {
+  sourceNodeId: string;
 }
 
 interface UseNetworkEditorReturn {
@@ -56,6 +61,11 @@ interface UseNetworkEditorReturn {
   startConnection: (nodeId: string) => void;
   cancelConnection: () => void;
   linkStates: Map<string, EdgeInterfaceStates>;
+  isPingMode: boolean;
+  pingInProgress: PingInProgress | null;
+  startPingMode: () => void;
+  disablePingMode: () => void;
+  setPingSource: (nodeId: string) => void;
 }
 
 /**
@@ -71,7 +81,7 @@ function createSimulatorNode(device: Device): GenericNode {
       simNode = new RouterHost(name, 2); // Router with 2 interfaces
       break;
     case 'switch':
-      simNode = new SwitchHost(name, 24, false); // Switch with 24 ports, STP disabled
+      simNode = new SwitchHost(name, 24, true); // Switch with 24 ports, STP enabled
       break;
     case 'hub':
       simNode = new SwitchHost(name, 8, false); // Hub is a switch with 8 ports
@@ -115,9 +125,16 @@ export function useNetworkEditor(
   const [connectionInProgress, setConnectionInProgress] =
     useState<ConnectionInProgress | null>(null);
 
+  // Ping state
+  const [isPingMode, setIsPingMode] = useState(false);
+  const [pingInProgress, setPingInProgress] = useState<PingInProgress | null>(
+    null
+  );
+
   const selectCable = useCallback((cableType: CableUIType) => {
     setSelectedCable(cableType);
     setConnectionInProgress(null);
+    setPingInProgress(null);
   }, []);
 
   const clearCableSelection = useCallback(() => {
@@ -138,6 +155,31 @@ export function useNetworkEditor(
 
   const cancelConnection = useCallback(() => {
     setConnectionInProgress(null);
+  }, []);
+
+  const startPingMode = useCallback(() => {
+    setIsPingMode((prev) => {
+      const newMode = !prev;
+      if (newMode) {
+        // Entering ping mode: clear other modes
+        setSelectedCable(null);
+        setConnectionInProgress(null);
+        setPingInProgress(null);
+      } else {
+        // Exiting ping mode: clear ping state
+        setPingInProgress(null);
+      }
+      return newMode;
+    });
+  }, []);
+
+  const disablePingMode = useCallback(() => {
+    setIsPingMode(false);
+    setPingInProgress(null);
+  }, []);
+
+  const setPingSource = useCallback((nodeId: string) => {
+    setPingInProgress({ sourceNodeId: nodeId });
   }, []);
 
   const loadTopology = useCallback(
@@ -192,6 +234,12 @@ export function useNetworkEditor(
           const iface1 = link.getInterface(0)!;
           const iface2 = link.getInterface(1)!;
 
+          // Detect actual cable type based on device types
+          const actualCableType = detectCableType(
+            (iface1.Host as unknown as SimNode).type as DeviceType,
+            (iface2.Host as unknown as SimNode).type as DeviceType
+          );
+
           const edge = {
             id: `link-${index}`,
             source: iface1.Host.guid,
@@ -200,7 +248,7 @@ export function useNetworkEditor(
             data: {
               sourcePort: iface1.toString(),
               targetPort: iface2.toString(),
-              cableType: 'ethernet',
+              cableType: actualCableType,
             },
           };
 
@@ -282,14 +330,25 @@ export function useNetworkEditor(
     (connection: Connection) => {
       // If no network simulator is available, just add the edge visually
       if (!simulationNetwork) {
-        // For visual-only mode, default to ethernet (no device type info available)
+        // For visual-only mode, detect cable type from node device types
+        const sourceNode = nodes.find((n) => n.id === connection.source);
+        const targetNode = nodes.find((n) => n.id === connection.target);
+
+        const actualCableType =
+          sourceNode && targetNode
+            ? detectCableType(
+                (sourceNode.data as { deviceType: DeviceType }).deviceType,
+                (targetNode.data as { deviceType: DeviceType }).deviceType
+              )
+            : 'ethernet';
+
         setEdges((eds) =>
           addEdge(
             {
               ...connection,
               type: 'customEdge',
               data: {
-                cableType: 'ethernet',
+                cableType: actualCableType,
               },
             },
             eds
@@ -336,6 +395,7 @@ export function useNetworkEditor(
       clearCableSelection();
     },
     [
+      nodes,
       setEdges,
       simulationNetwork,
       createLink,
@@ -365,5 +425,10 @@ export function useNetworkEditor(
     startConnection,
     cancelConnection,
     linkStates,
+    isPingMode,
+    pingInProgress,
+    startPingMode,
+    disablePingMode,
+    setPingSource,
   };
 }

@@ -57,6 +57,8 @@ export default function RoutingTab({ node }: RoutingTabProps) {
     let isValid = true;
 
     try {
+      // Validate network address format
+      // eslint-disable-next-line no-new
       new IPAddress(newNetwork);
     } catch {
       setNetworkError('Invalid network address (expected: a.b.c.d)');
@@ -64,6 +66,8 @@ export default function RoutingTab({ node }: RoutingTabProps) {
     }
 
     try {
+      // Validate mask address format
+      // eslint-disable-next-line no-new
       new IPAddress(newMask, true);
     } catch {
       setMaskError('Invalid subnet mask (e.g., 255.255.255.0)');
@@ -71,6 +75,8 @@ export default function RoutingTab({ node }: RoutingTabProps) {
     }
 
     try {
+      // Validate gateway address format
+      // eslint-disable-next-line no-new
       new IPAddress(newGateway);
     } catch {
       setGatewayError('Invalid gateway address (expected: a.b.c.d)');
@@ -144,8 +150,10 @@ export default function RoutingTab({ node }: RoutingTabProps) {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {node.RoutingTable.map((route, index) => (
-                  <TableRow key={index}>
+                {node.RoutingTable.map((route) => (
+                  <TableRow
+                    key={`${route.network.toString()}-${route.mask.toString()}-${route.gateway.toString()}`}
+                  >
                     <TableCell className="font-mono">
                       {route.network.toString()}
                     </TableCell>
