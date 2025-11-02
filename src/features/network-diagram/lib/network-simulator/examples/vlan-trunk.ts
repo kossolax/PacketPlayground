@@ -1,10 +1,10 @@
-import { Network } from '../network';
-import { ServerHost } from '../nodes/server';
-import { SwitchHost } from '../nodes/switch';
-import { Link } from '../layers/physical';
 import { IPAddress } from '../address';
-import { VlanMode } from '../protocols/ethernet';
 import type { Dot1QInterface } from '../layers/datalink';
+import { Link } from '../layers/physical';
+import { Network } from '../network';
+import { ComputerHost } from '../nodes/server';
+import { SwitchHost } from '../nodes/switch';
+import { VlanMode } from '../protocols/ethernet';
 
 /**
  * Creates a VLAN + Trunk (802.1Q) demonstration topology.
@@ -72,28 +72,28 @@ export default function createVLANTrunkExample(): Network {
   sw2Port2.addVlan(20);
 
   // Create 4 PCs
-  const pcA = new ServerHost('PC-A', 'pc', 1);
+  const pcA = new ComputerHost('PC-A', 'pc', 1);
   pcA.guid = 'pc-a-vlan-example';
   pcA.x = 50;
   pcA.y = 100;
   pcA.getInterface(0).up();
   pcA.getInterface(0).setNetAddress(new IPAddress('192.168.10.10'));
 
-  const pcB = new ServerHost('PC-B', 'pc', 1);
+  const pcB = new ComputerHost('PC-B', 'pc', 1);
   pcB.guid = 'pc-b-vlan-example';
   pcB.x = 50;
   pcB.y = 300;
   pcB.getInterface(0).up();
   pcB.getInterface(0).setNetAddress(new IPAddress('192.168.20.10'));
 
-  const pcC = new ServerHost('PC-C', 'pc', 1);
+  const pcC = new ComputerHost('PC-C', 'pc', 1);
   pcC.guid = 'pc-c-vlan-example';
   pcC.x = 650;
   pcC.y = 100;
   pcC.getInterface(0).up();
   pcC.getInterface(0).setNetAddress(new IPAddress('192.168.10.20'));
 
-  const pcD = new ServerHost('PC-D', 'pc', 1);
+  const pcD = new ComputerHost('PC-D', 'pc', 1);
   pcD.guid = 'pc-d-vlan-example';
   pcD.x = 650;
   pcD.y = 300;

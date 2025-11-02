@@ -1,8 +1,8 @@
-import { Network } from '../network';
-import { SwitchHost } from '../nodes/switch';
-import { ServerHost } from '../nodes/server';
-import { Link } from '../layers/physical';
 import { MacAddress } from '../address';
+import { Link } from '../layers/physical';
+import { Network } from '../network';
+import { ComputerHost } from '../nodes/server';
+import { SwitchHost } from '../nodes/switch';
 
 /**
  * Creates an STP (Spanning Tree Protocol) demonstration topology.
@@ -46,12 +46,12 @@ export default function createSTPLoopExample(): Network {
   switchC.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:03'));
 
   // Create two PCs
-  const pc1 = new ServerHost('PC-1', 'pc', 1);
+  const pc1 = new ComputerHost('PC-1', 'pc', 1);
   pc1.guid = 'pc1-example';
   pc1.x = 200;
   pc1.y = 50;
 
-  const pc2 = new ServerHost('PC-2', 'pc', 1);
+  const pc2 = new ComputerHost('PC-2', 'pc', 1);
   pc2.guid = 'pc2-example';
   pc2.x = 350;
   pc2.y = 500;

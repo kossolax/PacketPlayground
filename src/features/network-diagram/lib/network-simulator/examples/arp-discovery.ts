@@ -1,8 +1,8 @@
-import { Network } from '../network';
-import { ServerHost } from '../nodes/server';
-import { SwitchHost } from '../nodes/switch';
-import { Link } from '../layers/physical';
 import { IPAddress, MacAddress } from '../address';
+import { Link } from '../layers/physical';
+import { Network } from '../network';
+import { ComputerHost, ServerHost } from '../nodes/server';
+import { SwitchHost } from '../nodes/switch';
 
 /**
  * Creates an ARP (Address Resolution Protocol) demonstration topology.
@@ -38,7 +38,7 @@ export default function createARPDiscoveryExample(): Network {
   server.getInterface(0).setMacAddress(new MacAddress('00:11:22:33:44:55'));
 
   // Create 3 PCs on the same subnet
-  const pcA = new ServerHost('PC-A', 'pc', 1);
+  const pcA = new ComputerHost('PC-A', 'pc', 1);
   pcA.guid = 'pc-a-arp-example';
   pcA.x = 100;
   pcA.y = 50;
@@ -46,7 +46,7 @@ export default function createARPDiscoveryExample(): Network {
   pcA.getInterface(0).setNetAddress(new IPAddress('192.168.0.10'));
   pcA.getInterface(0).setMacAddress(new MacAddress('AA:BB:CC:DD:EE:01'));
 
-  const pcB = new ServerHost('PC-B', 'pc', 1);
+  const pcB = new ComputerHost('PC-B', 'pc', 1);
   pcB.guid = 'pc-b-arp-example';
   pcB.x = 100;
   pcB.y = 200;
@@ -54,7 +54,7 @@ export default function createARPDiscoveryExample(): Network {
   pcB.getInterface(0).setNetAddress(new IPAddress('192.168.0.20'));
   pcB.getInterface(0).setMacAddress(new MacAddress('AA:BB:CC:DD:EE:02'));
 
-  const pcC = new ServerHost('PC-C', 'pc', 1);
+  const pcC = new ComputerHost('PC-C', 'pc', 1);
   pcC.guid = 'pc-c-arp-example';
   pcC.x = 100;
   pcC.y = 350;

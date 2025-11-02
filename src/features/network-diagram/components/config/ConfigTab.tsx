@@ -3,11 +3,13 @@
  * Displays vertical tabs for General settings and Interface configuration
  */
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
 import type { GenericNode } from '../../lib/network-simulator';
-import { Node } from '../../lib/network-simulator/nodes/generic';
 import { HardwareInterface } from '../../lib/network-simulator/layers/datalink';
+import { Node } from '../../lib/network-simulator/nodes/generic';
 import { RouterHost } from '../../lib/network-simulator/nodes/router';
 import GeneralTab from './GeneralTab';
 import InterfaceTab from './InterfaceTab';
@@ -55,7 +57,7 @@ export default function ConfigTab({ node }: ConfigTabProps) {
         ))}
       </TabsList>
 
-      <div className="flex-1 overflow-auto">
+      <ScrollArea className="flex-1 overflow-auto">
         <TabsContent value="general">
           <Card>
             <CardHeader>
@@ -81,7 +83,7 @@ export default function ConfigTab({ node }: ConfigTabProps) {
             />
           </TabsContent>
         ))}
-      </div>
+      </ScrollArea>
     </Tabs>
   );
 }

@@ -3,8 +3,10 @@
  * Displays service configuration for ServerHost (DHCP, DNS, etc.) and SwitchHost (STP)
  */
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { ServerHost } from '../../lib/network-simulator/nodes/server';
 import { SwitchHost } from '../../lib/network-simulator/nodes/switch';
 import DhcpServiceConfig from './DhcpServiceConfig';
@@ -59,7 +61,7 @@ export default function ServiceTab({ node }: ServiceTabProps) {
         )}
       </TabsList>
 
-      <div className="flex-1 overflow-auto">
+      <ScrollArea className="flex-1 overflow-auto">
         {isSwitch && (
           <TabsContent value="stp">
             <StpServiceConfig node={node} />
@@ -104,7 +106,7 @@ export default function ServiceTab({ node }: ServiceTabProps) {
             </TabsContent>
           </>
         )}
-      </div>
+      </ScrollArea>
     </Tabs>
   );
 }

@@ -5,21 +5,21 @@
 
 /* eslint-disable import/prefer-default-export */
 
-import { useEffect, useState, useCallback, useRef } from 'react';
-import type { Network, DeviceType } from '../lib/network-simulator';
-import { Link, Node as SimNode } from '../lib/network-simulator';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { InterfaceState } from '../components/edges/CustomEdge';
+import type { DeviceType, Network } from '../lib/network-simulator';
+import { Link, Node as SimNode } from '../lib/network-simulator';
+import type { CableUIType } from '../lib/network-simulator/cables';
+import {
+  detectCableType,
+  getCableVisualProps,
+} from '../lib/network-simulator/cables';
 import type { HardwareInterface } from '../lib/network-simulator/layers/datalink';
 import { SwitchHost } from '../lib/network-simulator/nodes/switch';
 import type {
   GenericListener,
   LinkLayerSpy,
 } from '../lib/network-simulator/protocols/base';
-import type { CableUIType } from '../lib/network-simulator/cables';
-import {
-  detectCableType,
-  getCableVisualProps,
-} from '../lib/network-simulator/cables';
 
 export interface EdgeInterfaceStates {
   sourceState: InterfaceState;
@@ -174,7 +174,7 @@ export function useNetworkLinks(
     (
       sourceNodeId: string,
       targetNodeId: string,
-      cableType?: CableUIType
+      _cableType?: CableUIType
     ): CreateLinkResult => {
       if (!network || !spy) {
         return {

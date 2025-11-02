@@ -1,8 +1,8 @@
-import { Network } from '../network';
-import { ServerHost } from '../nodes/server';
-import { SwitchHost } from '../nodes/switch';
-import { Link } from '../layers/physical';
 import { IPAddress } from '../address';
+import { Link } from '../layers/physical';
+import { Network } from '../network';
+import { ComputerHost, ServerHost } from '../nodes/server';
+import { SwitchHost } from '../nodes/switch';
 import { DhcpPool } from '../services/dhcp';
 
 /**
@@ -48,7 +48,7 @@ export default function createDHCPSetupExample(): Network {
   switchDevice.getInterface(3).up();
 
   // Create 3 client PCs (will request DHCP)
-  const client1 = new ServerHost('Client-1', 'pc', 1);
+  const client1 = new ComputerHost('Client-1', 'pc', 1);
   client1.guid = 'client1-example';
   client1.x = 100;
   client1.y = 50;
@@ -63,7 +63,7 @@ export default function createDHCPSetupExample(): Network {
   client2.getInterface(0).up();
   client2.getInterface(0).AutoNegociateAddress = true;
 
-  const client3 = new ServerHost('Client-3', 'pc', 1);
+  const client3 = new ComputerHost('Client-3', 'pc', 1);
   client3.guid = 'client3-example';
   client3.x = 100;
   client3.y = 350;

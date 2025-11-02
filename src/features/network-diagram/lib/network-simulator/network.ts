@@ -1,7 +1,7 @@
 import { Link } from './layers/physical';
 import { GenericNode, NetworkHost } from './nodes/generic';
 import { RouterHost } from './nodes/router';
-import { ServerHost } from './nodes/server';
+import { ComputerHost, ServerHost } from './nodes/server';
 import { SwitchHost } from './nodes/switch';
 
 /**
@@ -114,14 +114,16 @@ export class Network {
 
       const type = i.ENGINE.TYPE['#text'].toLowerCase();
 
-      if (type === 'pc' || type === 'laptop' || type === 'server') {
+      if (type === 'pc' || type === 'laptop') {
+        node = new ComputerHost();
+      } else if (type === 'server') {
         node = new ServerHost();
       } else if (type === 'router') {
         node = new RouterHost();
-      } else if (type === 'switch' || type === 'hub') {
-        node = new SwitchHost('', 0, type === 'switch');
-      } else if (type === 'power distribution device') {
-        return null; // Skip power devices
+      } else if (type === 'switch') {
+        node = new SwitchHost('', 0, true);
+      } else if (type === 'hub') {
+        node = new SwitchHost('', 0, false);
       } else {
         // eslint-disable-next-line no-console
         console.warn(`[Network] Skipping unknown device type: ${type}`);

@@ -1,8 +1,8 @@
+import { IPAddress } from '../address';
+import { Link } from '../layers/physical';
 import { Network } from '../network';
 import { RouterHost } from '../nodes/router';
-import { ServerHost } from '../nodes/server';
-import { Link } from '../layers/physical';
-import { IPAddress } from '../address';
+import { ComputerHost } from '../nodes/server';
 
 /**
  * Creates a Ping (ICMP) demonstration topology.
@@ -45,7 +45,7 @@ export default function createPingNetworkExample(): Network {
   routerC.getInterface(1).setNetAddress(new IPAddress('10.0.3.1'));
 
   // Create two end PCs
-  const pcA = new ServerHost('PC-A', 'pc', 1);
+  const pcA = new ComputerHost('PC-A', 'pc', 1);
   pcA.guid = 'pc-a-example';
   pcA.x = 50;
   pcA.y = 200;
@@ -53,7 +53,7 @@ export default function createPingNetworkExample(): Network {
   pcA.getInterface(0).setNetAddress(new IPAddress('10.0.0.10'));
   pcA.gateway = new IPAddress('10.0.0.1');
 
-  const pcB = new ServerHost('PC-B', 'pc', 1);
+  const pcB = new ComputerHost('PC-B', 'pc', 1);
   pcB.guid = 'pc-b-example';
   pcB.x = 550;
   pcB.y = 200;
