@@ -64,6 +64,7 @@ function NetworkDiagramContent({
     connectionInProgress,
     startConnection,
     cancelConnection,
+    linkStates,
   } = useNetworkEditor(simulation);
 
   useEffect(() => {
@@ -150,6 +151,7 @@ function NetworkDiagramContent({
             onStartConnection={startConnection}
             onCancelConnection={cancelConnection}
             onNodeDoubleClick={setSelectedNodeForConfig}
+            linkStates={linkStates}
           />
         </NetworkEditorProvider>
       </div>

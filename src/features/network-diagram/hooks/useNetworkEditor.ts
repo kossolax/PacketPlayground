@@ -23,7 +23,6 @@ import type { Device, Network, DeviceType } from '../lib/network-simulator';
 import {
   Node as SimNode,
   DEVICE_CATALOG,
-  Link,
   GenericNode,
 } from '../lib/network-simulator';
 import { useNetworkSimulation } from '../context/NetworkSimulationContext';
@@ -33,13 +32,8 @@ import {
 } from '../lib/network-simulator/nodes/server';
 import { SwitchHost } from '../lib/network-simulator/nodes/switch';
 import { RouterHost } from '../lib/network-simulator/nodes/router';
-import type { InterfaceState } from '../components/edges/CustomEdge';
-import type { HardwareInterface } from '../lib/network-simulator/layers/datalink';
 import type { CableUIType } from '../lib/network-simulator/cables';
-import {
-  detectCableType,
-  getCableVisualProps,
-} from '../lib/network-simulator/cables';
+import { useNetworkLinks, type EdgeInterfaceStates } from './useNetworkLinks';
 
 interface ConnectionInProgress {
   sourceNodeId: string;
@@ -61,6 +55,7 @@ interface UseNetworkEditorReturn {
   connectionInProgress: ConnectionInProgress | null;
   startConnection: (nodeId: string) => void;
   cancelConnection: () => void;
+  linkStates: Map<string, EdgeInterfaceStates>;
 }
 
 /**
@@ -101,25 +96,6 @@ function createSimulatorNode(device: Device): GenericNode {
 }
 
 /**
- * Extract interface state for LED display
- */
-function getInterfaceState(iface: HardwareInterface): InterfaceState {
-  const state: InterfaceState = {
-    isActive: iface.isActive(),
-    speed: iface.Speed,
-    fullDuplex: iface.FullDuplex,
-    isSwitch: iface.Host instanceof SwitchHost,
-  };
-
-  // Add Spanning Tree state ONLY if switch has STP enabled
-  if (iface.Host instanceof SwitchHost && iface.Host.spanningTree.Enable) {
-    state.spanningTreeState = iface.Host.spanningTree.State(iface);
-  }
-
-  return state;
-}
-
-/**
  * Hook to manage network diagram state
  */
 export function useNetworkEditor(
@@ -129,6 +105,10 @@ export function useNetworkEditor(
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const { fitView } = useReactFlow();
   const { spy } = useNetworkSimulation();
+  const { createLink, linkStates } = useNetworkLinks(
+    simulationNetwork || null,
+    spy
+  );
 
   // Cable selection state
   const [selectedCable, setSelectedCable] = useState<CableUIType | null>(null);
@@ -221,8 +201,6 @@ export function useNetworkEditor(
               sourcePort: iface1.toString(),
               targetPort: iface2.toString(),
               cableType: 'ethernet',
-              sourceInterfaceState: getInterfaceState(iface1),
-              targetInterfaceState: getInterfaceState(iface2),
             },
           };
 
@@ -322,169 +300,48 @@ export function useNetworkEditor(
         return;
       }
 
-      // Helper to update edge interface states in UI
-      const updateEdgeInterfaceStates = (
-        linkId: string,
-        sourceIface: HardwareInterface,
-        targetIface: HardwareInterface
-      ) => {
-        setEdges((eds) =>
-          eds.map((edge) => {
-            if (edge.id !== linkId) return edge;
-
-            return {
-              ...edge,
-              data: {
-                ...edge.data,
-                sourceInterfaceState: getInterfaceState(sourceIface),
-                targetInterfaceState: getInterfaceState(targetIface),
-              },
-            };
-          })
-        );
-      };
-
-      // Get source and target nodes from simulator
-      const sourceSimNode = simulationNetwork.nodes[connection.source];
-      const targetSimNode = simulationNetwork.nodes[connection.target];
-
-      if (!sourceSimNode || !targetSimNode) {
-        toast.error('Cannot connect: Device not found in network');
-        return;
-      }
-
-      // Cast to Node to access getInterfaces() method
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const sourceNode = sourceSimNode as SimNode<any>;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const targetNode = targetSimNode as SimNode<any>;
-
-      // Get first available interface on each device
-      const sourceInterfaces = sourceNode.getInterfaces();
-      const targetInterfaces = targetNode.getInterfaces();
-
-      if (sourceInterfaces.length === 0) {
-        toast.error(`${sourceNode.guid} has no interfaces`);
-        return;
-      }
-
-      if (targetInterfaces.length === 0) {
-        toast.error(`${targetNode.guid} has no interfaces`);
-        return;
-      }
-
-      // Find first available (unconnected) interface
-      const availableSourceIface = sourceInterfaces.find((ifaceName) => {
-        const iface = sourceNode.getInterface(ifaceName);
-        return !iface.isConnected;
-      });
-      const sourceIface = availableSourceIface
-        ? sourceNode.getInterface(availableSourceIface)
-        : null;
-
-      const availableTargetIface = targetInterfaces.find((ifaceName) => {
-        const iface = targetNode.getInterface(ifaceName);
-        return !iface.isConnected;
-      });
-      const targetIface = availableTargetIface
-        ? targetNode.getInterface(availableTargetIface)
-        : null;
-
-      if (!sourceIface) {
-        toast.error(`${sourceNode.guid}: No available interfaces`);
-        return;
-      }
-
-      if (!targetIface) {
-        toast.error(`${targetNode.guid}: No available interfaces`);
-        return;
-      }
-
-      // Create physical link (interfaces are inactive, no auto-negotiation yet)
-      const link = new Link(sourceIface, targetIface, 10); // 10 meters cable
-      simulationNetwork.links.push(link);
-
-      // CRITICAL: Get link index AFTER pushing to array
-      // This index must match the format used by useInterfaceStateMonitor
-      const linkIndex = simulationNetwork.links.length - 1;
-      const edgeId = `link-${linkIndex}`;
-
-      // Attach spy to new link BEFORE enabling interfaces
-      // This ensures we capture auto-negotiation packets
-      link.addListener(spy);
-
-      // Attach interface listeners for LED state updates
-      // This is needed because useInterfaceStateMonitor only sets up listeners once at init
-      const sourceListener = () => {
-        updateEdgeInterfaceStates(edgeId, sourceIface, targetIface);
-      };
-      const targetListener = () => {
-        updateEdgeInterfaceStates(edgeId, sourceIface, targetIface);
-      };
-
-      sourceIface.addListener(sourceListener);
-      targetIface.addListener(targetListener);
-
-      // Enable interfaces (this will trigger auto-negotiation)
-      try {
-        sourceIface.up();
-        targetIface.up();
-
-        // Manually trigger auto-negotiation now that interfaces are up and spy is attached
-        if (sourceIface.discovery) {
-          sourceIface.discovery.negociate(
-            sourceIface.minSpeed,
-            sourceIface.maxSpeed,
-            sourceIface.fullDuplexCapable
-          );
-        }
-        if (targetIface.discovery) {
-          targetIface.discovery.negociate(
-            targetIface.minSpeed,
-            targetIface.maxSpeed,
-            targetIface.fullDuplexCapable
-          );
-        }
-      } catch (error) {
-        // eslint-disable-next-line no-console
-        console.warn('[Connection] Failed to enable interfaces:', error);
-      }
-
-      // Auto-detect cable type based on device types
-      const detectedCableType = detectCableType(
-        sourceSimNode.type as DeviceType,
-        targetSimNode.type as DeviceType
+      // Delegate link creation to useNetworkLinks
+      const result = createLink(
+        connection.source,
+        connection.target,
+        selectedCable || undefined
       );
-      const cableProps = getCableVisualProps(detectedCableType);
 
-      // Add edge to ReactFlow with detected cable type
-      // CRITICAL: Use edgeId that matches useInterfaceStateMonitor format
+      if (!result.success) {
+        toast.error(result.message);
+        return;
+      }
+
+      // Add edge to ReactFlow
+      // LED states will be merged in NetworkCanvas
       setEdges((eds) =>
         addEdge(
           {
             ...connection,
-            id: edgeId,
+            id: result.linkId,
             type: 'customEdge',
             data: {
-              sourcePort: sourceIface.toString(),
-              targetPort: targetIface.toString(),
-              cableType: detectedCableType,
-              sourceInterfaceState: getInterfaceState(sourceIface),
-              targetInterfaceState: getInterfaceState(targetIface),
+              sourcePort: result.sourcePort,
+              targetPort: result.targetPort,
+              cableType: result.cableType,
             },
           },
           eds
         )
       );
 
-      toast.success(
-        `Connected ${sourceNode.guid}[${sourceIface.toString()}] ↔ ${targetNode.guid}[${targetIface.toString()}] using ${cableProps.displayName} cable`
-      );
+      toast.success(result.message);
 
       // Auto-deselect cable after successful connection
       clearCableSelection();
     },
-    [setEdges, simulationNetwork, clearCableSelection]
+    [
+      setEdges,
+      simulationNetwork,
+      createLink,
+      selectedCable,
+      clearCableSelection,
+    ]
   );
 
   const clearDiagram = useCallback(() => {
@@ -507,5 +364,6 @@ export function useNetworkEditor(
     connectionInProgress,
     startConnection,
     cancelConnection,
+    linkStates,
   };
 }

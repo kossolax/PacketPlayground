@@ -28,7 +28,7 @@ import {
   type GenericNode,
 } from '../lib/network-simulator';
 import { usePacketAnimation } from '../hooks/usePacketAnimation';
-import { useInterfaceStateMonitor } from '../hooks/useInterfaceStateMonitor';
+import type { EdgeInterfaceStates } from '../hooks/useNetworkLinks';
 import type { CableUIType } from '../lib/network-simulator/cables';
 
 interface NetworkCanvasProps {
@@ -46,6 +46,7 @@ interface NetworkCanvasProps {
   onStartConnection: (nodeId: string) => void;
   onCancelConnection: () => void;
   onNodeDoubleClick: (node: GenericNode) => void;
+  linkStates: Map<string, EdgeInterfaceStates>;
 }
 
 export default function NetworkCanvas({
@@ -63,10 +64,10 @@ export default function NetworkCanvas({
   onStartConnection,
   onCancelConnection,
   onNodeDoubleClick,
+  linkStates,
 }: NetworkCanvasProps) {
   const { screenToFlowPosition } = useReactFlow();
   const { edgesWithPackets } = usePacketAnimation({ edges });
-  const interfaceStates = useInterfaceStateMonitor(network);
 
   // Handle ESC key to cancel connection
   useEffect(() => {
@@ -83,7 +84,7 @@ export default function NetworkCanvas({
   const edgesWithLEDs = useMemo(
     () =>
       edgesWithPackets.map((edge) => {
-        const ledStates = interfaceStates.get(edge.id);
+        const ledStates = linkStates.get(edge.id);
         if (!ledStates) return edge;
 
         return {
@@ -95,7 +96,7 @@ export default function NetworkCanvas({
           },
         };
       }),
-    [edgesWithPackets, interfaceStates]
+    [edgesWithPackets, linkStates]
   );
 
   const nodeTypes = useMemo(
