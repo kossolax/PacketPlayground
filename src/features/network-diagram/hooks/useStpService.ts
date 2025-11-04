@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import type { SwitchHost } from '../lib/network-simulator/nodes/switch';
-import { SpanningTreeState } from '../lib/network-simulator/services/spanningtree';
+import {
+  SpanningTreeState,
+  SpanningTreeProtocol,
+} from '../lib/network-simulator/services/spanningtree';
 
 export interface StpPortInfo {
   name: string;
@@ -34,6 +37,9 @@ export default function useStpService(node: SwitchHost) {
 
   // Check if this switch is the root bridge
   const getIsRoot = (): boolean => node.spanningTree.IsRoot;
+
+  // Get the spanning tree protocol type
+  const getProtocol = (): SpanningTreeProtocol => node.getStpProtocol();
 
   // Get priority (default STP priority is 32768)
   const getPriority = (): number => 32768;
@@ -85,6 +91,7 @@ export default function useStpService(node: SwitchHost) {
     getBridgeId,
     getRootId,
     getIsRoot,
+    getProtocol,
     getPriority,
     getPortsInfo,
   };

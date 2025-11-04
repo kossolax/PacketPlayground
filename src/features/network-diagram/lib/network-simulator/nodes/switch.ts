@@ -12,7 +12,9 @@ import {
 import { Node } from './generic';
 import { DatalinkMessage } from '../message';
 import {
-  PVSTPService,
+  SpanningTreeService,
+  SpanningTreeProtocol,
+  createSpanningTreeService,
   SpanningTreeMessage,
   SpanningTreeState,
   SpanningTreePortRole,
@@ -36,7 +38,7 @@ export class SwitchHost
 
   public knownVlan: Record<number, string> = {};
 
-  public spanningTree: PVSTPService;
+  public spanningTree: SpanningTreeService;
 
   private ARPTable: Map<string, MACTableEntry[]> = new Map<
     string,
@@ -48,15 +50,14 @@ export class SwitchHost
   constructor(
     name: string = '',
     iface: number = 0,
-    spanningTreeSupport: boolean = false
+    stpProtocol: SpanningTreeProtocol = SpanningTreeProtocol.None
   ) {
     super();
     if (name !== '') this.name = name;
 
     for (let i = 0; i < iface; i += 1) this.addInterface();
 
-    this.spanningTree = new PVSTPService(this);
-    this.spanningTree.Enable = spanningTreeSupport;
+    this.spanningTree = createSpanningTreeService(stpProtocol, this);
 
     const subscription = Scheduler.getInstance()
       .repeat(10)
@@ -71,6 +72,18 @@ export class SwitchHost
       this.cleanupTimer();
       this.cleanupTimer = null;
     }
+  }
+
+  public getStpProtocol(): SpanningTreeProtocol {
+    return this.spanningTree.getProtocolType();
+  }
+
+  public setStpProtocol(protocol: SpanningTreeProtocol): void {
+    // Destroy old service
+    this.spanningTree.destroy();
+
+    // Create new service with new protocol
+    this.spanningTree = createSpanningTreeService(protocol, this);
   }
 
   public addInterface(name: string = ''): HardwareInterface {

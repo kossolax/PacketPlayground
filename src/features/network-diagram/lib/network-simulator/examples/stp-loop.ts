@@ -3,6 +3,7 @@ import { Link } from '../layers/physical';
 import { Network } from '../network';
 import { ComputerHost } from '../nodes/server';
 import { SwitchHost } from '../nodes/switch';
+import { SpanningTreeProtocol } from '../services/spanningtree';
 
 /**
  * Creates an STP (Spanning Tree Protocol) demonstration topology.
@@ -26,20 +27,20 @@ export default function createSTPLoopExample(): Network {
   const network = new Network();
 
   // Create three switches in a triangle topology
-  const switchA = new SwitchHost('Switch-A', 4, true); // 4 ports, STP enabled
+  const switchA = new SwitchHost('Switch-A', 4, SpanningTreeProtocol.STP);
   switchA.guid = 'switch-a-example';
   switchA.x = 200;
   switchA.y = 150;
   // Set lowest MAC to make it the root bridge
   switchA.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
 
-  const switchB = new SwitchHost('Switch-B', 4, true);
+  const switchB = new SwitchHost('Switch-B', 4, SpanningTreeProtocol.STP);
   switchB.guid = 'switch-b-example';
   switchB.x = 500;
   switchB.y = 150;
   switchB.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
 
-  const switchC = new SwitchHost('Switch-C', 4, true);
+  const switchC = new SwitchHost('Switch-C', 4, SpanningTreeProtocol.STP);
   switchC.guid = 'switch-c-example';
   switchC.x = 350;
   switchC.y = 400;

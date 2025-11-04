@@ -9,7 +9,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import type { SwitchHost } from '../../lib/network-simulator/nodes/switch';
 import useStpService from '../../hooks/useStpService';
-import { SpanningTreeState } from '../../lib/network-simulator/services/spanningtree';
+import {
+  SpanningTreeState,
+  SpanningTreeProtocol,
+} from '../../lib/network-simulator/services/spanningtree';
 
 interface StpServiceConfigProps {
   node: SwitchHost;
@@ -47,6 +50,23 @@ function getStateName(state: SpanningTreeState): string {
   }
 }
 
+function getProtocolName(protocol: SpanningTreeProtocol): string {
+  switch (protocol) {
+    case SpanningTreeProtocol.None:
+      return 'Disabled';
+    case SpanningTreeProtocol.STP:
+      return 'STP (802.1D)';
+    case SpanningTreeProtocol.PVST:
+      return 'PVST+';
+    case SpanningTreeProtocol.RPVST:
+      return 'Rapid PVST+';
+    case SpanningTreeProtocol.MSTP:
+      return 'MSTP (802.1s)';
+    default:
+      return 'Unknown';
+  }
+}
+
 export default function StpServiceConfig({ node }: StpServiceConfigProps) {
   const {
     enabled,
@@ -54,6 +74,7 @@ export default function StpServiceConfig({ node }: StpServiceConfigProps) {
     getBridgeId,
     getRootId,
     getIsRoot,
+    getProtocol,
     getPriority,
     getPortsInfo,
   } = useStpService(node);
@@ -62,7 +83,10 @@ export default function StpServiceConfig({ node }: StpServiceConfigProps) {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Spanning Tree Protocol (STP)</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Spanning Tree Protocol</CardTitle>
+            <Badge variant="secondary">{getProtocolName(getProtocol())}</Badge>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">

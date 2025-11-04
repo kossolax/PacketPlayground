@@ -29,6 +29,14 @@ export enum SpanningTreePortRole {
   Backup,
 }
 
+export enum SpanningTreeProtocol {
+  None = 'none',
+  STP = 'stp', // 802.1D - Single spanning tree
+  PVST = 'pvst', // Per-VLAN Spanning Tree (Cisco proprietary)
+  RPVST = 'rpvst', // Rapid PVST+ (802.1w + per-VLAN)
+  MSTP = 'mstp', // Multiple Spanning Tree (802.1s)
+}
+
 const SpanningTreeMultiCastAddress = new MacAddress('01:80:C2:00:00:00');
 
 export class SpanningTreeMessage extends EthernetMessage {
@@ -115,7 +123,7 @@ export class SpanningTreeMessage extends EthernetMessage {
       // convert string to number using hashcode
       if (typeof port === 'string') {
         // eslint-disable-next-line @typescript-eslint/no-use-before-define
-        this.port = PVSTPService.getPortId(port);
+        this.port = STPService.getPortId(port);
       } else {
         this.port = port;
       }
@@ -156,8 +164,77 @@ export class SpanningTreeMessage extends EthernetMessage {
   };
 }
 
-export class PVSTPService
+/**
+ * Abstract base class for all Spanning Tree Protocol implementations
+ * Provides common interface for STP, PVST, R-PVST, and MSTP
+ */
+export abstract class SpanningTreeService
   extends NetworkServices<SwitchHost>
+  implements DatalinkListener
+{
+  // Enable getter/setter will be overridden by each implementation
+  // to maintain compatibility with the old API
+
+  /**
+   * Returns the protocol type implemented by this service
+   */
+  abstract getProtocolType(): SpanningTreeProtocol;
+
+  /**
+   * Returns the spanning tree state for a given interface
+   */
+  abstract State(iface: Interface): SpanningTreeState;
+
+  /**
+   * Returns the spanning tree role for a given interface
+   */
+  abstract Role(iface: Interface): SpanningTreePortRole;
+
+  /**
+   * Returns the cost to reach the root bridge via this interface
+   */
+  abstract Cost(iface: Interface): number;
+
+  /**
+   * Returns the root bridge MAC address
+   */
+  abstract get Root(): MacAddress;
+
+  /**
+   * Returns this bridge's MAC address
+   */
+  abstract get BridgeId(): MacAddress;
+
+  /**
+   * Returns true if this bridge is the root bridge
+   */
+  abstract get IsRoot(): boolean;
+
+  /**
+   * Performs spanning tree negotiation (sends BPDUs)
+   */
+  abstract negociate(): void;
+
+  /**
+   * Receives and processes incoming frames
+   */
+  abstract receiveTrame(
+    message: DatalinkMessage,
+    from: Interface
+  ): ActionHandle;
+
+  /**
+   * Cleans up resources when service is destroyed
+   */
+  abstract destroy(): void;
+}
+
+/**
+ * IEEE 802.1D Spanning Tree Protocol (STP) implementation
+ * Provides basic loop prevention using a single spanning tree for all VLANs
+ */
+export class STPService
+  extends SpanningTreeService
   implements DatalinkListener
 {
   private roles = new Map<Interface, SpanningTreePortRole>();
@@ -206,23 +283,31 @@ export class PVSTPService
   // Handler for interface up/down events (bound to preserve 'this')
   private handleInterfaceEvent = (msg: string) => {
     if (msg === 'OnInterfaceUp' || msg === 'OnInterfaceDown') {
-      // Re-evaluate roles and states when interface state changes
+      // Re-evaluate roles and states when interface goes up/down
       this.setDefaultRoot();
     }
   };
 
-  constructor(host: SwitchHost) {
+  constructor(host: SwitchHost, enabled: boolean = true) {
     super(host);
 
     host.addListener((msg) => {
       if (msg === 'OnInterfaceAdded') this.setDefaultRoot();
     });
 
-    this.setDefaultRoot();
+    // Use the Enable setter to properly register listeners
+    // This calls super.Enable which manages listener registration
+    this.Enable = enabled;
+
     const subscription = Scheduler.getInstance()
       .repeat(this.helloTime)
       .subscribe(() => this.negociate());
     this.repeatCleanup = () => subscription.unsubscribe();
+  }
+
+  // eslint-disable-next-line @typescript-eslint/class-methods-use-this
+  public getProtocolType(): SpanningTreeProtocol {
+    return SpanningTreeProtocol.STP;
   }
 
   public destroy(): void {
@@ -251,9 +336,12 @@ export class PVSTPService
   }
 
   override set Enable(enable: boolean) {
+    // Call parent to handle listener registration/unregistration
     super.Enable = enable;
-    this.enabled = enable;
-    this.setDefaultRoot();
+    // Recalculate STP when enabled
+    if (enable) {
+      this.setDefaultRoot();
+    }
   }
 
   override get Enable(): boolean {
@@ -712,14 +800,14 @@ export class PVSTPService
                   bestBPDU = bpdu;
                 } else if (bpdu.portId.globalId === bestBPDU.portId.globalId) {
                   // Tie-breaker 4: Receiver port ID (lower wins)
-                  const currentPortId = PVSTPService.getPortId(i);
+                  const currentPortId = STPService.getPortId(i);
                   const bestInterfaceName = this.host
                     .getInterfaces()
                     .find(
                       (name) => this.host.getInterface(name) === bestInterface
                     );
                   const bestPortId = bestInterfaceName
-                    ? PVSTPService.getPortId(bestInterfaceName)
+                    ? STPService.getPortId(bestInterfaceName)
                     : 0;
 
                   if (currentPortId < bestPortId) {
@@ -773,11 +861,11 @@ export class PVSTPService
             .getInterfaces()
             .find((name) => this.host.getInterface(name) === iface);
           const myPortId = interfaceName
-            ? PVSTPService.getPortId(interfaceName)
+            ? STPService.getPortId(interfaceName)
             : 0;
 
           if (
-            PVSTPService.isBetterBPDU(
+            STPService.isBetterBPDU(
               message,
               bestCost, // RFC 802.1D: Cost we would advertise (root port cost)
               this.bridgeId,
@@ -802,5 +890,34 @@ export class PVSTPService
       return ActionHandle.Stop;
 
     return ActionHandle.Continue;
+  }
+}
+
+/**
+ * Factory function to create the appropriate spanning tree service
+ * based on the requested protocol type
+ */
+export function createSpanningTreeService(
+  protocol: SpanningTreeProtocol,
+  host: SwitchHost
+): SpanningTreeService {
+  switch (protocol) {
+    case SpanningTreeProtocol.None:
+      // Return STP service but disabled, to maintain backward compatibility
+      // This avoids service recreation when Enable is toggled
+      return new STPService(host, false);
+    case SpanningTreeProtocol.STP:
+      return new STPService(host, true);
+    case SpanningTreeProtocol.PVST:
+      // TODO: Implement PVST+ (Per-VLAN Spanning Tree)
+      throw new Error('PVST protocol not yet implemented');
+    case SpanningTreeProtocol.RPVST:
+      // TODO: Implement Rapid PVST+ (802.1w + per-VLAN)
+      throw new Error('R-PVST protocol not yet implemented');
+    case SpanningTreeProtocol.MSTP:
+      // TODO: Implement MSTP (802.1s)
+      throw new Error('MSTP protocol not yet implemented');
+    default:
+      return new STPService(host, false);
   }
 }
