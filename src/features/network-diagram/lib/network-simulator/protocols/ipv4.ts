@@ -38,7 +38,10 @@ export class IPv4Message extends NetworkMessage {
   }
 
   override get length(): number {
-    return this.payload.length + 16 + this.payload.length;
+    // IPv4 header length is in 32-bit words (minimum 5 = 20 bytes)
+    // headerLength field contains number of 32-bit words
+    const headerBytes = this.headerLength * 4;
+    return headerBytes + this.payload.length;
   }
 
   public override toString(): string {
@@ -86,7 +89,7 @@ export class IPv4Message extends NetworkMessage {
 
     protected netDst: IPAddress | null = null;
 
-    protected ttl: number = 30;
+    protected ttl: number = 64; // RFC 1122 recommended default
 
     protected id: number;
 
@@ -149,6 +152,10 @@ export class IPv4Message extends NetworkMessage {
       if (this.netSrc === null) throw new Error('Source address is not set');
       if (this.netDst === null)
         throw new Error('Destination address is not set');
+
+      // RFC 791: Basic validation
+      if (this.ttl <= 0) throw new Error('TTL must be greater than 0');
+      if (this.ttl > 255) throw new Error('TTL must be <= 255');
 
       const messages = [];
 
@@ -213,6 +220,12 @@ export class IPv4Protocol implements NetworkListener {
 
   public receivePacket(message: NetworkMessage): ActionHandle {
     if (message instanceof IPv4Message) {
+      // RFC 791: Basic validation
+      if (message.version !== 4) {
+        // Drop invalid version packets
+        return ActionHandle.Stop;
+      }
+
       // this packet was not fragmented
       if (message.IsFragmented() === false) {
         return ActionHandle.Continue;

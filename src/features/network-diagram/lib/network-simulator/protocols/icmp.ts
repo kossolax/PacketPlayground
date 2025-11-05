@@ -32,8 +32,9 @@ export class ICMPMessage extends IPv4Message {
   }
 
   override get length(): number {
-    // ICMP header is 4 bytes + payload
-    return 4 + this.payload.length;
+    // ICMP header is 8 bytes minimum (Type 1 + Code 1 + Checksum 2 + Rest of Header 4)
+    // + payload
+    return 8 + this.payload.length;
   }
 
   public override toString(): string {
