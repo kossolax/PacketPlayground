@@ -32,6 +32,7 @@ export enum SpanningTreePortRole {
 export enum SpanningTreeProtocol {
   None = 'none',
   STP = 'stp', // 802.1D - Single spanning tree
+  RSTP = 'rstp', // 802.1w - Rapid Spanning Tree Protocol
   PVST = 'pvst', // Per-VLAN Spanning Tree (Cisco proprietary)
   RPVST = 'rpvst', // Rapid PVST+ (802.1w + per-VLAN)
   MSTP = 'mstp', // Multiple Spanning Tree (802.1s)
@@ -188,6 +189,123 @@ export class PVSTMessage extends SpanningTreeMessage {
 }
 
 /**
+ * RSTP Message - IEEE 802.1w Rapid Spanning Tree Protocol
+ * Version 2 BPDU with extended flags for rapid convergence
+ */
+export class RSTPMessage extends SpanningTreeMessage {
+  public override version = 2;
+
+  // RSTP flags (overrides STP flags structure)
+  public override flags = {
+    // From STP (maintained for compatibility)
+    topologyChange: false,
+    topologyChangeAck: false,
+    // RSTP extensions
+    proposal: false,
+    agreement: false,
+    forwarding: false,
+    learning: false,
+    portRole: SpanningTreePortRole.Disabled,
+  };
+
+  public override toString(): string {
+    const roleStr = [
+      'Disabled',
+      'Root',
+      'Designated',
+      'Blocked',
+      'Alternate',
+      'Backup',
+    ][this.flags.portRole];
+    return `RSTP (role=${roleStr}, age=${this.messageAge})`;
+  }
+
+  /**
+   * Convert standard STP message to RSTP message
+   * Used when upgrading from STP to RSTP
+   */
+  public static fromSTP(message: SpanningTreeMessage): RSTPMessage {
+    const rstpMsg = Object.create(RSTPMessage.prototype);
+    Object.assign(rstpMsg, message);
+    rstpMsg.version = 2;
+    // Initialize RSTP-specific flags
+    rstpMsg.flags.proposal = false;
+    rstpMsg.flags.agreement = false;
+    rstpMsg.flags.forwarding = false;
+    rstpMsg.flags.learning = false;
+    rstpMsg.flags.portRole = SpanningTreePortRole.Disabled;
+    return rstpMsg;
+  }
+
+  /**
+   * Create RSTP Builder extending STP Builder
+   */
+  public static override Builder = class extends SpanningTreeMessage.Builder {
+    private proposal = false;
+
+    private agreement = false;
+
+    private forwarding = false;
+
+    private learning = false;
+
+    private portRole = SpanningTreePortRole.Disabled;
+
+    public setProposal(proposal: boolean): this {
+      this.proposal = proposal;
+      return this;
+    }
+
+    public setAgreement(agreement: boolean): this {
+      this.agreement = agreement;
+      return this;
+    }
+
+    public setForwarding(forwarding: boolean): this {
+      this.forwarding = forwarding;
+      return this;
+    }
+
+    public setLearning(learning: boolean): this {
+      this.learning = learning;
+      return this;
+    }
+
+    public setPortRole(role: SpanningTreePortRole): this {
+      this.portRole = role;
+      return this;
+    }
+
+    public override build(): RSTPMessage {
+      // Build base STP message first
+      const stpMessage = super.build();
+
+      // Convert to RSTP message (preserves prototype correctly)
+      const message = Object.assign(
+        Object.create(RSTPMessage.prototype),
+        stpMessage
+      ) as RSTPMessage;
+
+      // Override version to 2 for RSTP
+      message.version = 2;
+
+      // Set RSTP-specific flags (override STP flags)
+      message.flags = {
+        topologyChange: false,
+        topologyChangeAck: false,
+        proposal: this.proposal,
+        agreement: this.agreement,
+        forwarding: this.forwarding,
+        learning: this.learning,
+        portRole: this.portRole,
+      };
+
+      return message;
+    }
+  };
+}
+
+/**
  * Abstract base class for all Spanning Tree Protocol implementations
  * Provides common interface for STP, PVST, R-PVST, and MSTP
  */
@@ -263,23 +381,23 @@ export class STPService
   extends SpanningTreeService
   implements DatalinkListener
 {
-  private roles = new Map<Interface, SpanningTreePortRole>();
+  protected roles = new Map<Interface, SpanningTreePortRole>();
 
-  private state = new Map<Interface, SpanningTreeState>();
+  protected state = new Map<Interface, SpanningTreeState>();
 
-  private cost = new Map<Interface, number>();
+  protected cost = new Map<Interface, number>();
 
   private bpduTimers = new Map<Interface, (() => void) | null>();
 
   private receivedBPDUs = new Map<Interface, SpanningTreeMessage>();
 
-  private maxAge = 20;
+  protected maxAge = 20;
 
-  private helloTime = 2; // RFC 802.1D default: 2 seconds
+  protected helloTime = 2; // RFC 802.1D default: 2 seconds
 
-  private forwardDelay = 15;
+  protected forwardDelay = 15;
 
-  private rootId = {
+  protected rootId = {
     mac: new MacAddress('FF:FF:FF:FF:FF:FF'),
     priority: 32768,
   };
@@ -296,7 +414,7 @@ export class STPService
     return this.rootId.mac.equals(this.bridgeId.mac);
   }
 
-  private bridgeId = {
+  protected bridgeId = {
     mac: new MacAddress('FF:FF:FF:FF:FF:FF'),
     priority: 32768,
   };
@@ -320,6 +438,10 @@ export class STPService
     host.addListener((msg) => {
       if (msg === 'OnInterfaceAdded') this.setDefaultRoot();
     });
+
+    // Initialize bridge ID from existing interfaces
+    // (interfaces may have been added before STP service was created)
+    this.setDefaultRoot();
 
     // Use the Enable setter to properly register listeners
     // This calls super.Enable which manages listener registration
@@ -460,10 +582,10 @@ export class STPService
     }
   }
 
-  private changingState: Map<HardwareInterface, (() => void) | null> =
+  protected changingState: Map<HardwareInterface, (() => void) | null> =
     new Map();
 
-  private changeState(
+  protected changeState(
     iface: HardwareInterface,
     state: SpanningTreeState,
     force: boolean = false
@@ -509,7 +631,7 @@ export class STPService
     }
   }
 
-  private changeRole(
+  protected changeRole(
     iface: HardwareInterface,
     role: SpanningTreePortRole
   ): void {
@@ -923,6 +1045,285 @@ export class STPService
 }
 
 /**
+ * RSTP (Rapid Spanning Tree Protocol) - IEEE 802.1w
+ * Extends STP with rapid convergence (1-3s vs 30-50s)
+ * Features: Proposal/Agreement, edge port auto-detection, point-to-point link detection
+ */
+export class RSTPService extends STPService implements DatalinkListener {
+  // RSTP-specific state tracking
+  private edgePorts = new Map<Interface, boolean>(); // Auto-detected edge ports
+
+  private edgeDetectionTimers = new Map<Interface, (() => void) | null>(); // 3s timers
+
+  private lastBpduReceived = new Map<Interface, number>(); // Timestamp for edge detection
+
+  private proposedPorts = new Set<Interface>(); // Ports awaiting agreement
+
+  private stpNeighbors = new Set<Interface>(); // Neighbors running STP (not RSTP)
+
+  private linkType = new Map<Interface, 'point-to-point' | 'shared'>(); // Duplex detection
+
+  constructor(host: SwitchHost, enabled: boolean = true) {
+    super(host, enabled);
+    // Initialize edge port detection for all interfaces
+    this.host.getInterfaces().forEach((i) => {
+      const iface = this.host.getInterface(i);
+      this.startEdgeDetection(iface);
+    });
+  }
+
+  public override getProtocolType(): SpanningTreeProtocol {
+    return SpanningTreeProtocol.RSTP;
+  }
+
+  /**
+   * Start edge port auto-detection timer (3 seconds without BPDU = edge port)
+   */
+  private startEdgeDetection(iface: Interface): void {
+    // Cancel existing timer if any
+    const existingTimer = this.edgeDetectionTimers.get(iface);
+    if (existingTimer) existingTimer();
+
+    // Mark as non-edge initially
+    this.edgePorts.set(iface, false);
+
+    // Start 3-second timer
+    const subscription = Scheduler.getInstance()
+      .once(3)
+      .subscribe(() => {
+        // If no BPDU received in 3 seconds, mark as edge port
+        const lastBpdu = this.lastBpduReceived.get(iface) || 0;
+        const now = Scheduler.getInstance().getDeltaTime();
+        if (now - lastBpdu >= Scheduler.getInstance().getDelay(3)) {
+          this.edgePorts.set(iface, true);
+          // Edge port can forward immediately
+          const role = this.Role(iface);
+          if (role === SpanningTreePortRole.Designated) {
+            this.changeState(
+              iface as HardwareInterface,
+              SpanningTreeState.Forwarding
+            );
+          }
+        }
+      });
+
+    this.edgeDetectionTimers.set(iface, () => subscription.unsubscribe());
+  }
+
+  /**
+   * Detect link type based on interface duplex mode
+   */
+  private detectLinkType(
+    iface: HardwareInterface
+  ): 'point-to-point' | 'shared' {
+    // Simplified: check if interface has duplex property
+    // In real implementation, check actual duplex mode
+    // For now, assume all full-duplex = point-to-point
+    const hardwareIface = iface as HardwareInterface & { duplex?: string };
+    if (hardwareIface.duplex === 'half') {
+      return 'shared';
+    }
+    // Default to point-to-point (most modern switches are full-duplex)
+    return 'point-to-point';
+  }
+
+  /**
+   * Synchronize: block all non-edge designated ports except the specified port
+   * This is the core of RSTP rapid convergence
+   */
+  private synchronize(exceptPort: Interface): void {
+    this.host.getInterfaces().forEach((i) => {
+      const iface = this.host.getInterface(i);
+
+      // Don't block: the port that triggered sync, edge ports, or non-designated ports
+      if (iface === exceptPort) return;
+      if (this.edgePorts.get(iface)) return; // Edge ports stay forwarding
+      if (this.Role(iface) !== SpanningTreePortRole.Designated) return;
+
+      // Block designated ports temporarily
+      this.changeState(iface, SpanningTreeState.Blocking);
+    });
+  }
+
+  /**
+   * Override changeState to support rapid transitions for edge ports and proposals
+   */
+  protected override changeState(
+    iface: HardwareInterface,
+    state: SpanningTreeState,
+    force: boolean = false
+  ): void {
+    // If edgePorts not initialized yet (during parent constructor), use STP behavior
+    if (!this.edgePorts) {
+      super.changeState(iface, state, force);
+      return;
+    }
+
+    // If edge port transitioning to Designated role, skip timers
+    if (this.edgePorts.get(iface) && state === SpanningTreeState.Forwarding) {
+      const oldState = this.State(iface);
+      this.state.set(iface, state);
+      if (state !== oldState || force) {
+        iface.trigger('OnInterfaceChange');
+      }
+      return;
+    }
+
+    // Otherwise, use standard STP state machine
+    super.changeState(iface, state, force);
+  }
+
+  /**
+   * Override negociate to send RSTP BPDUs (version 2) with proposal flag
+   */
+  public override negociate(): void {
+    if (!this.enabled) return;
+
+    this.host.getInterfaces().forEach((i) => {
+      const iface = this.host.getInterface(i);
+      if (iface.isActive() === false || iface.isConnected === false) return;
+
+      const role = this.Role(iface);
+
+      // Only send BPDUs on Root and Designated ports (same as STP)
+      if (
+        role !== SpanningTreePortRole.Root &&
+        role !== SpanningTreePortRole.Designated
+      ) {
+        return;
+      }
+
+      // Detect link type
+      this.linkType.set(iface, this.detectLinkType(iface));
+
+      // Build RSTP BPDU (version 2)
+      const message = new RSTPMessage.Builder()
+        .setMacSource(iface.getMacAddress() as MacAddress)
+        .setBridge(this.bridgeId.mac)
+        .setRoot(this.rootId.mac)
+        .setPort(i)
+        .setCost(role === SpanningTreePortRole.Root ? this.Cost(iface) : 0)
+        .setPortRole(role)
+        .setForwarding(this.State(iface) === SpanningTreeState.Forwarding)
+        .setLearning(
+          this.State(iface) === SpanningTreeState.Learning ||
+            this.State(iface) === SpanningTreeState.Forwarding
+        )
+        .build();
+
+      // Set proposal flag for designated ports on point-to-point links
+      if (
+        role === SpanningTreePortRole.Designated &&
+        this.linkType.get(iface) === 'point-to-point' &&
+        !this.stpNeighbors.has(iface)
+      ) {
+        message.flags.proposal = true;
+        // Track that we sent a proposal on this port
+        this.proposedPorts.add(iface);
+      }
+
+      iface.sendTrame(message);
+    });
+  }
+
+  /**
+   * Override receiveTrame to handle RSTP proposal/agreement
+   */
+  public override receiveTrame(
+    message: DatalinkMessage,
+    from: Interface
+  ): ActionHandle {
+    // Handle RSTP messages
+    if (message instanceof RSTPMessage) {
+      this.onBpduReceived(from);
+
+      // Check if neighbor is running STP or RSTP
+      if (message.version === 0) {
+        // Neighbor is running STP - add to STP neighbors list
+        this.stpNeighbors.add(from);
+      } else {
+        // Remove from STP neighbors if it was there
+        this.stpNeighbors.delete(from);
+      }
+
+      // Handle Proposal flag
+      if (message.flags.proposal) {
+        // Synchronize all non-edge designated ports
+        this.synchronize(from);
+
+        // Send Agreement response
+        const agreement = new RSTPMessage.Builder()
+          .setMacSource(
+            (from as HardwareInterface).getMacAddress() as MacAddress
+          )
+          .setBridge(this.bridgeId.mac)
+          .setRoot(this.rootId.mac)
+          .setPort(from.toString())
+          .setCost(this.Cost(from))
+          .setPortRole(this.Role(from))
+          .setAgreement(true)
+          .build();
+
+        (from as HardwareInterface).sendTrame(agreement);
+      }
+
+      // Handle Agreement flag
+      if (message.flags.agreement && this.proposedPorts.has(from)) {
+        // Agreement received - transition to forwarding immediately
+        this.proposedPorts.delete(from);
+        this.changeState(
+          from as HardwareInterface,
+          SpanningTreeState.Forwarding
+        );
+      }
+    }
+
+    // If standard STP message, mark neighbor as STP-only
+    if (
+      message instanceof SpanningTreeMessage &&
+      !(message instanceof RSTPMessage)
+    ) {
+      this.stpNeighbors.add(from);
+      this.onBpduReceived(from);
+    }
+
+    // Call parent STP processing for root election, etc.
+    return super.receiveTrame(message, from);
+  }
+
+  /**
+   * Called when BPDU is received on a port
+   * Resets edge detection timer (port is not edge if it receives BPDUs)
+   */
+  private onBpduReceived(iface: Interface): void {
+    // Update last BPDU received timestamp
+    this.lastBpduReceived.set(iface, Scheduler.getInstance().getDeltaTime());
+
+    // If port was marked as edge, disable edge status
+    if (this.edgePorts.get(iface)) {
+      this.edgePorts.set(iface, false);
+    }
+
+    // Restart edge detection timer
+    this.startEdgeDetection(iface);
+  }
+
+  /**
+   * Cleanup timers on destroy
+   */
+  public override destroy(): void {
+    // Cancel all edge detection timers
+    this.edgeDetectionTimers.forEach((cleanup) => {
+      if (cleanup) cleanup();
+    });
+    this.edgeDetectionTimers.clear();
+
+    // Call parent cleanup
+    super.destroy();
+  }
+}
+
+/**
  * PVST (Per-VLAN Spanning Tree) Service
  * Maintains one independent spanning tree per VLAN for load balancing
  * Uses standard STP (802.1D) convergence, not rapid (802.1w)
@@ -1183,6 +1584,9 @@ export function createSpanningTreeService(
       return new STPService(host, false);
     case SpanningTreeProtocol.STP:
       return new STPService(host, true);
+    case SpanningTreeProtocol.RSTP:
+      // RSTP: Rapid Spanning Tree Protocol (IEEE 802.1w)
+      return new RSTPService(host, true);
     case SpanningTreeProtocol.PVST:
       // PVST: Per-VLAN Spanning Tree (one tree per VLAN)
       return new PVSTService(host, true);

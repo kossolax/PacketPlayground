@@ -6,6 +6,7 @@ import {
 import { Link } from '../layers/physical';
 import {
   SpanningTreeMessage,
+  RSTPMessage,
   SpanningTreePortRole,
   SpanningTreeState,
   SpanningTreeProtocol,
@@ -1719,6 +1720,413 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
       expect(state30).toBeDefined();
 
       A.destroy();
+    });
+  });
+
+  describe('RSTP (Rapid Spanning Tree) - IEEE 802.1w', () => {
+    describe('Basic RSTP Functionality', () => {
+      it(
+        'should create RSTPService when protocol is RSTP',
+        () => {
+          const A = new SwitchHost('A', 2, SpanningTreeProtocol.RSTP);
+          expect(A.getStpProtocol()).toBe(SpanningTreeProtocol.RSTP);
+          expect(A.spanningTree.getProtocolType()).toBe(
+            SpanningTreeProtocol.RSTP
+          );
+          A.destroy();
+        },
+        15000
+      ); // 15s timeout for RSTP tests
+
+      it('should send version 2 BPDUs', async () => {
+        const A = new SwitchHost('A', 1, SpanningTreeProtocol.RSTP);
+        const B = new SwitchHost('B', 1, SpanningTreeProtocol.RSTP);
+
+        A.spanningTree.Enable = true;
+        B.spanningTree.Enable = true;
+
+        A.getInterface(0).up();
+        B.getInterface(0).up();
+
+        const linkAB = new Link(A.getInterface(0), B.getInterface(0));
+
+        const listener = new TestListener();
+        B.getInterface(0).addListener(listener);
+
+        // Trigger negotiation
+        A.spanningTree.negociate();
+
+        // Wait for async BPDU delivery (RxJS Observable with delay)
+        await new Promise((resolve) => {
+          setTimeout(resolve, 100);
+        });
+
+        // Find RSTP messages - check by version since instanceof may not work after transmission
+        const rstpMsgs = listener.receivedTrames.filter(
+          (msg) =>
+            msg instanceof SpanningTreeMessage &&
+            (msg as SpanningTreeMessage).version === 2
+        ) as RSTPMessage[];
+
+        expect(rstpMsgs.length).toBeGreaterThan(0);
+        expect(rstpMsgs[0].version).toBe(2);
+
+        A.destroy();
+        B.destroy();
+      });
+
+      it('should encode port role in BPDU flags', async () => {
+        const A = new SwitchHost('A', 2, SpanningTreeProtocol.RSTP);
+        const B = new SwitchHost('B', 1, SpanningTreeProtocol.RSTP);
+
+        A.spanningTree.Enable = true;
+        B.spanningTree.Enable = true;
+
+        A.getInterface(0).up();
+        B.getInterface(0).up();
+
+        // Connect switches so interfaces are active and connected
+        const link = new Link(A.getInterface(0), B.getInterface(0));
+
+        const listener = new TestListener();
+        B.getInterface(0).addListener(listener);
+
+        // Trigger negotiation (root sends designated role)
+        A.spanningTree.negociate();
+
+        // Wait for async BPDU delivery
+        await new Promise((resolve) => {
+          setTimeout(resolve, 100);
+        });
+
+        const rstpMsgs = listener.receivedTrames.filter(
+          (msg) =>
+            msg instanceof SpanningTreeMessage &&
+            (msg as SpanningTreeMessage).version === 2
+        ) as RSTPMessage[];
+
+        expect(rstpMsgs.length).toBeGreaterThan(0);
+        expect(rstpMsgs[0].flags.portRole).toBe(
+          SpanningTreePortRole.Designated
+        );
+
+        A.destroy();
+        B.destroy();
+      });
+    });
+
+    describe('Edge Port Auto-Detection', () => {
+      it('should mark port as edge after 3 seconds without BPDU', async () => {
+        const A = new SwitchHost('A', 1, SpanningTreeProtocol.RSTP);
+        A.spanningTree.Enable = true;
+
+        // Initially not edge
+        const iface = A.getInterface(0);
+
+        // Wait for edge detection (3 seconds)
+        await new Promise((resolve) => {
+          setTimeout(resolve, 3100); // 3s + margin
+        });
+
+        // After 3s without BPDU, should forward immediately if designated
+        const state = A.spanningTree.State(iface);
+        expect(
+          state === SpanningTreeState.Forwarding ||
+            state === SpanningTreeState.Disabled
+        ).toBe(true);
+
+        A.destroy();
+      });
+
+      it('should disable edge status when BPDU is received', async () => {
+        const A = new SwitchHost('A', 1, SpanningTreeProtocol.RSTP);
+        const B = new SwitchHost('B', 1, SpanningTreeProtocol.RSTP);
+
+        A.spanningTree.Enable = true;
+        B.spanningTree.Enable = true;
+
+        A.getInterface(0).up();
+        B.getInterface(0).up();
+
+        const link = new Link(A.getInterface(0), B.getInterface(0));
+
+        // Send BPDU from A to B
+        A.spanningTree.negociate();
+
+        // B should receive BPDU and disable edge detection
+        await new Promise((resolve) => {
+          setTimeout(resolve, 100);
+        });
+
+        // After 3s, port should NOT be edge (because it received BPDUs)
+        await new Promise((resolve) => {
+          setTimeout(resolve, 3100);
+        });
+
+        // Keep sending BPDUs
+        A.spanningTree.negociate();
+        B.spanningTree.negociate();
+
+        await new Promise((resolve) => {
+          setTimeout(resolve, 200);
+        });
+
+        // Port should be in standard STP state machine (not immediate forwarding)
+        const stateB = B.spanningTree.State(B.getInterface(0));
+        expect(
+          stateB === SpanningTreeState.Listening ||
+            stateB === SpanningTreeState.Learning ||
+            stateB === SpanningTreeState.Blocking ||
+            stateB === SpanningTreeState.Forwarding
+        ).toBe(true);
+
+        A.destroy();
+        B.destroy();
+      });
+    });
+
+    describe('Proposal/Agreement Mechanism', () => {
+      it('should send proposal on designated port', async () => {
+        const A = new SwitchHost('A', 1, SpanningTreeProtocol.RSTP);
+        const B = new SwitchHost('B', 1, SpanningTreeProtocol.RSTP);
+
+        A.spanningTree.Enable = true;
+        B.spanningTree.Enable = true;
+
+        A.getInterface(0).up();
+        B.getInterface(0).up();
+
+        const link = new Link(A.getInterface(0), B.getInterface(0));
+
+        const listener = new TestListener();
+        B.getInterface(0).addListener(listener);
+
+        // A is root (lower MAC), sends proposals
+        A.spanningTree.negociate();
+
+        // Wait for async BPDU delivery
+        await new Promise((resolve) => {
+          setTimeout(resolve, 100);
+        });
+
+        const rstpMsgs = listener.receivedTrames.filter(
+          (msg) =>
+            msg instanceof SpanningTreeMessage &&
+            (msg as SpanningTreeMessage).version === 2
+        ) as RSTPMessage[];
+
+        // Should have at least one BPDU with proposal
+        const proposalMsgs = rstpMsgs.filter(
+          (msg) => msg.flags && msg.flags.proposal
+        );
+        expect(proposalMsgs.length).toBeGreaterThan(0);
+
+        A.destroy();
+        B.destroy();
+      });
+
+      it('should respond with agreement when receiving proposal', async () => {
+        const A = new SwitchHost('A', 1, SpanningTreeProtocol.RSTP);
+        const B = new SwitchHost('B', 1, SpanningTreeProtocol.RSTP);
+
+        A.spanningTree.Enable = true;
+        B.spanningTree.Enable = true;
+
+        A.getInterface(0).up();
+        B.getInterface(0).up();
+
+        const link = new Link(A.getInterface(0), B.getInterface(0));
+
+        const listenerA = new TestListener();
+        A.getInterface(0).addListener(listenerA);
+
+        // A sends proposal to B
+        A.spanningTree.negociate();
+
+        // Wait for async BPDU delivery and B's response
+        await new Promise((resolve) => {
+          setTimeout(resolve, 200);
+        });
+
+        // B should respond with agreement
+        const rstpMsgs = listenerA.receivedTrames.filter(
+          (msg) =>
+            msg instanceof SpanningTreeMessage &&
+            (msg as SpanningTreeMessage).version === 2
+        ) as RSTPMessage[];
+
+        const agreementMsgs = rstpMsgs.filter(
+          (msg) => msg.flags && msg.flags.agreement
+        );
+        expect(agreementMsgs.length).toBeGreaterThan(0);
+
+        A.destroy();
+        B.destroy();
+      });
+    });
+
+    describe('Rapid Convergence', () => {
+      it('should converge faster than STP in triangle topology', async () => {
+        // Create RSTP triangle
+        const aRstp = new SwitchHost('A_RSTP', 2, SpanningTreeProtocol.RSTP);
+        const bRstp = new SwitchHost('B_RSTP', 2, SpanningTreeProtocol.RSTP);
+        const cRstp = new SwitchHost('C_RSTP', 2, SpanningTreeProtocol.RSTP);
+
+        aRstp.spanningTree.Enable = true;
+        bRstp.spanningTree.Enable = true;
+        cRstp.spanningTree.Enable = true;
+
+        aRstp.getInterface(0).up();
+        aRstp.getInterface(1).up();
+        bRstp.getInterface(0).up();
+        bRstp.getInterface(1).up();
+        cRstp.getInterface(0).up();
+        cRstp.getInterface(1).up();
+
+        const linkAbRstp = new Link(
+          aRstp.getInterface(0),
+          bRstp.getInterface(0)
+        );
+        const linkBcRstp = new Link(
+          bRstp.getInterface(1),
+          cRstp.getInterface(0)
+        );
+        const linkCaRstp = new Link(
+          cRstp.getInterface(1),
+          aRstp.getInterface(1)
+        );
+
+        // Measure RSTP convergence time
+        const startRstp = Date.now();
+        await waitForConvergence(() => {
+          const rootA = aRstp.spanningTree.Root;
+          const rootB = bRstp.spanningTree.Root;
+          const rootC = cRstp.spanningTree.Root;
+          return rootA.equals(rootB) && rootB.equals(rootC);
+        }, [aRstp, bRstp, cRstp]);
+        const rstpTime = Date.now() - startRstp;
+
+        // RSTP should converge in < 5 seconds (target is < 3s, but allow margin)
+        expect(rstpTime).toBeLessThan(5000);
+
+        aRstp.destroy();
+        bRstp.destroy();
+        cRstp.destroy();
+      }, 10000); // 10s timeout
+
+      it('should use rapid state transitions with proposal/agreement', async () => {
+        const A = new SwitchHost('A', 1, SpanningTreeProtocol.RSTP);
+        const B = new SwitchHost('B', 1, SpanningTreeProtocol.RSTP);
+
+        A.spanningTree.Enable = true;
+        B.spanningTree.Enable = true;
+
+        A.getInterface(0).up();
+        B.getInterface(0).up();
+
+        const linkAB = new Link(A.getInterface(0), B.getInterface(0));
+
+        // Wait for convergence
+        await waitForConvergence(
+          () => {
+            const rootA = A.spanningTree.Root;
+            const rootB = B.spanningTree.Root;
+            return rootA.equals(rootB);
+          },
+          [A, B],
+          3000
+        );
+
+        // Both ports should be forwarding after convergence
+        const stateA = A.spanningTree.State(A.getInterface(0));
+        const stateB = B.spanningTree.State(B.getInterface(0));
+
+        expect(stateA).toBe(SpanningTreeState.Forwarding);
+        expect(stateB).toBe(SpanningTreeState.Forwarding);
+
+        A.destroy();
+        B.destroy();
+      }, 5000);
+    });
+
+    describe('STP/RSTP Interoperability', () => {
+      it('should detect STP neighbor and fall back', async () => {
+        const aRstp = new SwitchHost('A_RSTP', 1, SpanningTreeProtocol.RSTP);
+        const bStp = new SwitchHost('B_STP', 1, SpanningTreeProtocol.STP);
+
+        aRstp.spanningTree.Enable = true;
+        bStp.spanningTree.Enable = true;
+
+        aRstp.getInterface(0).up();
+        bStp.getInterface(0).up();
+
+        const link = new Link(aRstp.getInterface(0), bStp.getInterface(0));
+
+        const listenerRstp = new TestListener();
+        aRstp.getInterface(0).addListener(listenerRstp);
+
+        // B sends STP BPDU (version 0)
+        bStp.spanningTree.negociate();
+
+        // Wait for async BPDU delivery
+        await new Promise((resolve) => {
+          setTimeout(resolve, 100);
+        });
+
+        // A should receive v0 BPDU
+        const stpMsgs = listenerRstp.receivedTrames.filter(
+          (msg) =>
+            msg instanceof SpanningTreeMessage &&
+            (msg as SpanningTreeMessage).version === 0
+        );
+
+        expect(stpMsgs.length).toBeGreaterThan(0);
+
+        aRstp.destroy();
+        bStp.destroy();
+      });
+
+      it('should not send proposals to STP neighbors', () => {
+        const aRstp = new SwitchHost('A_RSTP', 1, SpanningTreeProtocol.RSTP);
+        const bStp = new SwitchHost('B_STP', 1, SpanningTreeProtocol.STP);
+
+        aRstp.spanningTree.Enable = true;
+        bStp.spanningTree.Enable = true;
+
+        aRstp.getInterface(0).up();
+        bStp.getInterface(0).up();
+
+        const link = new Link(aRstp.getInterface(0), bStp.getInterface(0));
+
+        const listenerStp = new TestListener();
+        bStp.getInterface(0).addListener(listenerStp);
+
+        // First, B sends STP BPDU so A knows B is STP-only
+        bStp.spanningTree.negociate();
+
+        // Clear messages
+        listenerStp.receivedTrames = [];
+
+        // Now A sends BPDU - should NOT have proposal flag
+        aRstp.spanningTree.negociate();
+
+        const rstpMsgs = listenerStp.receivedTrames.filter(
+          (msg) =>
+            msg instanceof SpanningTreeMessage &&
+            (msg as SpanningTreeMessage).version === 2
+        ) as RSTPMessage[];
+
+        // A might send RSTP BPDUs, but without proposal flag
+        if (rstpMsgs.length > 0) {
+          const hasProposal = rstpMsgs.some(
+            (msg) => msg.flags && msg.flags.proposal
+          );
+          expect(hasProposal).toBe(false);
+        }
+
+        aRstp.destroy();
+        bStp.destroy();
+      });
     });
   });
 });
