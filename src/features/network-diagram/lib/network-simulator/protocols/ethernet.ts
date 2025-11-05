@@ -6,19 +6,7 @@ import type {
 } from '../layers/datalink';
 import { DatalinkMessage, type Payload } from '../message';
 import { ActionHandle, type DatalinkListener } from './base';
-
-// CRC-32 lookup table for Ethernet FCS (IEEE 802.3 polynomial 0x04C11DB7)
-const CRC32_TABLE = (() => {
-  const table: number[] = [];
-  for (let i = 0; i < 256; i++) {
-    let crc = i;
-    for (let j = 0; j < 8; j++) {
-      crc = crc & 1 ? (crc >>> 1) ^ 0xedb88320 : crc >>> 1;
-    }
-    table[i] = crc >>> 0;
-  }
-  return table;
-})();
+import { crc32 } from './checksum';
 
 export class EthernetMessage extends DatalinkMessage {
   public headerChecksum: number = 0;
@@ -44,31 +32,25 @@ export class EthernetMessage extends DatalinkMessage {
 
   public checksum(): number {
     // IEEE 802.3: FCS uses CRC-32 polynomial 0x04C11DB7
-    let crc = 0xffffffff;
+    const bytes: number[] = [];
 
-    // Calculate CRC over destination MAC (6 bytes)
+    // Add destination MAC (6 bytes)
     if (this.macDst) {
       const dstBytes = this.macDst.toString().split(':').map(b => parseInt(b, 16));
-      for (const byte of dstBytes) {
-        crc = (crc >>> 8) ^ CRC32_TABLE[(crc ^ byte) & 0xff];
-      }
+      bytes.push(...dstBytes);
     }
 
-    // Calculate CRC over source MAC (6 bytes)
+    // Add source MAC (6 bytes)
     const srcBytes = this.macSrc.toString().split(':').map(b => parseInt(b, 16));
-    for (const byte of srcBytes) {
-      crc = (crc >>> 8) ^ CRC32_TABLE[(crc ^ byte) & 0xff];
-    }
+    bytes.push(...srcBytes);
 
-    // Calculate CRC over payload
+    // Add payload
     const payloadStr = this.payload.toString();
     for (let i = 0; i < payloadStr.length; i++) {
-      const byte = payloadStr.charCodeAt(i) & 0xff;
-      crc = (crc >>> 8) ^ CRC32_TABLE[(crc ^ byte) & 0xff];
+      bytes.push(payloadStr.charCodeAt(i) & 0xff);
     }
 
-    // Final XOR and return (FCS is the complement)
-    return (crc ^ 0xffffffff) >>> 0;
+    return crc32(bytes);
   }
 
   public isReadyAtEndPoint(iface: HardwareInterface): boolean {

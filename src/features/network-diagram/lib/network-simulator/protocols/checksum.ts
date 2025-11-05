@@ -1,4 +1,16 @@
 /**
+ * Network Protocol Checksums
+ *
+ * This module provides checksum functions used by various network protocols:
+ * - Internet Checksum (RFC 1071): Used by IPv4, ICMP, UDP, TCP
+ * - CRC-32 (IEEE 802.3): Used by Ethernet FCS
+ */
+
+// ============================================================================
+// INTERNET CHECKSUM (RFC 1071)
+// ============================================================================
+
+/**
  * RFC 1071: Computing the Internet Checksum
  * Used by IPv4, ICMP, UDP, TCP, and other Internet protocols
  *
@@ -44,4 +56,52 @@ export function internetChecksumBytes(bytes: number[]): number {
   }
 
   return internetChecksum(words);
+}
+
+// ============================================================================
+// CRC-32 (IEEE 802.3)
+// ============================================================================
+
+/**
+ * CRC-32 lookup table for Ethernet FCS
+ * IEEE 802.3 polynomial: 0x04C11DB7 (reversed: 0xEDB88320)
+ *
+ * Pre-computed table for fast CRC calculation (256 entries × 4 bytes = 1KB)
+ * Generated once and reused for all CRC-32 calculations
+ */
+const CRC32_TABLE = (() => {
+  const table: number[] = [];
+  for (let i = 0; i < 256; i++) {
+    let crc = i;
+    for (let j = 0; j < 8; j++) {
+      // Bitwise magic: if bit 0 is set, shift right and XOR with polynomial
+      crc = crc & 1 ? (crc >>> 1) ^ 0xedb88320 : crc >>> 1;
+    }
+    table[i] = crc >>> 0; // Ensure unsigned 32-bit
+  }
+  return table;
+})();
+
+/**
+ * Calculate CRC-32 checksum (IEEE 802.3)
+ * Used for Ethernet Frame Check Sequence (FCS)
+ *
+ * @param bytes Array of bytes to checksum
+ * @returns 32-bit CRC checksum
+ *
+ * @example
+ * const data = [0x01, 0x02, 0x03, 0x04];
+ * const crc = crc32(data);
+ */
+export function crc32(bytes: number[]): number {
+  let crc = 0xffffffff; // Initial value: all 1s
+
+  // Process each byte using table lookup
+  for (const byte of bytes) {
+    const index = (crc ^ byte) & 0xff;
+    crc = (crc >>> 8) ^ CRC32_TABLE[index];
+  }
+
+  // Final XOR (FCS is the complement)
+  return (crc ^ 0xffffffff) >>> 0;
 }
