@@ -171,7 +171,7 @@ export function useNetworkLinks(
     (
       sourceNodeId: string,
       targetNodeId: string,
-      cableType?: CableUIType
+      _cableType?: CableUIType // Unused: always auto-detect since CableUIType = 'auto'
     ): CreateLinkResult => {
       if (!network || !spy) {
         return {
@@ -334,13 +334,12 @@ export function useNetworkLinks(
       }
 
       // Auto-detect cable type based on device types
-      const detectedCableType =
-        cableType ||
-        detectCableType(
-          sourceSimNode.type as DeviceType,
-          targetSimNode.type as DeviceType
-        );
-      const cableProps = getCableVisualProps(detectedCableType);
+      // Note: cableType parameter is always 'auto' or undefined (CableUIType = 'auto')
+      const actualCableType = detectCableType(
+        sourceSimNode.type as DeviceType,
+        targetSimNode.type as DeviceType
+      );
+      const cableProps = getCableVisualProps(actualCableType);
 
       return {
         success: true,
@@ -348,7 +347,7 @@ export function useNetworkLinks(
         linkId,
         sourcePort: sourceIface.toString(),
         targetPort: targetIface.toString(),
-        cableType: detectedCableType,
+        cableType: 'auto', // Always return 'auto' as it was auto-detected
       };
     },
     [network, spy]

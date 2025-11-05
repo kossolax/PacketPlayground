@@ -88,6 +88,7 @@ export class RouterHost extends NetworkHost implements NetworkListener {
     if (from && !from.hasNetAddress(dst)) {
       // RFC 791: Decrement TTL when forwarding IPv4 packets
       if (message instanceof IPv4Message) {
+        // eslint-disable-next-line no-param-reassign, no-plusplus
         message.ttl--;
 
         // RFC 792: Send ICMP Time Exceeded if TTL reaches 0

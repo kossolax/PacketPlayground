@@ -24,7 +24,7 @@ export class ArpMessage implements Payload {
     // Total for Ethernet/IPv4: 8 + 6 + 4 + 6 + 4 = 28 bytes
     const hardwareAddrLength = 6; // MAC address
     const protocolAddrLength = this.request.length; // IPv4 = 4 bytes
-    return 8 + (hardwareAddrLength * 2) + (protocolAddrLength * 2);
+    return 8 + hardwareAddrLength * 2 + protocolAddrLength * 2;
   }
 
   public toString(): string {
