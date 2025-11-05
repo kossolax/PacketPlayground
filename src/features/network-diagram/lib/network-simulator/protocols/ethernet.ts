@@ -36,12 +36,18 @@ export class EthernetMessage extends DatalinkMessage {
 
     // Add destination MAC (6 bytes)
     if (this.macDst) {
-      const dstBytes = this.macDst.toString().split(':').map(b => parseInt(b, 16));
+      const dstBytes = this.macDst
+        .toString()
+        .split(':')
+        .map((b) => parseInt(b, 16));
       bytes.push(...dstBytes);
     }
 
     // Add source MAC (6 bytes)
-    const srcBytes = this.macSrc.toString().split(':').map(b => parseInt(b, 16));
+    const srcBytes = this.macSrc
+      .toString()
+      .split(':')
+      .map((b) => parseInt(b, 16));
     bytes.push(...srcBytes);
 
     // Add EtherType/Length field (2 bytes)
@@ -52,10 +58,14 @@ export class EthernetMessage extends DatalinkMessage {
 
     if (payloadName.includes('ARP')) {
       etherType = 0x0806; // ARP
-    } else if (payloadName.includes('IPv4') || payloadName.includes('ICMP') || payloadName.includes('DHCP')) {
+    } else if (
+      payloadName.includes('IPv4') ||
+      payloadName.includes('ICMP') ||
+      payloadName.includes('DHCP')
+    ) {
       etherType = 0x0800; // IPv4
     } else if (payloadName.includes('IPv6')) {
-      etherType = 0x86DD; // IPv6
+      etherType = 0x86dd; // IPv6
     } else if (this.payload.length < 1536) {
       // IEEE 802.3: If < 1536, it's a Length field, not EtherType
       etherType = this.payload.length;
@@ -66,7 +76,7 @@ export class EthernetMessage extends DatalinkMessage {
 
     // Add EtherType as big-endian (network byte order)
     bytes.push((etherType >> 8) & 0xff); // High byte
-    bytes.push(etherType & 0xff);        // Low byte
+    bytes.push(etherType & 0xff); // Low byte
 
     // Add payload
     const payloadStr = this.payload.toString();

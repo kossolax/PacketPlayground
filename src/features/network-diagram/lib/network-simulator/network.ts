@@ -3,6 +3,7 @@ import { GenericNode, NetworkHost } from './nodes/generic';
 import { RouterHost } from './nodes/router';
 import { ComputerHost, ServerHost } from './nodes/server';
 import { SwitchHost } from './nodes/switch';
+import { SpanningTreeProtocol } from './services/spanningtree';
 
 /**
  * Network topology representation
@@ -121,9 +122,9 @@ export class Network {
       } else if (type === 'router') {
         node = new RouterHost();
       } else if (type === 'switch') {
-        node = new SwitchHost('', 0, true);
+        node = new SwitchHost('', 0);
       } else if (type === 'hub') {
-        node = new SwitchHost('', 0, false);
+        node = new SwitchHost('', 0, SpanningTreeProtocol.None);
       } else {
         // eslint-disable-next-line no-console
         console.warn(`[Network] Skipping unknown device type: ${type}`);

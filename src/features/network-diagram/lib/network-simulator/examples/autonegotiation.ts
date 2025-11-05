@@ -58,7 +58,7 @@ export default function createAutoNegotiationDemo(): Network {
   pc.getInterface(0).setMacAddress(new MacAddress('AA:BB:CC:DD:EE:10'));
 
   // Create Switch with Gigabit capability (10-1000 Mbps) - default
-  const switchDevice = new SwitchHost('Switch-GigEth', 2, true);
+  const switchDevice = new SwitchHost('Switch-GigEth', 2);
   switchDevice.guid = 'switch-autoneg-demo';
   switchDevice.x = 400;
   switchDevice.y = 200;

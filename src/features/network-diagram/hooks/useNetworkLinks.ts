@@ -9,7 +9,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { InterfaceState } from '../components/edges/CustomEdge';
 import type { DeviceType, Network } from '../lib/network-simulator';
 import { Link, Node as SimNode } from '../lib/network-simulator';
-import type { CableUIType } from '../lib/network-simulator/cables';
+import type { CableUIType, CableType } from '../lib/network-simulator/cables';
 import {
   detectCableType,
   getCableVisualProps,
@@ -32,7 +32,7 @@ interface CreateLinkResult {
   linkId?: string;
   sourcePort?: string;
   targetPort?: string;
-  cableType?: CableUIType;
+  cableType?: CableType;
 }
 
 interface UseNetworkLinksReturn {

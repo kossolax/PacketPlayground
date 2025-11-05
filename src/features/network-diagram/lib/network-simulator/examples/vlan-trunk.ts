@@ -21,7 +21,7 @@ export default function createVLANTrunkExample(): Network {
   const network = new Network();
 
   // Create two switches
-  const switch1 = new SwitchHost('Switch-1', 3, true);
+  const switch1 = new SwitchHost('Switch-1', 3);
   switch1.guid = 'switch1-vlan-example';
   switch1.x = 200;
   switch1.y = 200;
@@ -29,7 +29,7 @@ export default function createVLANTrunkExample(): Network {
   switch1.getInterface(1).up(); // PC-B (VLAN 20)
   switch1.getInterface(2).up(); // Trunk to Switch-2
 
-  const switch2 = new SwitchHost('Switch-2', 3, true);
+  const switch2 = new SwitchHost('Switch-2', 3);
   switch2.guid = 'switch2-vlan-example';
   switch2.x = 500;
   switch2.y = 200;

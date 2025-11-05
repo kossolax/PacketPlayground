@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { SwitchHost } from '../lib/network-simulator/nodes/switch';
+import { SwitchHost } from '../lib/network-simulator/nodes/switch';
 import type { Network } from '../lib/network-simulator/network';
 import {
   SpanningTreeState,
@@ -58,6 +58,9 @@ export default function useStpService(
         return;
       }
 
+      // Assign to const for type narrowing in nested function
+      const currentNetwork = network;
+
       // Find all connected switches in the same broadcast domain using graph traversal
       const visited = new Set<string>();
       const connectedSwitches: SwitchHost[] = [];
@@ -68,7 +71,7 @@ export default function useStpService(
         connectedSwitches.push(currentSwitch);
 
         // Find all links connected to this switch
-        network.links.forEach((link) => {
+        currentNetwork.links.forEach((link) => {
           const iface1 = link.getInterface(0);
           const iface2 = link.getInterface(1);
 

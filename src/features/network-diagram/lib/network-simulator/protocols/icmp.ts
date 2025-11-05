@@ -63,13 +63,14 @@ export class ICMPMessage extends IPv4Message {
 
     // RFC 792: Rest of header (4 bytes - for Echo: Identifier + Sequence)
     words.push(this.identifier & 0xffff); // Identifier (16 bits)
-    words.push(this.sequence & 0xffff);   // Sequence (16 bits)
+    words.push(this.sequence & 0xffff); // Sequence (16 bits)
 
     // Add payload data as 16-bit words
     const payloadStr = this.payload.toString();
     for (let i = 0; i < payloadStr.length; i += 2) {
       const highByte = payloadStr.charCodeAt(i);
-      const lowByte = i + 1 < payloadStr.length ? payloadStr.charCodeAt(i + 1) : 0;
+      const lowByte =
+        i + 1 < payloadStr.length ? payloadStr.charCodeAt(i + 1) : 0;
       words.push(((highByte << 8) | lowByte) & 0xffff);
     }
 
@@ -212,8 +213,8 @@ export class ICMPProtocol implements NetworkListener {
           .setNetSource(message.netDst as IPAddress)
           .setNetDestination(message.netSrc as IPAddress)
           .setIdentification(message.identification)
-          .setIdentifier(message.identifier)  // Copy from request
-          .setSequence(message.sequence)      // Copy from request
+          .setIdentifier(message.identifier) // Copy from request
+          .setSequence(message.sequence) // Copy from request
           .build()[0];
 
         this.iface.sendPacket(reply);

@@ -175,6 +175,16 @@ export class IPAddress extends NetworkAddress {
     return 0;
   }
 
+  public toNumber(): number {
+    const parts = this.address.split('.');
+    return (
+      (parseInt(parts[0], 10) << 24) +
+      (parseInt(parts[1], 10) << 16) +
+      (parseInt(parts[2], 10) << 8) +
+      parseInt(parts[3], 10)
+    );
+  }
+
   public static generateAddress(): IPAddress {
     const ip = new Array(4);
     for (let i = 0; i < 4; i += 1) ip[i] = Math.floor(Math.random() * 256);

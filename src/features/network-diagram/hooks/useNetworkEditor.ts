@@ -32,6 +32,7 @@ import {
   ComputerHost,
 } from '../lib/network-simulator/nodes/server';
 import { SwitchHost } from '../lib/network-simulator/nodes/switch';
+import { SpanningTreeProtocol } from '../lib/network-simulator/services/spanningtree';
 import { RouterHost } from '../lib/network-simulator/nodes/router';
 import type { CableUIType } from '../lib/network-simulator/cables';
 import { useNetworkLinks, type EdgeInterfaceStates } from './useNetworkLinks';
@@ -81,10 +82,10 @@ function createSimulatorNode(device: Device): GenericNode {
       simNode = new RouterHost(name, 2); // Router with 2 interfaces
       break;
     case 'switch':
-      simNode = new SwitchHost(name, 24, true); // Switch with 24 ports, STP enabled
+      simNode = new SwitchHost(name, 24); // Switch with 24 ports, default RPVST
       break;
     case 'hub':
-      simNode = new SwitchHost(name, 8, false); // Hub is a switch with 8 ports
+      simNode = new SwitchHost(name, 8, SpanningTreeProtocol.None); // Hub is a switch with 8 ports, STP disabled
       break;
     case 'server':
       simNode = new ServerHost(name, type, 1); // Server with 1 interface
@@ -236,8 +237,10 @@ export function useNetworkEditor(
 
           // Detect actual cable type based on device types
           const actualCableType = detectCableType(
-            (iface1.Host as unknown as SimNode).type as DeviceType,
-            (iface2.Host as unknown as SimNode).type as DeviceType
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (iface1.Host as unknown as SimNode<any>).type as DeviceType,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (iface2.Host as unknown as SimNode<any>).type as DeviceType
           );
 
           const edge = {
