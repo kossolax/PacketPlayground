@@ -18,7 +18,13 @@ export class ArpMessage implements Payload {
   }
 
   get length(): number {
-    return this.request.length * 2 + 1;
+    // ARP header: 8 bytes (htype, ptype, hlen, plen, oper)
+    // + sender hw addr (6 for MAC) + sender proto addr (request.length for IPv4 = 4)
+    // + target hw addr (6 for MAC) + target proto addr (request.length for IPv4 = 4)
+    // Total for Ethernet/IPv4: 8 + 6 + 4 + 6 + 4 = 28 bytes
+    const hardwareAddrLength = 6; // MAC address
+    const protocolAddrLength = this.request.length; // IPv4 = 4 bytes
+    return 8 + (hardwareAddrLength * 2) + (protocolAddrLength * 2);
   }
 
   public toString(): string {

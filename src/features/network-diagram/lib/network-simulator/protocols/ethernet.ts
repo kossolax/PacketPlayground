@@ -19,7 +19,9 @@ export class EthernetMessage extends DatalinkMessage {
   }
 
   public override get length(): number {
-    return this.payload.length + 16 + this.payload.length;
+    // Ethernet frame: MAC dest (6) + MAC src (6) + EtherType (2) = 14 bytes header
+    // + Payload + FCS/CRC (4 bytes)
+    return 14 + this.payload.length + 4;
   }
 
   public override toString(): string {

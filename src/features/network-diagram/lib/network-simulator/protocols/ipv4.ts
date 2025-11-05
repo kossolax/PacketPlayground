@@ -38,7 +38,10 @@ export class IPv4Message extends NetworkMessage {
   }
 
   override get length(): number {
-    return this.payload.length + 16 + this.payload.length;
+    // IPv4 header length is in 32-bit words (minimum 5 = 20 bytes)
+    // headerLength field contains number of 32-bit words
+    const headerBytes = this.headerLength * 4;
+    return headerBytes + this.payload.length;
   }
 
   public override toString(): string {
