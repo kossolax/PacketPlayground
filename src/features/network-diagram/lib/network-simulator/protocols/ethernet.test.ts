@@ -8,6 +8,7 @@ import { Link } from '../layers/physical';
 import { DatalinkMessage } from '../message';
 import { Dot1QMessage, EthernetMessage, VlanMode } from './ethernet';
 import { SwitchHost } from '../nodes/switch';
+import { SpanningTreeProtocol } from '../services/spanningtree';
 import { RouterHost } from '../nodes/router';
 import { MacAddress } from '../address';
 import { ActionHandle, type DatalinkListener } from './base';
@@ -58,15 +59,16 @@ describe('Ethernet protocol', () => {
   beforeEach(() => {
     Scheduler.getInstance().Speed = SchedulerState.FASTER;
 
-    A = new SwitchHost('A', 2);
+    // Disable STP in test switches to prevent RSTP message interference
+    A = new SwitchHost('A', 2, SpanningTreeProtocol.None);
     A.getInterface(0).up();
     A.getInterface(1).up();
 
-    B = new SwitchHost('B', 2);
+    B = new SwitchHost('B', 2, SpanningTreeProtocol.None);
     B.getInterface(0).up();
     B.getInterface(1).up();
 
-    C = new SwitchHost('C', 2);
+    C = new SwitchHost('C', 2, SpanningTreeProtocol.None);
     C.getInterface(0).up();
     C.getInterface(1).up();
 

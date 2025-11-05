@@ -15,6 +15,7 @@ import {
 import { ServerHost } from '../nodes/server';
 import { RouterHost } from '../nodes/router';
 import { SwitchHost } from '../nodes/switch';
+import { SpanningTreeProtocol } from './spanningtree';
 
 describe('DHCP protocol', () => {
   let A: ServerHost;
@@ -38,7 +39,8 @@ describe('DHCP protocol', () => {
     C.name = 'C';
     C.addInterface().up();
 
-    S = new SwitchHost();
+    // Disable STP in test switch to prevent RSTP message interference
+    S = new SwitchHost('', 0, SpanningTreeProtocol.None);
     S.addInterface().up();
     S.addInterface().up();
     S.addInterface().up();

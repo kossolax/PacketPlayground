@@ -7,6 +7,7 @@ import { Link } from './physical';
 import { MacAddress } from '../address';
 import { AutonegotiationMessage } from '../protocols/autonegotiation';
 import { SwitchHost } from '../nodes/switch';
+import { SpanningTreeProtocol } from '../services/spanningtree';
 import { PhysicalMessage, type DatalinkMessage } from '../message';
 import { HardwareInterface, EthernetInterface } from './datalink';
 import { VlanMode } from '../protocols/ethernet';
@@ -62,17 +63,18 @@ describe('Datalink layer test', () => {
   beforeEach(() => {
     Scheduler.getInstance().Speed = SchedulerState.FASTER;
 
-    A = new SwitchHost('A', 1);
+    // Disable STP in test switches to prevent RSTP message interference
+    A = new SwitchHost('A', 1, SpanningTreeProtocol.None);
     A.getInterfaces().forEach((i) => {
       A.getInterface(i).up();
     });
 
-    B = new SwitchHost('B', 2);
+    B = new SwitchHost('B', 2, SpanningTreeProtocol.None);
     B.getInterfaces().forEach((i) => {
       B.getInterface(i).up();
     });
 
-    C = new SwitchHost('C', 1);
+    C = new SwitchHost('C', 1, SpanningTreeProtocol.None);
     C.getInterfaces().forEach((i) => {
       C.getInterface(i).up();
     });

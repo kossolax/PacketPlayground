@@ -7,6 +7,7 @@ import { Link, type Interface } from './physical';
 import { IPAddress, MacAddress } from '../address';
 import { RouterHost } from '../nodes/router';
 import { SwitchHost } from '../nodes/switch';
+import { SpanningTreeProtocol } from '../services/spanningtree';
 import type { NetworkMessage } from '../message';
 import { ActionHandle, type NetworkListener } from '../protocols/base';
 
@@ -61,7 +62,8 @@ describe('Network layer test', () => {
     A.name = 'A';
     A.addInterface().up();
 
-    B = new SwitchHost();
+    // Disable STP in test switch to prevent RSTP message interference
+    B = new SwitchHost('', 0, SpanningTreeProtocol.None);
     B.name = 'B';
     B.addInterface().up();
     B.addInterface().up();
