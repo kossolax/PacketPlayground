@@ -317,6 +317,42 @@ export class DhcpMessage extends IPv4Message {
       return this;
     }
 
+    // DHCP Options
+    private optionSubnetMask: IPAddress | null = null;
+
+    public setSubnetMask(value: IPAddress): this {
+      this.optionSubnetMask = value;
+      return this;
+    }
+
+    private optionRouter: IPAddress | null = null;
+
+    public setRouter(value: IPAddress): this {
+      this.optionRouter = value;
+      return this;
+    }
+
+    private optionLeaseTime: number | null = null;
+
+    public setLeaseTime(value: number): this {
+      this.optionLeaseTime = value;
+      return this;
+    }
+
+    private optionDhcpServer: IPAddress | null = null;
+
+    public setDhcpServer(value: IPAddress): this {
+      this.optionDhcpServer = value;
+      return this;
+    }
+
+    private optionDnsServers: IPAddress[] | null = null;
+
+    public setDnsServers(value: IPAddress[]): this {
+      this.optionDnsServers = value;
+      return this;
+    }
+
     public override build(): IPv4Message[] {
       if (this.netSrc === null) throw new Error('No source address specified');
       if (this.netDst === null)
@@ -366,6 +402,13 @@ export class DhcpMessage extends IPv4Message {
       message.giaddr = this.giaddr;
       message.chaddr = this.chaddr;
       message.options.type = this.type;
+
+      // RFC 2131: Fill DHCP options
+      message.options.subnetMask = this.optionSubnetMask;
+      message.options.router = this.optionRouter;
+      message.options.leaseTime = this.optionLeaseTime;
+      message.options.dhcpServer = this.optionDhcpServer;
+      message.options.dnsServers = this.optionDnsServers;
 
       return [message];
     }
@@ -510,6 +553,11 @@ export class DhcpServer
                 .setYourAddress(ipAvailable)
                 .setServerAddress(selfIP)
                 .setGatewayAddress(message.giaddr)
+                // RFC 2131: Include DHCP options in response
+                .setSubnetMask(pool.netmaskAddress)
+                .setRouter(pool.gatewayAddress)
+                .setLeaseTime(20)
+                .setDhcpServer(selfIP)
                 .build()[0] as DhcpMessage;
 
               iface.sendPacket(request);
@@ -529,7 +577,11 @@ export class DhcpServer
               .setYourAddress(message.ciaddr)
               .setServerAddress(selfIP)
               .setGatewayAddress(message.giaddr)
-
+              // RFC 2131: Include DHCP options in response
+              .setSubnetMask(pool.netmaskAddress)
+              .setRouter(pool.gatewayAddress)
+              .setLeaseTime(24 * 60 * 60)
+              .setDhcpServer(selfIP)
               .build()[0] as DhcpMessage;
 
             iface.sendPacket(request);

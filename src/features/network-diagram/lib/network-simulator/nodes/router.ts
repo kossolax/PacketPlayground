@@ -8,6 +8,8 @@ import { DhcpServer } from '../services/dhcp';
 import { NetworkHost } from './generic';
 import { NetworkMessage } from '../message';
 import type { NetworkInterface } from '../layers/network';
+import { IPv4Message } from '../protocols/ipv4';
+import { ICMPMessage, ICMPType } from '../protocols/icmp';
 
 export type RoutingTableEntry = {
   network: NetworkAddress;
@@ -84,6 +86,24 @@ export class RouterHost extends NetworkHost implements NetworkListener {
     const dst = message.netDst as NetworkAddress;
 
     if (from && !from.hasNetAddress(dst)) {
+      // RFC 791: Decrement TTL when forwarding IPv4 packets
+      if (message instanceof IPv4Message) {
+        message.ttl--;
+
+        // RFC 792: Send ICMP Time Exceeded if TTL reaches 0
+        if (message.ttl <= 0) {
+          const icmpReply = new ICMPMessage.Builder()
+            .setType(ICMPType.TimeExceeded)
+            .setCode(0) // TTL exceeded in transit
+            .setNetSource(from.getNetAddress() as IPAddress)
+            .setNetDestination(message.netSrc as IPAddress)
+            .build()[0];
+
+          from.sendPacket(icmpReply);
+          return ActionHandle.Handled; // Drop the packet
+        }
+      }
+
       const route = this.getNextHop(dst);
 
       if (route != null) {

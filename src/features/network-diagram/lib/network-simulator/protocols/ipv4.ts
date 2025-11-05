@@ -153,6 +153,10 @@ export class IPv4Message extends NetworkMessage {
       if (this.netDst === null)
         throw new Error('Destination address is not set');
 
+      // RFC 791: Basic validation
+      if (this.ttl <= 0) throw new Error('TTL must be greater than 0');
+      if (this.ttl > 255) throw new Error('TTL must be <= 255');
+
       const messages = [];
 
       let fragment = 0;
@@ -216,6 +220,12 @@ export class IPv4Protocol implements NetworkListener {
 
   public receivePacket(message: NetworkMessage): ActionHandle {
     if (message instanceof IPv4Message) {
+      // RFC 791: Basic validation
+      if (message.version !== 4) {
+        // Drop invalid version packets
+        return ActionHandle.Stop;
+      }
+
       // this packet was not fragmented
       if (message.IsFragmented() === false) {
         return ActionHandle.Continue;
