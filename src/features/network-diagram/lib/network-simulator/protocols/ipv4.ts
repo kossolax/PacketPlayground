@@ -49,21 +49,45 @@ export class IPv4Message extends NetworkMessage {
   }
 
   public checksum(): number {
+    // RFC 791: Internet Checksum - one's complement of the one's complement sum
     let sum = 0;
 
-    sum =
-      Math.imul(31, sum) +
-      (this.version + this.headerLength + this.TOS + this.totalLength);
-    sum =
-      Math.imul(31, sum) +
-      (this.identification +
-        (this.flags.reserved ? 1 : 0) +
-        (this.flags.dontFragment ? 1 : 0) +
-        (this.flags.moreFragments ? 1 : 0) +
-        this.fragmentOffset);
-    sum = Math.imul(31, sum) + (this.ttl + this.protocol);
+    // Version (4 bits) + IHL (4 bits) + TOS (8 bits)
+    sum += ((this.version << 12) | (this.headerLength << 8) | this.TOS) & 0xffff;
 
-    return sum;
+    // Total Length (16 bits)
+    sum += this.totalLength & 0xffff;
+
+    // Identification (16 bits)
+    sum += this.identification & 0xffff;
+
+    // Flags (3 bits) + Fragment Offset (13 bits)
+    const flags =
+      ((this.flags.reserved ? 1 : 0) << 2) |
+      ((this.flags.dontFragment ? 1 : 0) << 1) |
+      (this.flags.moreFragments ? 1 : 0);
+    sum += ((flags << 13) | (this.fragmentOffset & 0x1fff)) & 0xffff;
+
+    // TTL (8 bits) + Protocol (8 bits)
+    sum += ((this.ttl << 8) | this.protocol) & 0xffff;
+
+    // Source IP (32 bits split into 2x 16 bits)
+    const srcNum = (this.netSrc as IPAddress).toNumber();
+    sum += (srcNum >> 16) & 0xffff;
+    sum += srcNum & 0xffff;
+
+    // Destination IP (32 bits split into 2x 16 bits)
+    const dstNum = (this.netDst as IPAddress).toNumber();
+    sum += (dstNum >> 16) & 0xffff;
+    sum += dstNum & 0xffff;
+
+    // Fold 32-bit sum to 16 bits (add carry)
+    while (sum >> 16) {
+      sum = (sum & 0xffff) + (sum >> 16);
+    }
+
+    // One's complement
+    return ~sum & 0xffff;
   }
 
   public IsFragmented(): boolean {
@@ -171,13 +195,20 @@ export class IPv4Message extends NetworkMessage {
         message.ttl = this.ttl;
         message.identification = this.id;
         message.protocol = this.protocol;
-        message.headerChecksum = message.checksum();
-        message.fragmentOffset = fragment;
-        message.totalLength = Math.min(
+        message.TOS = this.service;
+
+        // RFC 791: Fragment Offset is in units of 8 octets (64 bits)
+        message.fragmentOffset = fragment >> 3; // Divide by 8
+
+        // RFC 791: Total Length includes header + data
+        const headerBytes = message.headerLength * 4; // IHL is in 32-bit words
+        const fragmentDataLength = Math.min(
           this.maxSize,
           this.payload.length - fragment
         );
-        message.TOS = this.service;
+        message.totalLength = headerBytes + fragmentDataLength;
+
+        message.headerChecksum = message.checksum();
 
         if (fragment + this.maxSize < this.payload.length)
           message.flags.moreFragments = true;

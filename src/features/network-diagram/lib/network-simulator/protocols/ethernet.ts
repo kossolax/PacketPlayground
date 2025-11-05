@@ -7,6 +7,19 @@ import type {
 import { DatalinkMessage, type Payload } from '../message';
 import { ActionHandle, type DatalinkListener } from './base';
 
+// CRC-32 lookup table for Ethernet FCS (IEEE 802.3 polynomial 0x04C11DB7)
+const CRC32_TABLE = (() => {
+  const table: number[] = [];
+  for (let i = 0; i < 256; i++) {
+    let crc = i;
+    for (let j = 0; j < 8; j++) {
+      crc = crc & 1 ? (crc >>> 1) ^ 0xedb88320 : crc >>> 1;
+    }
+    table[i] = crc >>> 0;
+  }
+  return table;
+})();
+
 export class EthernetMessage extends DatalinkMessage {
   public headerChecksum: number = 0;
 
@@ -30,11 +43,32 @@ export class EthernetMessage extends DatalinkMessage {
   }
 
   public checksum(): number {
-    // Stub implementation - Ethernet uses FCS (Frame Check Sequence) with CRC-32
-    // TODO: Implement proper CRC-32 calculation
-    let sum = 0;
-    sum += this.payload.length;
-    return sum;
+    // IEEE 802.3: FCS uses CRC-32 polynomial 0x04C11DB7
+    let crc = 0xffffffff;
+
+    // Calculate CRC over destination MAC (6 bytes)
+    if (this.macDst) {
+      const dstBytes = this.macDst.toString().split(':').map(b => parseInt(b, 16));
+      for (const byte of dstBytes) {
+        crc = (crc >>> 8) ^ CRC32_TABLE[(crc ^ byte) & 0xff];
+      }
+    }
+
+    // Calculate CRC over source MAC (6 bytes)
+    const srcBytes = this.macSrc.toString().split(':').map(b => parseInt(b, 16));
+    for (const byte of srcBytes) {
+      crc = (crc >>> 8) ^ CRC32_TABLE[(crc ^ byte) & 0xff];
+    }
+
+    // Calculate CRC over payload
+    const payloadStr = this.payload.toString();
+    for (let i = 0; i < payloadStr.length; i++) {
+      const byte = payloadStr.charCodeAt(i) & 0xff;
+      crc = (crc >>> 8) ^ CRC32_TABLE[(crc ^ byte) & 0xff];
+    }
+
+    // Final XOR and return (FCS is the complement)
+    return (crc ^ 0xffffffff) >>> 0;
   }
 
   public isReadyAtEndPoint(iface: HardwareInterface): boolean {
