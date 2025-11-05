@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import type { SwitchHost } from '../../lib/network-simulator/nodes/switch';
+import type { Network } from '../../lib/network-simulator/network';
 import useStpService from '../../hooks/useStpService';
 import {
   SpanningTreeState,
@@ -23,6 +24,7 @@ import {
 
 interface StpServiceConfigProps {
   node: SwitchHost;
+  network?: Network | null;
 }
 
 function getStateColor(state: SpanningTreeState): string {
@@ -57,7 +59,10 @@ function getStateName(state: SpanningTreeState): string {
   }
 }
 
-export default function StpServiceConfig({ node }: StpServiceConfigProps) {
+export default function StpServiceConfig({
+  node,
+  network,
+}: StpServiceConfigProps) {
   const {
     enabled,
     setEnabled,
@@ -68,7 +73,7 @@ export default function StpServiceConfig({ node }: StpServiceConfigProps) {
     getIsRoot,
     getPriority,
     getPortsInfo,
-  } = useStpService(node);
+  } = useStpService(node, network);
 
   return (
     <div className="space-y-6">
@@ -112,15 +117,14 @@ export default function StpServiceConfig({ node }: StpServiceConfigProps) {
                 <SelectItem value={SpanningTreeProtocol.STP}>
                   STP (802.1D)
                 </SelectItem>
+                <SelectItem value={SpanningTreeProtocol.RSTP}>
+                  RSTP (802.1w - Rapid)
+                </SelectItem>
                 <SelectItem value={SpanningTreeProtocol.PVST}>
                   PVST (Per-VLAN STP)
                 </SelectItem>
-                <SelectItem
-                  value={SpanningTreeProtocol.RPVST}
-                  disabled
-                  className="text-muted-foreground"
-                >
-                  Rapid PVST+ (Not implemented)
+                <SelectItem value={SpanningTreeProtocol.RPVST}>
+                  R-PVST (Rapid Per-VLAN)
                 </SelectItem>
                 <SelectItem
                   value={SpanningTreeProtocol.MSTP}

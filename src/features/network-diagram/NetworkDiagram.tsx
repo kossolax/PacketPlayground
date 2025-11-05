@@ -210,6 +210,7 @@ function NetworkDiagramContent({
 
       <DeviceConfigDialog
         node={selectedNodeForConfig}
+        network={network}
         onClose={() => setSelectedNodeForConfig(null)}
       />
     </div>

@@ -6,11 +6,14 @@ import { SwitchHost } from '../nodes/switch';
 import { SpanningTreeProtocol } from '../services/spanningtree';
 
 /**
- * Creates an STP (Spanning Tree Protocol) demonstration topology.
+ * Creates an R-PVST (Rapid Per-VLAN Spanning Tree) demonstration topology.
  *
  * This example creates a triangle of three switches, which forms a loop.
- * STP will automatically detect the loop and block one port to prevent
+ * R-PVST will automatically detect the loop and block one port to prevent
  * broadcast storms. The blocked port will be shown in orange.
+ *
+ * R-PVST combines rapid convergence (RSTP) with per-VLAN independence,
+ * making it the recommended protocol for modern networks.
  *
  * Topology:
  *     PC-1
@@ -27,20 +30,20 @@ export default function createSTPLoopExample(): Network {
   const network = new Network();
 
   // Create three switches in a triangle topology
-  const switchA = new SwitchHost('Switch-A', 4, SpanningTreeProtocol.STP);
+  const switchA = new SwitchHost('Switch-A', 4, SpanningTreeProtocol.RPVST);
   switchA.guid = 'switch-a-example';
   switchA.x = 200;
   switchA.y = 150;
   // Set lowest MAC to make it the root bridge
   switchA.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
 
-  const switchB = new SwitchHost('Switch-B', 4, SpanningTreeProtocol.STP);
+  const switchB = new SwitchHost('Switch-B', 4, SpanningTreeProtocol.RPVST);
   switchB.guid = 'switch-b-example';
   switchB.x = 500;
   switchB.y = 150;
   switchB.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
 
-  const switchC = new SwitchHost('Switch-C', 4, SpanningTreeProtocol.STP);
+  const switchC = new SwitchHost('Switch-C', 4, SpanningTreeProtocol.RPVST);
   switchC.guid = 'switch-c-example';
   switchC.x = 350;
   switchC.y = 400;

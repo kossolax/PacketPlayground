@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 import { ScrollArea } from '@/components/ui/scroll-area';
+import type { Network } from '../../lib/network-simulator';
 import { ServerHost } from '../../lib/network-simulator/nodes/server';
 import { SwitchHost } from '../../lib/network-simulator/nodes/switch';
 import DhcpServiceConfig from './DhcpServiceConfig';
@@ -14,9 +15,10 @@ import StpServiceConfig from './StpServiceConfig';
 
 interface ServiceTabProps {
   node: ServerHost | SwitchHost;
+  network?: Network | null;
 }
 
-export default function ServiceTab({ node }: ServiceTabProps) {
+export default function ServiceTab({ node, network }: ServiceTabProps) {
   const isServer = node instanceof ServerHost;
   const isSwitch = node instanceof SwitchHost;
 
@@ -64,7 +66,7 @@ export default function ServiceTab({ node }: ServiceTabProps) {
       <ScrollArea className="flex-1 overflow-auto">
         {isSwitch && (
           <TabsContent value="stp">
-            <StpServiceConfig node={node} />
+            <StpServiceConfig node={node} network={network} />
           </TabsContent>
         )}
         {isServer && (

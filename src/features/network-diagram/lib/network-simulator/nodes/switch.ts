@@ -50,7 +50,7 @@ export class SwitchHost
   constructor(
     name: string = '',
     iface: number = 0,
-    stpProtocol: SpanningTreeProtocol = SpanningTreeProtocol.None
+    stpProtocol: SpanningTreeProtocol = SpanningTreeProtocol.RPVST
   ) {
     super();
     if (name !== '') this.name = name;

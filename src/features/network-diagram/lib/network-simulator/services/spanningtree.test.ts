@@ -14,6 +14,7 @@ import {
 } from './spanningtree';
 import { MacAddress } from '../address';
 import { SwitchHost } from '../nodes/switch';
+import { RouterHost } from '../nodes/router';
 import { ActionHandle, type DatalinkListener } from '../protocols/base';
 import type { DatalinkMessage } from '../message';
 import type { HardwareInterface } from '../layers/datalink';
@@ -62,7 +63,7 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
     let A: SwitchHost;
 
     beforeEach(() => {
-      A = new SwitchHost('A', 3);
+      A = new SwitchHost('A', 3, SpanningTreeProtocol.STP);
       A.spanningTree.Enable = true;
     });
 
@@ -138,7 +139,7 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
     });
 
     it('should elect switch with lowest Bridge ID as root', async () => {
-      const B = new SwitchHost('B', 1);
+      const B = new SwitchHost('B', 1, SpanningTreeProtocol.STP);
       B.spanningTree.Enable = true;
 
       // Set A's MAC to be lower than B's
@@ -804,9 +805,9 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
     });
 
     it('should advertise root path cost, not interface cost', async () => {
-      const A = new SwitchHost('A', 1);
-      const B = new SwitchHost('B', 2);
-      const C = new SwitchHost('C', 1);
+      const A = new SwitchHost('A', 1, SpanningTreeProtocol.STP);
+      const B = new SwitchHost('B', 2, SpanningTreeProtocol.STP);
+      const C = new SwitchHost('C', 1, SpanningTreeProtocol.STP);
 
       A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
       B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
@@ -2347,6 +2348,316 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
 
         A.destroy();
       });
+    });
+  });
+
+  describe('Protocol Propagation', () => {
+    it('should propagate protocol change to all connected switches in broadcast domain', () => {
+      // Create a network topology: A -- B -- C    D (isolated)
+      const A = new SwitchHost('A', 1, SpanningTreeProtocol.STP);
+      const B = new SwitchHost('B', 2, SpanningTreeProtocol.STP);
+      const C = new SwitchHost('C', 1, SpanningTreeProtocol.STP);
+      const D = new SwitchHost('D', 1, SpanningTreeProtocol.STP);
+
+      A.getInterface(0).up();
+      B.getInterface(0).up();
+      B.getInterface(1).up();
+      C.getInterface(0).up();
+      D.getInterface(0).up();
+
+      const linkAB = new Link(A.getInterface(0), B.getInterface(0));
+      const linkBC = new Link(B.getInterface(1), C.getInterface(0));
+
+      // Create a Network object to simulate the topology
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const network: any = {
+        nodes: {
+          A,
+          B,
+          C,
+          D,
+        },
+        links: [linkAB, linkBC],
+      };
+
+      // Verify initial state - all switches are STP
+      expect(A.getStpProtocol()).toBe(SpanningTreeProtocol.STP);
+      expect(B.getStpProtocol()).toBe(SpanningTreeProtocol.STP);
+      expect(C.getStpProtocol()).toBe(SpanningTreeProtocol.STP);
+      expect(D.getStpProtocol()).toBe(SpanningTreeProtocol.STP);
+
+      // Simulate protocol propagation logic (same as in useStpService hook)
+      const newProtocol = SpanningTreeProtocol.RSTP;
+      const visited = new Set<string>();
+      const connectedSwitches: SwitchHost[] = [];
+
+      function traverse(currentSwitch: SwitchHost) {
+        if (visited.has(currentSwitch.guid)) return;
+        visited.add(currentSwitch.guid);
+        connectedSwitches.push(currentSwitch);
+
+        // Find all links connected to this switch
+        network.links.forEach((link: Link) => {
+          const iface1 = link.getInterface(0);
+          const iface2 = link.getInterface(1);
+
+          // Check if link connects to current switch and find the other end
+          if (
+            iface1?.Host === currentSwitch &&
+            iface2?.Host instanceof SwitchHost
+          ) {
+            traverse(iface2.Host as SwitchHost);
+          } else if (
+            iface2?.Host === currentSwitch &&
+            iface1?.Host instanceof SwitchHost
+          ) {
+            traverse(iface1.Host as SwitchHost);
+          }
+        });
+      }
+
+      // Start traversal from switch A
+      traverse(A);
+
+      // Apply protocol to all connected switches
+      connectedSwitches.forEach((sw) => {
+        sw.setStpProtocol(newProtocol);
+      });
+
+      // Verify that connected switches (A, B, C) changed to RSTP
+      expect(A.getStpProtocol()).toBe(SpanningTreeProtocol.RSTP);
+      expect(B.getStpProtocol()).toBe(SpanningTreeProtocol.RSTP);
+      expect(C.getStpProtocol()).toBe(SpanningTreeProtocol.RSTP);
+
+      // Verify that isolated switch D remained STP
+      expect(D.getStpProtocol()).toBe(SpanningTreeProtocol.STP);
+
+      // Verify that exactly 3 switches were found in the connected topology
+      expect(connectedSwitches.length).toBe(3);
+      expect(connectedSwitches).toContain(A);
+      expect(connectedSwitches).toContain(B);
+      expect(connectedSwitches).toContain(C);
+      expect(connectedSwitches).not.toContain(D);
+
+      // Cleanup
+      A.destroy();
+      B.destroy();
+      C.destroy();
+      D.destroy();
+    });
+
+    it('should handle complex topology with multiple branches', () => {
+      // Create a star topology: B -- A -- C
+      //                              |
+      //                              D
+      const A = new SwitchHost('A', 3, SpanningTreeProtocol.PVST);
+      const B = new SwitchHost('B', 1, SpanningTreeProtocol.PVST);
+      const C = new SwitchHost('C', 1, SpanningTreeProtocol.PVST);
+      const D = new SwitchHost('D', 1, SpanningTreeProtocol.PVST);
+
+      A.getInterface(0).up();
+      A.getInterface(1).up();
+      A.getInterface(2).up();
+      B.getInterface(0).up();
+      C.getInterface(0).up();
+      D.getInterface(0).up();
+
+      const linkAB = new Link(A.getInterface(0), B.getInterface(0));
+      const linkAC = new Link(A.getInterface(1), C.getInterface(0));
+      const linkAD = new Link(A.getInterface(2), D.getInterface(0));
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const network: any = {
+        nodes: { A, B, C, D },
+        links: [linkAB, linkAC, linkAD],
+      };
+
+      // Change protocol starting from a leaf node (B)
+      const newProtocol = SpanningTreeProtocol.RPVST;
+      const visited = new Set<string>();
+      const connectedSwitches: SwitchHost[] = [];
+
+      function traverse(currentSwitch: SwitchHost) {
+        if (visited.has(currentSwitch.guid)) return;
+        visited.add(currentSwitch.guid);
+        connectedSwitches.push(currentSwitch);
+
+        network.links.forEach((link: Link) => {
+          const iface1 = link.getInterface(0);
+          const iface2 = link.getInterface(1);
+
+          if (
+            iface1?.Host === currentSwitch &&
+            iface2?.Host instanceof SwitchHost
+          ) {
+            traverse(iface2.Host as SwitchHost);
+          } else if (
+            iface2?.Host === currentSwitch &&
+            iface1?.Host instanceof SwitchHost
+          ) {
+            traverse(iface1.Host as SwitchHost);
+          }
+        });
+      }
+
+      // Start from B - should find all 4 switches
+      traverse(B);
+
+      connectedSwitches.forEach((sw) => {
+        sw.setStpProtocol(newProtocol);
+      });
+
+      // All switches should have changed
+      expect(A.getStpProtocol()).toBe(SpanningTreeProtocol.RPVST);
+      expect(B.getStpProtocol()).toBe(SpanningTreeProtocol.RPVST);
+      expect(C.getStpProtocol()).toBe(SpanningTreeProtocol.RPVST);
+      expect(D.getStpProtocol()).toBe(SpanningTreeProtocol.RPVST);
+
+      expect(connectedSwitches.length).toBe(4);
+
+      // Cleanup
+      A.destroy();
+      B.destroy();
+      C.destroy();
+      D.destroy();
+    });
+
+    it('should handle single isolated switch', () => {
+      const A = new SwitchHost('A', 1, SpanningTreeProtocol.STP);
+      A.getInterface(0).up();
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const network: any = {
+        nodes: { A },
+        links: [],
+      };
+
+      const newProtocol = SpanningTreeProtocol.RSTP;
+      const visited = new Set<string>();
+      const connectedSwitches: SwitchHost[] = [];
+
+      function traverse(currentSwitch: SwitchHost) {
+        if (visited.has(currentSwitch.guid)) return;
+        visited.add(currentSwitch.guid);
+        connectedSwitches.push(currentSwitch);
+
+        network.links.forEach((link: Link) => {
+          const iface1 = link.getInterface(0);
+          const iface2 = link.getInterface(1);
+
+          if (
+            iface1?.Host === currentSwitch &&
+            iface2?.Host instanceof SwitchHost
+          ) {
+            traverse(iface2.Host as SwitchHost);
+          } else if (
+            iface2?.Host === currentSwitch &&
+            iface1?.Host instanceof SwitchHost
+          ) {
+            traverse(iface1.Host as SwitchHost);
+          }
+        });
+      }
+
+      traverse(A);
+
+      connectedSwitches.forEach((sw) => {
+        sw.setStpProtocol(newProtocol);
+      });
+
+      // Should find only the single switch
+      expect(connectedSwitches.length).toBe(1);
+      expect(connectedSwitches[0]).toBe(A);
+      expect(A.getStpProtocol()).toBe(SpanningTreeProtocol.RSTP);
+
+      A.destroy();
+    });
+
+    it('should NOT propagate across router boundaries (different broadcast domains)', () => {
+      // Create topology: Switch A -- Switch B -- Router -- Switch C
+      // A and B are in same broadcast domain
+      // C is in different broadcast domain (separated by router)
+      const A = new SwitchHost('A', 1, SpanningTreeProtocol.STP);
+      const B = new SwitchHost('B', 2, SpanningTreeProtocol.STP);
+      const C = new SwitchHost('C', 1, SpanningTreeProtocol.STP);
+      const Router = new RouterHost('Router', 2);
+
+      A.getInterface(0).up();
+      B.getInterface(0).up();
+      B.getInterface(1).up();
+      Router.getInterface(0).up();
+      Router.getInterface(1).up();
+      C.getInterface(0).up();
+
+      const linkAB = new Link(A.getInterface(0), B.getInterface(0));
+      const linkBRouter = new Link(B.getInterface(1), Router.getInterface(0));
+      const linkRouterC = new Link(Router.getInterface(1), C.getInterface(0));
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const network: any = {
+        nodes: { A, B, Router, C },
+        links: [linkAB, linkBRouter, linkRouterC],
+      };
+
+      // Verify initial state - all switches are STP
+      expect(A.getStpProtocol()).toBe(SpanningTreeProtocol.STP);
+      expect(B.getStpProtocol()).toBe(SpanningTreeProtocol.STP);
+      expect(C.getStpProtocol()).toBe(SpanningTreeProtocol.STP);
+
+      // Simulate protocol propagation starting from Switch A
+      const newProtocol = SpanningTreeProtocol.RSTP;
+      const visited = new Set<string>();
+      const connectedSwitches: SwitchHost[] = [];
+
+      function traverse(currentSwitch: SwitchHost) {
+        if (visited.has(currentSwitch.guid)) return;
+        visited.add(currentSwitch.guid);
+        connectedSwitches.push(currentSwitch);
+
+        network.links.forEach((link: Link) => {
+          const iface1 = link.getInterface(0);
+          const iface2 = link.getInterface(1);
+
+          // Only traverse to other switches (not routers or other devices)
+          if (
+            iface1?.Host === currentSwitch &&
+            iface2?.Host instanceof SwitchHost
+          ) {
+            traverse(iface2.Host as SwitchHost);
+          } else if (
+            iface2?.Host === currentSwitch &&
+            iface1?.Host instanceof SwitchHost
+          ) {
+            traverse(iface1.Host as SwitchHost);
+          }
+        });
+      }
+
+      // Start from Switch A
+      traverse(A);
+
+      // Apply protocol to all connected switches
+      connectedSwitches.forEach((sw) => {
+        sw.setStpProtocol(newProtocol);
+      });
+
+      // Verify that only A and B changed (same broadcast domain)
+      expect(A.getStpProtocol()).toBe(SpanningTreeProtocol.RSTP);
+      expect(B.getStpProtocol()).toBe(SpanningTreeProtocol.RSTP);
+
+      // Verify that C remained STP (different broadcast domain)
+      expect(C.getStpProtocol()).toBe(SpanningTreeProtocol.STP);
+
+      // Should only find 2 switches (A and B)
+      expect(connectedSwitches.length).toBe(2);
+      expect(connectedSwitches).toContain(A);
+      expect(connectedSwitches).toContain(B);
+      expect(connectedSwitches).not.toContain(C);
+
+      // Cleanup
+      A.destroy();
+      B.destroy();
+      C.destroy();
     });
   });
 });

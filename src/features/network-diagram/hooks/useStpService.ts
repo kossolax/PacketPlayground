@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { SwitchHost } from '../lib/network-simulator/nodes/switch';
+import type { Network } from '../lib/network-simulator/network';
 import {
   SpanningTreeState,
   SpanningTreeProtocol,
@@ -12,7 +13,10 @@ export interface StpPortInfo {
   cost: number;
 }
 
-export default function useStpService(node: SwitchHost) {
+export default function useStpService(
+  node: SwitchHost,
+  network?: Network | null
+) {
   const [enabled, setEnabled] = useState(node.spanningTree.Enable);
   const [protocol, setProtocolState] = useState(node.getStpProtocol());
 
@@ -45,9 +49,57 @@ export default function useStpService(node: SwitchHost) {
   const getIsRoot = (): boolean => node.spanningTree.IsRoot;
 
   // Set the spanning tree protocol type
-  const setProtocol = (newProtocol: SpanningTreeProtocol): void => {
-    setProtocolState(newProtocol);
-  };
+  // Automatically applies to all connected switches in the same broadcast domain
+  const setProtocol = useCallback(
+    (newProtocol: SpanningTreeProtocol): void => {
+      if (!network) {
+        // Fallback: only update current switch if network not available
+        setProtocolState(newProtocol);
+        return;
+      }
+
+      // Find all connected switches in the same broadcast domain using graph traversal
+      const visited = new Set<string>();
+      const connectedSwitches: SwitchHost[] = [];
+
+      function traverse(currentSwitch: SwitchHost) {
+        if (visited.has(currentSwitch.guid)) return;
+        visited.add(currentSwitch.guid);
+        connectedSwitches.push(currentSwitch);
+
+        // Find all links connected to this switch
+        network.links.forEach((link) => {
+          const iface1 = link.getInterface(0);
+          const iface2 = link.getInterface(1);
+
+          // Check if link connects to current switch and find the other end
+          if (
+            iface1?.Host === currentSwitch &&
+            iface2?.Host instanceof SwitchHost
+          ) {
+            traverse(iface2.Host as SwitchHost);
+          } else if (
+            iface2?.Host === currentSwitch &&
+            iface1?.Host instanceof SwitchHost
+          ) {
+            traverse(iface1.Host as SwitchHost);
+          }
+        });
+      }
+
+      // Start traversal from current switch
+      traverse(node);
+
+      // Apply protocol to all connected switches
+      connectedSwitches.forEach((sw) => {
+        sw.setStpProtocol(newProtocol);
+      });
+
+      // Update UI state for current switch
+      setProtocolState(newProtocol);
+    },
+    [network, node]
+  );
 
   // Get priority (default STP priority is 32768)
   const getPriority = (): number => 32768;
