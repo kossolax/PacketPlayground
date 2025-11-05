@@ -158,11 +158,24 @@ export class SwitchHost
 
     const sourceInterface = from as HardwareInterface;
 
-    if (this.spanningTree.State(sourceInterface) === SpanningTreeState.Blocking)
+    // Extract VLAN ID early for per-VLAN STP checks
+    let vlanId = (sourceInterface as Dot1QInterface).NativeVlan;
+    if (message instanceof Dot1QMessage) {
+      vlanId = message.vlanId;
+    } else {
+      const [firstVlan] = (sourceInterface as Dot1QInterface).Vlan;
+      vlanId = firstVlan;
+    }
+
+    // Check STP state for this VLAN
+    if (
+      this.spanningTree.State(sourceInterface, vlanId) ===
+      SpanningTreeState.Blocking
+    )
       return ActionHandle.Stop;
 
     // Also check port role - non-forwarding roles drop all data frames
-    const sourceRole = this.spanningTree.Role(sourceInterface);
+    const sourceRole = this.spanningTree.Role(sourceInterface, vlanId);
     if (
       sourceRole === SpanningTreePortRole.Blocked ||
       sourceRole === SpanningTreePortRole.Alternate ||
@@ -171,7 +184,8 @@ export class SwitchHost
       return ActionHandle.Stop;
 
     if (
-      this.spanningTree.State(sourceInterface) === SpanningTreeState.Listening
+      this.spanningTree.State(sourceInterface, vlanId) ===
+      SpanningTreeState.Listening
     )
       return ActionHandle.Handled;
 
@@ -181,16 +195,11 @@ export class SwitchHost
     // Learn source MAC address
     this.learnMAC(src, sourceInterface);
 
-    if (this.spanningTree.State(sourceInterface) === SpanningTreeState.Learning)
+    if (
+      this.spanningTree.State(sourceInterface, vlanId) ===
+      SpanningTreeState.Learning
+    )
       return ActionHandle.Handled;
-
-    let vlanId = (sourceInterface as Dot1QInterface).NativeVlan;
-    if (message instanceof Dot1QMessage) {
-      vlanId = message.vlanId;
-    } else {
-      const [firstVlan] = (sourceInterface as Dot1QInterface).Vlan;
-      vlanId = firstVlan;
-    }
 
     const interfaces: Dot1QInterface[] = [];
     if (dst.isBroadcast || this.ARPTable.get(dst.toString()) === undefined) {
@@ -223,10 +232,11 @@ export class SwitchHost
     interfaces.forEach((iface) => {
       let msg: DatalinkMessage = message;
 
-      // Check both state and role - non-forwarding roles/states drop frames
-      if (this.spanningTree.State(iface) === SpanningTreeState.Blocking) return;
+      // Check both state and role - non-forwarding roles/states drop frames (per-VLAN)
+      if (this.spanningTree.State(iface, vlanId) === SpanningTreeState.Blocking)
+        return;
 
-      const ifaceRole = this.spanningTree.Role(iface);
+      const ifaceRole = this.spanningTree.Role(iface, vlanId);
       if (
         ifaceRole === SpanningTreePortRole.Blocked ||
         ifaceRole === SpanningTreePortRole.Alternate ||

@@ -14,12 +14,18 @@ export interface StpPortInfo {
 
 export default function useStpService(node: SwitchHost) {
   const [enabled, setEnabled] = useState(node.spanningTree.Enable);
+  const [protocol, setProtocolState] = useState(node.getStpProtocol());
 
   // Sync with backend when enabled changes
   useEffect(() => {
     // eslint-disable-next-line no-param-reassign
     node.spanningTree.Enable = enabled;
   }, [enabled, node]);
+
+  // Sync with backend when protocol changes
+  useEffect(() => {
+    node.setStpProtocol(protocol);
+  }, [protocol, node]);
 
   // Get bridge ID (MAC address)
   // Bridge ID is the lowest MAC address of all interfaces
@@ -38,8 +44,10 @@ export default function useStpService(node: SwitchHost) {
   // Check if this switch is the root bridge
   const getIsRoot = (): boolean => node.spanningTree.IsRoot;
 
-  // Get the spanning tree protocol type
-  const getProtocol = (): SpanningTreeProtocol => node.getStpProtocol();
+  // Set the spanning tree protocol type
+  const setProtocol = (newProtocol: SpanningTreeProtocol): void => {
+    setProtocolState(newProtocol);
+  };
 
   // Get priority (default STP priority is 32768)
   const getPriority = (): number => 32768;
@@ -88,10 +96,11 @@ export default function useStpService(node: SwitchHost) {
   return {
     enabled,
     setEnabled,
+    protocol,
+    setProtocol,
     getBridgeId,
     getRootId,
     getIsRoot,
-    getProtocol,
     getPriority,
     getPortsInfo,
   };

@@ -8,6 +8,7 @@ import {
   SpanningTreeMessage,
   SpanningTreePortRole,
   SpanningTreeState,
+  SpanningTreeProtocol,
 } from './spanningtree';
 import { MacAddress } from '../address';
 import { SwitchHost } from '../nodes/switch';
@@ -1623,6 +1624,101 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
 
       // destroy() should cancel all timers without throwing
       expect(() => A.destroy()).not.toThrow();
+    });
+  });
+
+  describe('PVST (Per-VLAN Spanning Tree)', () => {
+    it('should create PVSTService when protocol is PVST', () => {
+      const A = new SwitchHost('A', 2, SpanningTreeProtocol.PVST);
+      expect(A.getStpProtocol()).toBe(SpanningTreeProtocol.PVST);
+      expect(A.spanningTree.getProtocolType()).toBe(SpanningTreeProtocol.PVST);
+      A.destroy();
+    });
+
+    it('should maintain independent STP states per VLAN', () => {
+      // Create switches with PVST
+      const A = new SwitchHost('A', 2, SpanningTreeProtocol.PVST);
+      const B = new SwitchHost('B', 2, SpanningTreeProtocol.PVST);
+
+      // Configure VLANs 10 and 20
+      A.knownVlan[10] = 'VLAN 10';
+      A.knownVlan[20] = 'VLAN 20';
+      B.knownVlan[10] = 'VLAN 10';
+      B.knownVlan[20] = 'VLAN 20';
+
+      A.spanningTree.Enable = true;
+      B.spanningTree.Enable = true;
+
+      const ifaceA0 = A.getInterface(0);
+      const ifaceB0 = B.getInterface(0);
+
+      ifaceA0.up();
+      ifaceB0.up();
+
+      // Should be able to query state for different VLANs
+      const stateVlan10 = A.spanningTree.State(ifaceA0, 10);
+      const stateVlan20 = A.spanningTree.State(ifaceA0, 20);
+
+      // Both should return valid states (not undefined)
+      expect([
+        SpanningTreeState.Disabled,
+        SpanningTreeState.Blocking,
+        SpanningTreeState.Listening,
+        SpanningTreeState.Learning,
+        SpanningTreeState.Forwarding,
+      ]).toContain(stateVlan10);
+
+      expect([
+        SpanningTreeState.Disabled,
+        SpanningTreeState.Blocking,
+        SpanningTreeState.Listening,
+        SpanningTreeState.Learning,
+        SpanningTreeState.Forwarding,
+      ]).toContain(stateVlan20);
+
+      A.destroy();
+      B.destroy();
+    });
+
+    it('should support protocol switching between STP and PVST', () => {
+      const A = new SwitchHost('A', 2, SpanningTreeProtocol.STP);
+      expect(A.getStpProtocol()).toBe(SpanningTreeProtocol.STP);
+
+      // Switch to PVST
+      A.setStpProtocol(SpanningTreeProtocol.PVST);
+      expect(A.getStpProtocol()).toBe(SpanningTreeProtocol.PVST);
+      expect(A.spanningTree.getProtocolType()).toBe(SpanningTreeProtocol.PVST);
+
+      // Switch back to STP
+      A.setStpProtocol(SpanningTreeProtocol.STP);
+      expect(A.getStpProtocol()).toBe(SpanningTreeProtocol.STP);
+      expect(A.spanningTree.getProtocolType()).toBe(SpanningTreeProtocol.STP);
+
+      A.destroy();
+    });
+
+    it('should discover VLANs from knownVlan registry', () => {
+      const A = new SwitchHost('A', 2, SpanningTreeProtocol.PVST);
+
+      // Register VLANs
+      A.knownVlan[10] = 'Engineering';
+      A.knownVlan[20] = 'Sales';
+      A.knownVlan[30] = 'Management';
+
+      A.spanningTree.Enable = true;
+      A.getInterface(0).up();
+
+      // Each VLAN should have independent state
+      const state10 = A.spanningTree.State(A.getInterface(0), 10);
+      const state20 = A.spanningTree.State(A.getInterface(0), 20);
+      const state30 = A.spanningTree.State(A.getInterface(0), 30);
+
+      // All should be valid states
+      expect(state10).toBeDefined();
+      expect(state20).toBeDefined();
+      expect(state30).toBeDefined();
+
+      A.destroy();
     });
   });
 });

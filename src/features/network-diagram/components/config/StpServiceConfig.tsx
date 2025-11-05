@@ -7,6 +7,13 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import type { SwitchHost } from '../../lib/network-simulator/nodes/switch';
 import useStpService from '../../hooks/useStpService';
 import {
@@ -50,31 +57,15 @@ function getStateName(state: SpanningTreeState): string {
   }
 }
 
-function getProtocolName(protocol: SpanningTreeProtocol): string {
-  switch (protocol) {
-    case SpanningTreeProtocol.None:
-      return 'Disabled';
-    case SpanningTreeProtocol.STP:
-      return 'STP (802.1D)';
-    case SpanningTreeProtocol.PVST:
-      return 'PVST+';
-    case SpanningTreeProtocol.RPVST:
-      return 'Rapid PVST+';
-    case SpanningTreeProtocol.MSTP:
-      return 'MSTP (802.1s)';
-    default:
-      return 'Unknown';
-  }
-}
-
 export default function StpServiceConfig({ node }: StpServiceConfigProps) {
   const {
     enabled,
     setEnabled,
+    protocol,
+    setProtocol,
     getBridgeId,
     getRootId,
     getIsRoot,
-    getProtocol,
     getPriority,
     getPortsInfo,
   } = useStpService(node);
@@ -83,10 +74,7 @@ export default function StpServiceConfig({ node }: StpServiceConfigProps) {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Spanning Tree Protocol</CardTitle>
-            <Badge variant="secondary">{getProtocolName(getProtocol())}</Badge>
-          </div>
+          <CardTitle>Spanning Tree Protocol</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
@@ -101,6 +89,48 @@ export default function StpServiceConfig({ node }: StpServiceConfigProps) {
               checked={enabled}
               onCheckedChange={setEnabled}
             />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="stp-protocol">Protocol Type</Label>
+              <p className="text-muted-foreground text-xs">
+                Choose the spanning tree protocol variant for this switch
+              </p>
+            </div>
+            <Select
+              value={protocol}
+              onValueChange={(value) =>
+                setProtocol(value as SpanningTreeProtocol)
+              }
+              disabled={!enabled}
+            >
+              <SelectTrigger id="stp-protocol" className="w-[240px]">
+                <SelectValue placeholder="Select protocol" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={SpanningTreeProtocol.STP}>
+                  STP (802.1D)
+                </SelectItem>
+                <SelectItem value={SpanningTreeProtocol.PVST}>
+                  PVST (Per-VLAN STP)
+                </SelectItem>
+                <SelectItem
+                  value={SpanningTreeProtocol.RPVST}
+                  disabled
+                  className="text-muted-foreground"
+                >
+                  Rapid PVST+ (Not implemented)
+                </SelectItem>
+                <SelectItem
+                  value={SpanningTreeProtocol.MSTP}
+                  disabled
+                  className="text-muted-foreground"
+                >
+                  MSTP (Not implemented)
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
