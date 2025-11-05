@@ -179,41 +179,78 @@ export class IPv4Message extends NetworkMessage {
       if (this.ttl <= 0) throw new Error('TTL must be greater than 0');
       if (this.ttl > 255) throw new Error('TTL must be <= 255');
 
-      const messages = [];
+      // Convert payload to string for fragmentation
+      const payloadStr = typeof this.payload === 'string'
+        ? this.payload
+        : this.payload.toString();
+      const payloadLength = payloadStr.length;
 
-      let fragment = 0;
-      do {
-        // payload doesn't support splicing.
-        // so we put the payload on the first message, the others are left empty
-        let payload: string | Payload = '';
-        if (fragment === 0) payload = this.payload;
+      // RFC 791: Header size (minimum 20 bytes for no options)
+      const headerBytes = this.protocol === 1 ? 20 : 20; // IHL=5 → 5*4=20 bytes
 
-        const message = new IPv4Message(payload, this.netSrc, this.netDst);
+      // RFC 791: Calculate maximum payload per fragment
+      // Fragment data must be multiple of 8 bytes (except last fragment)
+      const maxDataPerFragment = Math.floor((this.maxSize - headerBytes) / 8) * 8;
 
+      // If no fragmentation needed, return single packet
+      if (headerBytes + payloadLength <= this.maxSize) {
+        const message = new IPv4Message(this.payload, this.netSrc, this.netDst);
+        message.ttl = this.ttl;
+        message.identification = this.id;
+        message.protocol = this.protocol;
+        message.TOS = this.service;
+        message.fragmentOffset = 0;
+        message.flags.moreFragments = false;
+        message.totalLength = headerBytes + payloadLength;
+        message.headerChecksum = message.checksum();
+        return [message];
+      }
+
+      // RFC 791: Fragment the payload
+      const messages: IPv4Message[] = [];
+      let byteOffset = 0;
+
+      while (byteOffset < payloadLength) {
+        // Calculate data size for this fragment
+        const remainingBytes = payloadLength - byteOffset;
+        let fragmentDataSize: number;
+
+        // RFC 791: All fragments except last must have data size multiple of 8
+        const isLastFragment = remainingBytes <= maxDataPerFragment;
+        if (isLastFragment) {
+          fragmentDataSize = remainingBytes;
+        } else {
+          fragmentDataSize = maxDataPerFragment;
+        }
+
+        // Extract fragment payload
+        const fragmentPayload = payloadStr.substring(
+          byteOffset,
+          byteOffset + fragmentDataSize
+        );
+
+        // Create fragment message
+        const message = new IPv4Message(fragmentPayload, this.netSrc, this.netDst);
         message.ttl = this.ttl;
         message.identification = this.id;
         message.protocol = this.protocol;
         message.TOS = this.service;
 
-        // RFC 791: Fragment Offset is in units of 8 octets (64 bits)
-        message.fragmentOffset = fragment >> 3; // Divide by 8
+        // RFC 791: Fragment Offset is in units of 8 octets
+        message.fragmentOffset = byteOffset / 8;
 
-        // RFC 791: Total Length includes header + data
-        const headerBytes = message.headerLength * 4; // IHL is in 32-bit words
-        const fragmentDataLength = Math.min(
-          this.maxSize,
-          this.payload.length - fragment
-        );
-        message.totalLength = headerBytes + fragmentDataLength;
+        // RFC 791: Set More Fragments flag
+        message.flags.moreFragments = !isLastFragment;
 
+        // RFC 791: Total Length = header + data for THIS fragment
+        message.totalLength = headerBytes + fragmentDataSize;
+
+        // Calculate checksum
         message.headerChecksum = message.checksum();
 
-        if (fragment + this.maxSize < this.payload.length)
-          message.flags.moreFragments = true;
-
         messages.push(message);
-        fragment += this.maxSize;
-      } while (fragment < this.payload.length);
+        byteOffset += fragmentDataSize;
+      }
 
       return messages;
     }
