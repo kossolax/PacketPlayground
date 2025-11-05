@@ -351,7 +351,7 @@ export class DhcpMessage extends IPv4Message {
 
       const message = new DhcpMessage('', this.netSrc, this.netDst);
       message.headerChecksum = message.checksum();
-      message.protocol = 1;
+      message.protocol = 17; // UDP protocol number (DHCP uses UDP, not ICMP)
       message.TOS = 0;
 
       message.op = this.op;

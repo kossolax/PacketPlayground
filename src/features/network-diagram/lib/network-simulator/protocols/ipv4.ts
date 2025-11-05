@@ -89,7 +89,7 @@ export class IPv4Message extends NetworkMessage {
 
     protected netDst: IPAddress | null = null;
 
-    protected ttl: number = 30;
+    protected ttl: number = 64; // RFC 1122 recommended default
 
     protected id: number;
 

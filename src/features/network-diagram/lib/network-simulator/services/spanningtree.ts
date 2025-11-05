@@ -166,7 +166,7 @@ export class PVSTPService
 
   private maxAge = 20;
 
-  private helloTime = 15;
+  private helloTime = 2; // IEEE 802.1D standard (2 seconds)
 
   private forwardDelay = 15;
 
