@@ -306,6 +306,37 @@ export class RSTPMessage extends SpanningTreeMessage {
 }
 
 /**
+ * R-PVST Message - Rapid Per-VLAN Spanning Tree Protocol
+ * Combines RSTP (version 2 with rapid convergence) with PVST (per-VLAN trees)
+ */
+export class RPVSTMessage extends RSTPMessage {
+  public vlanId: number = 0;
+
+  public override toString(): string {
+    const roleStr = [
+      'Disabled',
+      'Root',
+      'Designated',
+      'Blocked',
+      'Alternate',
+      'Backup',
+    ][this.flags.portRole];
+    return `R-PVST (VLAN=${this.vlanId}, role=${roleStr}, age=${this.messageAge})`;
+  }
+
+  /**
+   * Convert RSTPMessage to RPVSTMessage by adding VLAN ID
+   */
+  public static setVlanId(message: RSTPMessage, vlanId: number): RPVSTMessage {
+    // Convert RSTPMessage to RPVSTMessage by copying all fields
+    const rpvstMsg = Object.create(RPVSTMessage.prototype);
+    Object.assign(rpvstMsg, message);
+    rpvstMsg.vlanId = vlanId;
+    return rpvstMsg;
+  }
+}
+
+/**
  * Abstract base class for all Spanning Tree Protocol implementations
  * Provides common interface for STP, PVST, R-PVST, and MSTP
  */
@@ -1072,6 +1103,7 @@ export class RSTPService extends STPService implements DatalinkListener {
     });
   }
 
+  // eslint-disable-next-line @typescript-eslint/class-methods-use-this
   public override getProtocolType(): SpanningTreeProtocol {
     return SpanningTreeProtocol.RSTP;
   }
@@ -1113,6 +1145,7 @@ export class RSTPService extends STPService implements DatalinkListener {
   /**
    * Detect link type based on interface duplex mode
    */
+  // eslint-disable-next-line @typescript-eslint/class-methods-use-this
   private detectLinkType(
     iface: HardwareInterface
   ): 'point-to-point' | 'shared' {
@@ -1570,6 +1603,272 @@ export class PVSTService
 }
 
 /**
+ * R-PVST (Rapid Per-VLAN Spanning Tree) Service
+ * Combines RSTP (rapid convergence) with PVST (per-VLAN trees)
+ * Maintains one independent RSTP instance per VLAN for rapid convergence
+ * Uses IEEE 802.1w rapid transitions, proposal/agreement, edge port detection per VLAN
+ */
+export class RPVSTService
+  extends SpanningTreeService
+  implements DatalinkListener
+{
+  // Map: VLAN ID → Independent RSTP instance for that VLAN
+  private vlanTrees = new Map<number, RSTPService>();
+
+  // Cleanup functions for timers and subscriptions
+  private cleanups: (() => void)[] = [];
+
+  constructor(host: SwitchHost, enabled: boolean = true) {
+    super(host);
+
+    // Listen for interface additions to update VLAN trees
+    host.addListener((msg) => {
+      if (msg === 'OnInterfaceAdded') {
+        this.initializeVlanTrees();
+      }
+    });
+
+    // Use the Enable setter to properly register listeners
+    this.Enable = enabled;
+  }
+
+  // eslint-disable-next-line @typescript-eslint/class-methods-use-this
+  public getProtocolType(): SpanningTreeProtocol {
+    return SpanningTreeProtocol.RPVST;
+  }
+
+  /**
+   * Discover all VLANs from host configuration and interface settings
+   */
+  private discoverVlans(): number[] {
+    const vlans = new Set<number>();
+
+    // 1. From host.knownVlan registry
+    Object.keys(this.host.knownVlan).forEach((id) => {
+      vlans.add(parseInt(id, 10));
+    });
+
+    // 2. From interface configurations
+    this.host.getInterfaces().forEach((name) => {
+      const iface = this.host.getInterface(name);
+      if ('Vlan' in iface) {
+        const dot1qIface = iface as unknown as {
+          Vlan: number[];
+          NativeVlan: number;
+        };
+        dot1qIface.Vlan.forEach((vlanId) => vlans.add(vlanId));
+        if (dot1qIface.NativeVlan) vlans.add(dot1qIface.NativeVlan);
+      }
+    });
+
+    return Array.from(vlans);
+  }
+
+  /**
+   * Initialize or update VLAN spanning tree instances (using RSTP for rapid convergence)
+   */
+  private initializeVlanTrees(): void {
+    const vlans = this.discoverVlans();
+
+    // Create missing VLAN trees with RSTP instances
+    vlans.forEach((vlanId) => {
+      if (!this.vlanTrees.has(vlanId)) {
+        const rstpInstance = new RSTPService(this.host, this.enabled);
+        this.vlanTrees.set(vlanId, rstpInstance);
+      }
+    });
+
+    // TODO: Remove trees for VLANs that no longer exist?
+    // For now, keep them to avoid state loss
+  }
+
+  /**
+   * Get VLAN ID for a given interface and message
+   */
+  private static getVlanId(message: DatalinkMessage, iface: Interface): number {
+    // Check if message is VLAN-tagged
+    if ('vlanId' in message && typeof message.vlanId === 'number') {
+      return message.vlanId;
+    }
+
+    // Extract from interface configuration
+    if ('Vlan' in iface && 'NativeVlan' in iface) {
+      const dot1qIface = iface as unknown as {
+        Vlan: number[];
+        NativeVlan: number;
+        VlanMode: number;
+      };
+
+      // Access mode: use first VLAN
+      if (dot1qIface.VlanMode === 0) {
+        // VlanMode.Access = 0
+        return dot1qIface.Vlan[0] ?? dot1qIface.NativeVlan;
+      }
+
+      // Trunk mode: use native VLAN for untagged
+      return dot1qIface.NativeVlan;
+    }
+
+    return 0; // Default VLAN
+  }
+
+  public State(iface: Interface, vlanId?: number): SpanningTreeState {
+    if (!this.enabled) return SpanningTreeState.Disabled;
+
+    // If no VLAN specified, use default/first VLAN
+    let vlan = vlanId;
+    if (vlan === undefined) {
+      const vlans = this.discoverVlans();
+      vlan = vlans[0] ?? 0;
+    }
+
+    const tree = this.vlanTrees.get(vlan);
+    return tree?.State(iface) ?? SpanningTreeState.Disabled;
+  }
+
+  public Role(iface: Interface, vlanId?: number): SpanningTreePortRole {
+    if (!this.enabled) return SpanningTreePortRole.Disabled;
+
+    let vlan = vlanId;
+    if (vlan === undefined) {
+      const vlans = this.discoverVlans();
+      vlan = vlans[0] ?? 0;
+    }
+
+    const tree = this.vlanTrees.get(vlan);
+    return tree?.Role(iface) ?? SpanningTreePortRole.Disabled;
+  }
+
+  public Cost(iface: Interface, vlanId?: number): number {
+    if (!this.enabled) return Number.MAX_VALUE;
+
+    let vlan = vlanId;
+    if (vlan === undefined) {
+      const vlans = this.discoverVlans();
+      vlan = vlans[0] ?? 0;
+    }
+
+    const tree = this.vlanTrees.get(vlan);
+    return tree?.Cost(iface) ?? Number.MAX_VALUE;
+  }
+
+  get Root(): MacAddress {
+    // For R-PVST, "Root" concept is per-VLAN
+    // Return root of first VLAN for backward compatibility
+    const firstTree = Array.from(this.vlanTrees.values())[0];
+    return firstTree?.Root ?? new MacAddress('FF:FF:FF:FF:FF:FF');
+  }
+
+  get BridgeId(): MacAddress {
+    // Bridge ID is shared across all VLANs
+    const firstTree = Array.from(this.vlanTrees.values())[0];
+    return firstTree?.BridgeId ?? new MacAddress('FF:FF:FF:FF:FF:FF');
+  }
+
+  get IsRoot(): boolean {
+    // Switch is "root" if it's root for at least one VLAN
+    return Array.from(this.vlanTrees.values()).some((tree) => tree.IsRoot);
+  }
+
+  public negociate(): void {
+    if (!this.enabled) return;
+
+    // Each VLAN tree negotiates independently using RSTP
+    this.vlanTrees.forEach((tree) => {
+      tree.negociate();
+    });
+  }
+
+  public receiveTrame(message: DatalinkMessage, from: Interface): ActionHandle {
+    if (!this.enabled) return ActionHandle.Continue;
+
+    // Check if this is an R-PVST BPDU
+    if (message instanceof RPVSTMessage) {
+      const { vlanId } = message;
+      const tree = this.vlanTrees.get(vlanId);
+
+      if (!tree) {
+        // Unknown VLAN - ignore BPDU
+        return ActionHandle.Stop;
+      }
+
+      // Delegate to appropriate VLAN RSTP tree
+      return tree.receiveTrame(message, from);
+    }
+
+    // Check if this is a standard RSTP BPDU (treat as VLAN 0)
+    if (message instanceof RSTPMessage) {
+      const tree =
+        this.vlanTrees.get(0) ?? Array.from(this.vlanTrees.values())[0];
+      return tree?.receiveTrame(message, from) ?? ActionHandle.Continue;
+    }
+
+    // Check if this is a PVST BPDU (treat as R-PVST for compatibility)
+    if (message instanceof PVSTMessage) {
+      const { vlanId } = message;
+      const tree = this.vlanTrees.get(vlanId);
+
+      if (!tree) {
+        return ActionHandle.Stop;
+      }
+
+      // PVST BPDU received on R-PVST - delegate to RSTP tree
+      return tree.receiveTrame(message, from);
+    }
+
+    // Check if this is a standard STP BPDU (treat as VLAN 0)
+    if (message instanceof SpanningTreeMessage) {
+      const tree =
+        this.vlanTrees.get(0) ?? Array.from(this.vlanTrees.values())[0];
+      return tree?.receiveTrame(message, from) ?? ActionHandle.Continue;
+    }
+
+    // Data frame - check RSTP state for the frame's VLAN
+    const vlanId = RPVSTService.getVlanId(message, from);
+    const tree = this.vlanTrees.get(vlanId);
+
+    if (tree) {
+      const state = tree.State(from);
+      if (state === SpanningTreeState.Blocking) {
+        return ActionHandle.Stop;
+      }
+    }
+
+    return ActionHandle.Continue;
+  }
+
+  override set Enable(enable: boolean) {
+    // Call parent to handle listener registration/unregistration
+    super.Enable = enable;
+
+    // Initialize VLAN trees when enabled
+    if (enable) {
+      this.initializeVlanTrees();
+    } else {
+      // Disable all VLAN trees
+      this.vlanTrees.forEach((tree) => {
+        // eslint-disable-next-line no-param-reassign
+        tree.Enable = false;
+      });
+    }
+  }
+
+  override get Enable(): boolean {
+    return this.enabled;
+  }
+
+  public destroy(): void {
+    // Destroy all VLAN RSTP tree instances
+    this.vlanTrees.forEach((tree) => tree.destroy());
+    this.vlanTrees.clear();
+
+    // Cancel all cleanup timers
+    this.cleanups.forEach((cleanup) => cleanup());
+    this.cleanups = [];
+  }
+}
+
+/**
  * Factory function to create the appropriate spanning tree service
  * based on the requested protocol type
  */
@@ -1591,8 +1890,8 @@ export function createSpanningTreeService(
       // PVST: Per-VLAN Spanning Tree (one tree per VLAN)
       return new PVSTService(host, true);
     case SpanningTreeProtocol.RPVST:
-      // TODO: Implement Rapid PVST+ (802.1w + per-VLAN)
-      throw new Error('R-PVST protocol not yet implemented');
+      // R-PVST: Rapid Per-VLAN Spanning Tree (802.1w + per-VLAN)
+      return new RPVSTService(host, true);
     case SpanningTreeProtocol.MSTP:
       // TODO: Implement MSTP (802.1s)
       throw new Error('MSTP protocol not yet implemented');

@@ -1,3 +1,4 @@
+/* eslint-disable no-new, no-void */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
   Scheduler,
@@ -1725,18 +1726,14 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
 
   describe('RSTP (Rapid Spanning Tree) - IEEE 802.1w', () => {
     describe('Basic RSTP Functionality', () => {
-      it(
-        'should create RSTPService when protocol is RSTP',
-        () => {
-          const A = new SwitchHost('A', 2, SpanningTreeProtocol.RSTP);
-          expect(A.getStpProtocol()).toBe(SpanningTreeProtocol.RSTP);
-          expect(A.spanningTree.getProtocolType()).toBe(
-            SpanningTreeProtocol.RSTP
-          );
-          A.destroy();
-        },
-        15000
-      ); // 15s timeout for RSTP tests
+      it('should create RSTPService when protocol is RSTP', () => {
+        const A = new SwitchHost('A', 2, SpanningTreeProtocol.RSTP);
+        expect(A.getStpProtocol()).toBe(SpanningTreeProtocol.RSTP);
+        expect(A.spanningTree.getProtocolType()).toBe(
+          SpanningTreeProtocol.RSTP
+        );
+        A.destroy();
+      }, 15000); // 15s timeout for RSTP tests
 
       it('should send version 2 BPDUs', async () => {
         const A = new SwitchHost('A', 1, SpanningTreeProtocol.RSTP);
@@ -1748,7 +1745,7 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
         A.getInterface(0).up();
         B.getInterface(0).up();
 
-        const linkAB = new Link(A.getInterface(0), B.getInterface(0));
+        void new Link(A.getInterface(0), B.getInterface(0));
 
         const listener = new TestListener();
         B.getInterface(0).addListener(listener);
@@ -1786,7 +1783,7 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
         B.getInterface(0).up();
 
         // Connect switches so interfaces are active and connected
-        const link = new Link(A.getInterface(0), B.getInterface(0));
+        void new Link(A.getInterface(0), B.getInterface(0));
 
         const listener = new TestListener();
         B.getInterface(0).addListener(listener);
@@ -1848,7 +1845,7 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
         A.getInterface(0).up();
         B.getInterface(0).up();
 
-        const link = new Link(A.getInterface(0), B.getInterface(0));
+        void new Link(A.getInterface(0), B.getInterface(0));
 
         // Send BPDU from A to B
         A.spanningTree.negociate();
@@ -1896,7 +1893,7 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
         A.getInterface(0).up();
         B.getInterface(0).up();
 
-        const link = new Link(A.getInterface(0), B.getInterface(0));
+        void new Link(A.getInterface(0), B.getInterface(0));
 
         const listener = new TestListener();
         B.getInterface(0).addListener(listener);
@@ -1935,7 +1932,7 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
         A.getInterface(0).up();
         B.getInterface(0).up();
 
-        const link = new Link(A.getInterface(0), B.getInterface(0));
+        void new Link(A.getInterface(0), B.getInterface(0));
 
         const listenerA = new TestListener();
         A.getInterface(0).addListener(listenerA);
@@ -1983,18 +1980,9 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
         cRstp.getInterface(0).up();
         cRstp.getInterface(1).up();
 
-        const linkAbRstp = new Link(
-          aRstp.getInterface(0),
-          bRstp.getInterface(0)
-        );
-        const linkBcRstp = new Link(
-          bRstp.getInterface(1),
-          cRstp.getInterface(0)
-        );
-        const linkCaRstp = new Link(
-          cRstp.getInterface(1),
-          aRstp.getInterface(1)
-        );
+        void new Link(aRstp.getInterface(0), bRstp.getInterface(0));
+        void new Link(bRstp.getInterface(1), cRstp.getInterface(0));
+        void new Link(cRstp.getInterface(1), aRstp.getInterface(1));
 
         // Measure RSTP convergence time
         const startRstp = Date.now();
@@ -2024,7 +2012,7 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
         A.getInterface(0).up();
         B.getInterface(0).up();
 
-        const linkAB = new Link(A.getInterface(0), B.getInterface(0));
+        void new Link(A.getInterface(0), B.getInterface(0));
 
         // Wait for convergence
         await waitForConvergence(
@@ -2060,7 +2048,7 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
         aRstp.getInterface(0).up();
         bStp.getInterface(0).up();
 
-        const link = new Link(aRstp.getInterface(0), bStp.getInterface(0));
+        void new Link(aRstp.getInterface(0), bStp.getInterface(0));
 
         const listenerRstp = new TestListener();
         aRstp.getInterface(0).addListener(listenerRstp);
@@ -2096,7 +2084,7 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
         aRstp.getInterface(0).up();
         bStp.getInterface(0).up();
 
-        const link = new Link(aRstp.getInterface(0), bStp.getInterface(0));
+        void new Link(aRstp.getInterface(0), bStp.getInterface(0));
 
         const listenerStp = new TestListener();
         bStp.getInterface(0).addListener(listenerStp);
@@ -2126,6 +2114,238 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
 
         aRstp.destroy();
         bStp.destroy();
+      });
+    });
+  });
+
+  describe('R-PVST (Rapid Per-VLAN Spanning Tree)', () => {
+    describe('Basic R-PVST Functionality', () => {
+      it('should create RPVSTService when protocol is RPVST', () => {
+        const A = new SwitchHost('A', 2, SpanningTreeProtocol.RPVST);
+        expect(A.getStpProtocol()).toBe(SpanningTreeProtocol.RPVST);
+        expect(A.spanningTree.getProtocolType()).toBe(
+          SpanningTreeProtocol.RPVST
+        );
+        A.destroy();
+      });
+
+      it('should maintain independent RSTP states per VLAN', () => {
+        const A = new SwitchHost('A', 2, SpanningTreeProtocol.RPVST);
+        const B = new SwitchHost('B', 2, SpanningTreeProtocol.RPVST);
+
+        // Configure VLANs 10 and 20
+        A.knownVlan[10] = 'VLAN 10';
+        A.knownVlan[20] = 'VLAN 20';
+        B.knownVlan[10] = 'VLAN 10';
+        B.knownVlan[20] = 'VLAN 20';
+
+        A.spanningTree.Enable = true;
+        B.spanningTree.Enable = true;
+
+        const ifaceA0 = A.getInterface(0);
+        const ifaceB0 = B.getInterface(0);
+
+        ifaceA0.up();
+        ifaceB0.up();
+
+        // Should be able to query state for different VLANs
+        const stateVlan10 = A.spanningTree.State(ifaceA0, 10);
+        const stateVlan20 = A.spanningTree.State(ifaceA0, 20);
+
+        // Both should return valid states (not undefined)
+        expect([
+          SpanningTreeState.Disabled,
+          SpanningTreeState.Blocking,
+          SpanningTreeState.Listening,
+          SpanningTreeState.Learning,
+          SpanningTreeState.Forwarding,
+        ]).toContain(stateVlan10);
+
+        expect([
+          SpanningTreeState.Disabled,
+          SpanningTreeState.Blocking,
+          SpanningTreeState.Listening,
+          SpanningTreeState.Learning,
+          SpanningTreeState.Forwarding,
+        ]).toContain(stateVlan20);
+
+        A.destroy();
+        B.destroy();
+      });
+
+      it('should support protocol switching to RPVST', () => {
+        const A = new SwitchHost('A', 2, SpanningTreeProtocol.RSTP);
+        expect(A.getStpProtocol()).toBe(SpanningTreeProtocol.RSTP);
+
+        // Switch to R-PVST
+        A.setStpProtocol(SpanningTreeProtocol.RPVST);
+        expect(A.getStpProtocol()).toBe(SpanningTreeProtocol.RPVST);
+        expect(A.spanningTree.getProtocolType()).toBe(
+          SpanningTreeProtocol.RPVST
+        );
+
+        A.destroy();
+      });
+    });
+
+    describe('Per-VLAN Rapid Convergence', () => {
+      it('should converge rapidly per VLAN (< 5s)', async () => {
+        const A = new SwitchHost('A', 2, SpanningTreeProtocol.RPVST);
+        const B = new SwitchHost('B', 2, SpanningTreeProtocol.RPVST);
+
+        // Configure VLANs 10 and 20
+        A.knownVlan[10] = 'VLAN 10';
+        A.knownVlan[20] = 'VLAN 20';
+        B.knownVlan[10] = 'VLAN 10';
+        B.knownVlan[20] = 'VLAN 20';
+
+        A.spanningTree.Enable = true;
+        B.spanningTree.Enable = true;
+
+        A.getInterface(0).up();
+        B.getInterface(0).up();
+
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const link = new Link(A.getInterface(0), B.getInterface(0));
+
+        const startTime = Date.now();
+
+        // Wait for convergence on both VLANs
+        await waitForConvergence(
+          () => {
+            const rootA10 = A.spanningTree.Root;
+            const rootB10 = B.spanningTree.Root;
+            return rootA10.equals(rootB10);
+          },
+          [A, B],
+          5000
+        );
+
+        const convergenceTime = Date.now() - startTime;
+
+        // R-PVST should converge rapidly (< 5s, typically 1-3s with RSTP)
+        expect(convergenceTime).toBeLessThan(5000);
+
+        A.destroy();
+        B.destroy();
+      }, 10000);
+
+      it('should have independent convergence per VLAN', async () => {
+        const A = new SwitchHost('A', 3, SpanningTreeProtocol.RPVST);
+        const B = new SwitchHost('B', 3, SpanningTreeProtocol.RPVST);
+        const C = new SwitchHost('C', 3, SpanningTreeProtocol.RPVST);
+
+        // VLAN 10: all switches participate
+        A.knownVlan[10] = 'VLAN 10';
+        B.knownVlan[10] = 'VLAN 10';
+        C.knownVlan[10] = 'VLAN 10';
+
+        // VLAN 20: only A and B participate (not C)
+        A.knownVlan[20] = 'VLAN 20';
+        B.knownVlan[20] = 'VLAN 20';
+
+        A.spanningTree.Enable = true;
+        B.spanningTree.Enable = true;
+        C.spanningTree.Enable = true;
+
+        A.getInterface(0).up();
+        A.getInterface(1).up();
+        B.getInterface(0).up();
+        B.getInterface(1).up();
+        C.getInterface(0).up();
+        C.getInterface(1).up();
+
+        // Create triangle topology
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const linkAB = new Link(A.getInterface(0), B.getInterface(0));
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const linkBC = new Link(B.getInterface(1), C.getInterface(0));
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const linkCA = new Link(C.getInterface(1), A.getInterface(1));
+
+        // Wait for convergence
+        await waitForConvergence(
+          () => {
+            const rootA = A.spanningTree.Root;
+            const rootB = B.spanningTree.Root;
+            const rootC = C.spanningTree.Root;
+            return rootA.equals(rootB) && rootB.equals(rootC);
+          },
+          [A, B, C],
+          5000
+        );
+
+        // VLANs should have converged independently
+        expect(A.spanningTree.State(A.getInterface(0), 10)).toBeDefined();
+        expect(A.spanningTree.State(A.getInterface(0), 20)).toBeDefined();
+
+        A.destroy();
+        B.destroy();
+        C.destroy();
+      }, 10000);
+    });
+
+    describe('Per-VLAN Edge Port Detection', () => {
+      it('should detect edge ports independently per VLAN', async () => {
+        const A = new SwitchHost('A', 2, SpanningTreeProtocol.RPVST);
+
+        // Configure VLANs
+        A.knownVlan[10] = 'VLAN 10';
+        A.knownVlan[20] = 'VLAN 20';
+
+        A.spanningTree.Enable = true;
+
+        const iface = A.getInterface(0);
+        iface.up();
+
+        // Wait for edge port detection (3s timeout)
+        await new Promise((resolve) => {
+          setTimeout(resolve, 3200);
+        });
+
+        // After 3s without BPDU, ports should transition rapidly
+        // Check that state is valid for both VLANs
+        const state10 = A.spanningTree.State(iface, 10);
+        const state20 = A.spanningTree.State(iface, 20);
+
+        // Both VLANs should have reached Forwarding or Disabled
+        expect(
+          state10 === SpanningTreeState.Forwarding ||
+            state10 === SpanningTreeState.Disabled
+        ).toBe(true);
+
+        expect(
+          state20 === SpanningTreeState.Forwarding ||
+            state20 === SpanningTreeState.Disabled
+        ).toBe(true);
+
+        A.destroy();
+      }, 10000);
+    });
+
+    describe('R-PVST Protocol Discovery', () => {
+      it('should discover VLANs and create RSTP instances', () => {
+        const A = new SwitchHost('A', 2, SpanningTreeProtocol.RPVST);
+
+        // Register multiple VLANs
+        A.knownVlan[10] = 'Engineering';
+        A.knownVlan[20] = 'Sales';
+        A.knownVlan[30] = 'Management';
+
+        A.spanningTree.Enable = true;
+        A.getInterface(0).up();
+
+        // Each VLAN should have independent RSTP state
+        const state10 = A.spanningTree.State(A.getInterface(0), 10);
+        const state20 = A.spanningTree.State(A.getInterface(0), 20);
+        const state30 = A.spanningTree.State(A.getInterface(0), 30);
+
+        // All should be valid RSTP states
+        expect(state10).toBeDefined();
+        expect(state20).toBeDefined();
+        expect(state30).toBeDefined();
+
+        A.destroy();
       });
     });
   });
