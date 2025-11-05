@@ -3,6 +3,7 @@ import { IPAddress } from '../address';
 import type { NetworkInterface } from '../layers/network';
 import { NetworkMessage, type Payload } from '../message';
 import { ActionHandle, type NetworkListener } from './base';
+import { internetChecksum } from './checksum';
 
 export class IPv4Message extends NetworkMessage {
   public version: number = 4;
@@ -49,21 +50,42 @@ export class IPv4Message extends NetworkMessage {
   }
 
   public checksum(): number {
-    let sum = 0;
+    // RFC 791: Internet Checksum - construct header as 16-bit words
+    const words: number[] = [];
 
-    sum =
-      Math.imul(31, sum) +
-      (this.version + this.headerLength + this.TOS + this.totalLength);
-    sum =
-      Math.imul(31, sum) +
-      (this.identification +
-        (this.flags.reserved ? 1 : 0) +
-        (this.flags.dontFragment ? 1 : 0) +
-        (this.flags.moreFragments ? 1 : 0) +
-        this.fragmentOffset);
-    sum = Math.imul(31, sum) + (this.ttl + this.protocol);
+    // Version (4 bits) + IHL (4 bits) + TOS (8 bits)
+    words.push(((this.version << 12) | (this.headerLength << 8) | this.TOS) & 0xffff);
 
-    return sum;
+    // Total Length (16 bits)
+    words.push(this.totalLength & 0xffff);
+
+    // Identification (16 bits)
+    words.push(this.identification & 0xffff);
+
+    // Flags (3 bits) + Fragment Offset (13 bits)
+    const flags =
+      ((this.flags.reserved ? 1 : 0) << 2) |
+      ((this.flags.dontFragment ? 1 : 0) << 1) |
+      (this.flags.moreFragments ? 1 : 0);
+    words.push(((flags << 13) | (this.fragmentOffset & 0x1fff)) & 0xffff);
+
+    // TTL (8 bits) + Protocol (8 bits)
+    words.push(((this.ttl << 8) | this.protocol) & 0xffff);
+
+    // Checksum field (0 for calculation)
+    words.push(0);
+
+    // Source IP (32 bits split into 2x 16 bits)
+    const srcNum = (this.netSrc as IPAddress).toNumber();
+    words.push((srcNum >> 16) & 0xffff);
+    words.push(srcNum & 0xffff);
+
+    // Destination IP (32 bits split into 2x 16 bits)
+    const dstNum = (this.netDst as IPAddress).toNumber();
+    words.push((dstNum >> 16) & 0xffff);
+    words.push(dstNum & 0xffff);
+
+    return internetChecksum(words);
   }
 
   public IsFragmented(): boolean {
@@ -157,34 +179,78 @@ export class IPv4Message extends NetworkMessage {
       if (this.ttl <= 0) throw new Error('TTL must be greater than 0');
       if (this.ttl > 255) throw new Error('TTL must be <= 255');
 
-      const messages = [];
+      // Convert payload to string for fragmentation
+      const payloadStr = typeof this.payload === 'string'
+        ? this.payload
+        : this.payload.toString();
+      const payloadLength = payloadStr.length;
 
-      let fragment = 0;
-      do {
-        // payload doesn't support splicing.
-        // so we put the payload on the first message, the others are left empty
-        let payload: string | Payload = '';
-        if (fragment === 0) payload = this.payload;
+      // RFC 791: Header size (minimum 20 bytes for no options)
+      const headerBytes = this.protocol === 1 ? 20 : 20; // IHL=5 → 5*4=20 bytes
 
-        const message = new IPv4Message(payload, this.netSrc, this.netDst);
+      // RFC 791: Calculate maximum payload per fragment
+      // Fragment data must be multiple of 8 bytes (except last fragment)
+      const maxDataPerFragment = Math.floor((this.maxSize - headerBytes) / 8) * 8;
 
+      // If no fragmentation needed, return single packet
+      if (headerBytes + payloadLength <= this.maxSize) {
+        const message = new IPv4Message(this.payload, this.netSrc, this.netDst);
         message.ttl = this.ttl;
         message.identification = this.id;
         message.protocol = this.protocol;
+        message.TOS = this.service;
+        message.fragmentOffset = 0;
+        message.flags.moreFragments = false;
+        message.totalLength = headerBytes + payloadLength;
         message.headerChecksum = message.checksum();
-        message.fragmentOffset = fragment;
-        message.totalLength = Math.min(
-          this.maxSize,
-          this.payload.length - fragment
+        return [message];
+      }
+
+      // RFC 791: Fragment the payload
+      const messages: IPv4Message[] = [];
+      let byteOffset = 0;
+
+      while (byteOffset < payloadLength) {
+        // Calculate data size for this fragment
+        const remainingBytes = payloadLength - byteOffset;
+        let fragmentDataSize: number;
+
+        // RFC 791: All fragments except last must have data size multiple of 8
+        const isLastFragment = remainingBytes <= maxDataPerFragment;
+        if (isLastFragment) {
+          fragmentDataSize = remainingBytes;
+        } else {
+          fragmentDataSize = maxDataPerFragment;
+        }
+
+        // Extract fragment payload
+        const fragmentPayload = payloadStr.substring(
+          byteOffset,
+          byteOffset + fragmentDataSize
         );
+
+        // Create fragment message
+        const message = new IPv4Message(fragmentPayload, this.netSrc, this.netDst);
+        message.ttl = this.ttl;
+        message.identification = this.id;
+        message.protocol = this.protocol;
         message.TOS = this.service;
 
-        if (fragment + this.maxSize < this.payload.length)
-          message.flags.moreFragments = true;
+        // RFC 791: Fragment Offset is in units of 8 octets
+        message.fragmentOffset = byteOffset / 8;
+
+        // RFC 791: Set More Fragments flag
+        message.flags.moreFragments = !isLastFragment;
+
+        // RFC 791: Total Length = header + data for THIS fragment
+        message.totalLength = headerBytes + fragmentDataSize;
+
+        // Calculate checksum
+        message.headerChecksum = message.checksum();
 
         messages.push(message);
-        fragment += this.maxSize;
-      } while (fragment < this.payload.length);
+        byteOffset += fragmentDataSize;
+      }
 
       return messages;
     }

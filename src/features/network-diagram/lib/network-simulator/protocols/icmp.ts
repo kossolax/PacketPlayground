@@ -6,6 +6,7 @@ import type { NetworkInterface } from '../layers/network';
 import { type NetworkMessage, type Payload } from '../message';
 import { IPv4Message } from './ipv4';
 import { ActionHandle, type NetworkListener } from './base';
+import { internetChecksum } from './checksum';
 
 export enum ICMPType {
   EchoReply = 0,
@@ -18,6 +19,11 @@ export class ICMPMessage extends IPv4Message {
   public type: ICMPType = ICMPType.EchoRequest;
 
   public code: number = 0;
+
+  // RFC 792: Echo Request/Reply specific fields
+  public identifier: number = 0;
+
+  public sequence: number = 0;
 
   protected constructor(
     payload: Payload | string,
@@ -49,17 +55,36 @@ export class ICMPMessage extends IPv4Message {
   }
 
   public override checksum(): number {
-    let sum = 0;
+    // RFC 792: Same algorithm as IPv4 - Internet Checksum
+    const words: number[] = [];
 
-    sum = Math.imul(31, sum) + (this.type + this.code);
+    // Type (8 bits) + Code (8 bits)
+    words.push(((this.type << 8) | this.code) & 0xffff);
 
-    return sum;
+    // RFC 792: Rest of header (4 bytes - for Echo: Identifier + Sequence)
+    words.push(this.identifier & 0xffff); // Identifier (16 bits)
+    words.push(this.sequence & 0xffff);   // Sequence (16 bits)
+
+    // Add payload data as 16-bit words
+    const payloadStr = this.payload.toString();
+    for (let i = 0; i < payloadStr.length; i += 2) {
+      const highByte = payloadStr.charCodeAt(i);
+      const lowByte = i + 1 < payloadStr.length ? payloadStr.charCodeAt(i + 1) : 0;
+      words.push(((highByte << 8) | lowByte) & 0xffff);
+    }
+
+    return internetChecksum(words);
   }
 
   public static override Builder = class extends IPv4Message.Builder {
     protected type: ICMPType = ICMPType.EchoReply;
 
     protected code: number = 0;
+
+    // RFC 792: Echo Request/Reply fields
+    protected identifier: number = 0;
+
+    protected sequence: number = 0;
 
     public setType(type: ICMPType): this {
       this.type = type;
@@ -94,6 +119,18 @@ export class ICMPMessage extends IPv4Message {
       return this;
     }
 
+    // RFC 792: Set identifier for Echo Request/Reply correlation
+    public setIdentifier(identifier: number): this {
+      this.identifier = identifier & 0xffff; // 16-bit value
+      return this;
+    }
+
+    // RFC 792: Set sequence number for Echo Request/Reply ordering
+    public setSequence(sequence: number): this {
+      this.sequence = sequence & 0xffff; // 16-bit value
+      return this;
+    }
+
     public override build(): IPv4Message[] {
       if (this.netSrc === null) throw new Error('No source address specified');
       if (this.netDst === null)
@@ -106,6 +143,11 @@ export class ICMPMessage extends IPv4Message {
         this.type,
         this.code
       );
+
+      // RFC 792: Set identifier and sequence for Echo messages
+      message.identifier = this.identifier;
+      message.sequence = this.sequence;
+
       message.headerChecksum = message.checksum();
       message.protocol = 1;
       message.TOS = 0;
@@ -131,23 +173,29 @@ export class ICMPProtocol implements NetworkListener {
     destination: IPAddress,
     timeout: number = 20
   ): Observable<IPv4Message | null> {
+    // RFC 792: Use identification as ICMP identifier for correlation
+    const identifier = Math.floor(Math.random() * 0xffff);
+
     const request = new ICMPMessage.Builder()
       .setType(ICMPType.EchoRequest)
       .setCode(0)
       .setNetSource(this.iface.getNetAddress() as IPAddress)
       .setNetDestination(destination)
-      .build()[0];
+      .setIdentifier(identifier)
+      .setSequence(0) // Could be incremented for multiple pings
+      .build()[0] as ICMPMessage;
 
     const subject: Subject<IPv4Message> = new Subject();
 
-    this.queue.set(request.identification, subject);
+    // Use ICMP identifier for correlation instead of IPv4 identification
+    this.queue.set(request.identifier, subject);
     this.iface.sendPacket(request);
 
     const timeout$ = Scheduler.getInstance()
       .once(timeout)
       .pipe(map(() => null));
     return race(subject, timeout$).pipe(
-      tap(() => this.queue.delete(request.identification))
+      tap(() => this.queue.delete(request.identifier))
     );
   }
 
@@ -157,12 +205,15 @@ export class ICMPProtocol implements NetworkListener {
       message.IsReadyAtEndPoint(this.iface)
     ) {
       if (message.type === ICMPType.EchoRequest) {
+        // RFC 792: Echo Reply must copy identifier and sequence from Request
         const reply = new ICMPMessage.Builder()
           .setType(ICMPType.EchoReply)
           .setCode(0)
           .setNetSource(message.netDst as IPAddress)
           .setNetDestination(message.netSrc as IPAddress)
           .setIdentification(message.identification)
+          .setIdentifier(message.identifier)  // Copy from request
+          .setSequence(message.sequence)      // Copy from request
           .build()[0];
 
         this.iface.sendPacket(reply);
@@ -171,8 +222,9 @@ export class ICMPProtocol implements NetworkListener {
       }
 
       if (message.type === ICMPType.EchoReply) {
-        if (this.queue.has(message.identification)) {
-          this.queue.get(message.identification)?.next(message);
+        // RFC 792: Match reply to request using identifier
+        if (this.queue.has(message.identifier)) {
+          this.queue.get(message.identifier)?.next(message);
           return ActionHandle.Handled;
         }
       }

@@ -6,6 +6,7 @@ import type {
 } from '../layers/datalink';
 import { DatalinkMessage, type Payload } from '../message';
 import { ActionHandle, type DatalinkListener } from './base';
+import { crc32 } from './checksum';
 
 export class EthernetMessage extends DatalinkMessage {
   public headerChecksum: number = 0;
@@ -30,11 +31,50 @@ export class EthernetMessage extends DatalinkMessage {
   }
 
   public checksum(): number {
-    // Stub implementation - Ethernet uses FCS (Frame Check Sequence) with CRC-32
-    // TODO: Implement proper CRC-32 calculation
-    let sum = 0;
-    sum += this.payload.length;
-    return sum;
+    // IEEE 802.3: FCS uses CRC-32 polynomial 0x04C11DB7
+    const bytes: number[] = [];
+
+    // Add destination MAC (6 bytes)
+    if (this.macDst) {
+      const dstBytes = this.macDst.toString().split(':').map(b => parseInt(b, 16));
+      bytes.push(...dstBytes);
+    }
+
+    // Add source MAC (6 bytes)
+    const srcBytes = this.macSrc.toString().split(':').map(b => parseInt(b, 16));
+    bytes.push(...srcBytes);
+
+    // Add EtherType/Length field (2 bytes)
+    // IEEE 802.3 Section 3.2.6: Values >= 1536 (0x0600) indicate EtherType
+    // Determine EtherType based on payload type
+    let etherType = 0x0000; // Default
+    const payloadName = this.payload.toString();
+
+    if (payloadName.includes('ARP')) {
+      etherType = 0x0806; // ARP
+    } else if (payloadName.includes('IPv4') || payloadName.includes('ICMP') || payloadName.includes('DHCP')) {
+      etherType = 0x0800; // IPv4
+    } else if (payloadName.includes('IPv6')) {
+      etherType = 0x86DD; // IPv6
+    } else if (this.payload.length < 1536) {
+      // IEEE 802.3: If < 1536, it's a Length field, not EtherType
+      etherType = this.payload.length;
+    } else {
+      // Default to IPv4 for unknown payloads
+      etherType = 0x0800;
+    }
+
+    // Add EtherType as big-endian (network byte order)
+    bytes.push((etherType >> 8) & 0xff); // High byte
+    bytes.push(etherType & 0xff);        // Low byte
+
+    // Add payload
+    const payloadStr = this.payload.toString();
+    for (let i = 0; i < payloadStr.length; i++) {
+      bytes.push(payloadStr.charCodeAt(i) & 0xff);
+    }
+
+    return crc32(bytes);
   }
 
   public isReadyAtEndPoint(iface: HardwareInterface): boolean {
