@@ -3,6 +3,7 @@ import { IPAddress } from '../address';
 import type { NetworkInterface } from '../layers/network';
 import { NetworkMessage, type Payload } from '../message';
 import { ActionHandle, type NetworkListener } from './base';
+import { internetChecksum } from './checksum';
 
 export class IPv4Message extends NetworkMessage {
   public version: number = 4;
@@ -49,45 +50,42 @@ export class IPv4Message extends NetworkMessage {
   }
 
   public checksum(): number {
-    // RFC 791: Internet Checksum - one's complement of the one's complement sum
-    let sum = 0;
+    // RFC 791: Internet Checksum - construct header as 16-bit words
+    const words: number[] = [];
 
     // Version (4 bits) + IHL (4 bits) + TOS (8 bits)
-    sum += ((this.version << 12) | (this.headerLength << 8) | this.TOS) & 0xffff;
+    words.push(((this.version << 12) | (this.headerLength << 8) | this.TOS) & 0xffff);
 
     // Total Length (16 bits)
-    sum += this.totalLength & 0xffff;
+    words.push(this.totalLength & 0xffff);
 
     // Identification (16 bits)
-    sum += this.identification & 0xffff;
+    words.push(this.identification & 0xffff);
 
     // Flags (3 bits) + Fragment Offset (13 bits)
     const flags =
       ((this.flags.reserved ? 1 : 0) << 2) |
       ((this.flags.dontFragment ? 1 : 0) << 1) |
       (this.flags.moreFragments ? 1 : 0);
-    sum += ((flags << 13) | (this.fragmentOffset & 0x1fff)) & 0xffff;
+    words.push(((flags << 13) | (this.fragmentOffset & 0x1fff)) & 0xffff);
 
     // TTL (8 bits) + Protocol (8 bits)
-    sum += ((this.ttl << 8) | this.protocol) & 0xffff;
+    words.push(((this.ttl << 8) | this.protocol) & 0xffff);
+
+    // Checksum field (0 for calculation)
+    words.push(0);
 
     // Source IP (32 bits split into 2x 16 bits)
     const srcNum = (this.netSrc as IPAddress).toNumber();
-    sum += (srcNum >> 16) & 0xffff;
-    sum += srcNum & 0xffff;
+    words.push((srcNum >> 16) & 0xffff);
+    words.push(srcNum & 0xffff);
 
     // Destination IP (32 bits split into 2x 16 bits)
     const dstNum = (this.netDst as IPAddress).toNumber();
-    sum += (dstNum >> 16) & 0xffff;
-    sum += dstNum & 0xffff;
+    words.push((dstNum >> 16) & 0xffff);
+    words.push(dstNum & 0xffff);
 
-    // Fold 32-bit sum to 16 bits (add carry)
-    while (sum >> 16) {
-      sum = (sum & 0xffff) + (sum >> 16);
-    }
-
-    // One's complement
-    return ~sum & 0xffff;
+    return internetChecksum(words);
   }
 
   public IsFragmented(): boolean {

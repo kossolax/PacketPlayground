@@ -6,6 +6,7 @@ import type { NetworkInterface } from '../layers/network';
 import { type NetworkMessage, type Payload } from '../message';
 import { IPv4Message } from './ipv4';
 import { ActionHandle, type NetworkListener } from './base';
+import { internetChecksum } from './checksum';
 
 export enum ICMPType {
   EchoReply = 0,
@@ -50,31 +51,25 @@ export class ICMPMessage extends IPv4Message {
 
   public override checksum(): number {
     // RFC 792: Same algorithm as IPv4 - Internet Checksum
-    let sum = 0;
+    const words: number[] = [];
 
     // Type (8 bits) + Code (8 bits)
-    sum += ((this.type << 8) | this.code) & 0xffff;
+    words.push(((this.type << 8) | this.code) & 0xffff);
 
     // Rest of header (4 bytes - for Echo: Identifier + Sequence)
     // For now, we use zeros as these fields are not explicitly defined
-    sum += 0; // Identifier (16 bits)
-    sum += 0; // Sequence (16 bits)
+    words.push(0); // Identifier (16 bits)
+    words.push(0); // Sequence (16 bits)
 
     // Add payload data as 16-bit words
     const payloadStr = this.payload.toString();
     for (let i = 0; i < payloadStr.length; i += 2) {
       const highByte = payloadStr.charCodeAt(i);
       const lowByte = i + 1 < payloadStr.length ? payloadStr.charCodeAt(i + 1) : 0;
-      sum += ((highByte << 8) | lowByte) & 0xffff;
+      words.push(((highByte << 8) | lowByte) & 0xffff);
     }
 
-    // Fold 32-bit sum to 16 bits (add carry)
-    while (sum >> 16) {
-      sum = (sum & 0xffff) + (sum >> 16);
-    }
-
-    // One's complement
-    return ~sum & 0xffff;
+    return internetChecksum(words);
   }
 
   public static override Builder = class extends IPv4Message.Builder {
