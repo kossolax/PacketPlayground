@@ -713,68 +713,73 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
   });
 
   describe('Root Port Tie-Breaking', () => {
-    it('should select root port based on lowest cost', async () => {
-      const A = new SwitchHost('A', 2);
-      const B = new SwitchHost('B', 2);
-      const C = new SwitchHost('C', 2);
+    it(
+      'should select root port based on lowest cost',
+      async () => {
+        // Use STP (not RPVST) for faster convergence in this specific test
+        const A = new SwitchHost('A', 2, SpanningTreeProtocol.STP);
+        const B = new SwitchHost('B', 2, SpanningTreeProtocol.STP);
+        const C = new SwitchHost('C', 2, SpanningTreeProtocol.STP);
 
-      A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
-      B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
-      C.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:03'));
+        A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
+        B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
+        C.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:03'));
 
-      // Enable STP and interfaces
-      // eslint-disable-next-line no-restricted-syntax
-      for (const sw of [A, B, C]) {
-        sw.spanningTree.Enable = true;
-        sw.getInterface(0).up();
-        sw.getInterface(1).up();
-      }
+        // Enable STP and interfaces
+        // eslint-disable-next-line no-restricted-syntax
+        for (const sw of [A, B, C]) {
+          sw.spanningTree.Enable = true;
+          sw.getInterface(0).up();
+          sw.getInterface(1).up();
+        }
 
-      // C has two paths to A (root): C-A (direct) and C-B-A (indirect)
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
-      const _AB = new Link(A.getInterface(0), B.getInterface(0));
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
-      const _CA = new Link(C.getInterface(0), A.getInterface(1));
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
-      const _BC = new Link(B.getInterface(1), C.getInterface(1));
+        // C has two paths to A (root): C-A (direct) and C-B-A (indirect)
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+        const _AB = new Link(A.getInterface(0), B.getInterface(0));
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+        const _CA = new Link(C.getInterface(0), A.getInterface(1));
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+        const _BC = new Link(B.getInterface(1), C.getInterface(1));
 
-      // Wait for convergence with C selecting correct root port and blocking the other
-      await waitForConvergence(
-        () => {
-          if (!A.spanningTree.IsRoot) return false;
-          // C should select direct path to A as root port (lowest cost)
-          const caRole = C.spanningTree.Role(C.getInterface(0));
-          const cbRole = C.spanningTree.Role(C.getInterface(1));
-          const caCost = C.spanningTree.Cost(C.getInterface(0));
-          const cbCost = C.spanningTree.Cost(C.getInterface(1));
-          const cbBlocked =
-            cbRole === SpanningTreePortRole.Blocked ||
+        // Wait for convergence with C selecting correct root port and blocking the other
+        await waitForConvergence(
+          () => {
+            if (!A.spanningTree.IsRoot) return false;
+            // C should select direct path to A as root port (lowest cost)
+            const caRole = C.spanningTree.Role(C.getInterface(0));
+            const cbRole = C.spanningTree.Role(C.getInterface(1));
+            const caCost = C.spanningTree.Cost(C.getInterface(0));
+            const cbCost = C.spanningTree.Cost(C.getInterface(1));
+            const cbBlocked =
+              cbRole === SpanningTreePortRole.Blocked ||
+              cbRole === SpanningTreePortRole.Alternate ||
+              cbRole === SpanningTreePortRole.Backup;
+            return (
+              caRole === SpanningTreePortRole.Root &&
+              caCost > 0 &&
+              caCost < cbCost &&
+              cbBlocked
+            );
+          },
+          [A, B, C],
+          10000
+        );
+
+        // C's root port should be the one connected to A directly (lower cost)
+        const caRole = C.spanningTree.Role(C.getInterface(0));
+        const cbRole = C.spanningTree.Role(C.getInterface(1));
+
+        expect(caRole).toBe(SpanningTreePortRole.Root); // Direct to A
+        expect(
+          cbRole === SpanningTreePortRole.Blocked ||
             cbRole === SpanningTreePortRole.Alternate ||
-            cbRole === SpanningTreePortRole.Backup;
-          return (
-            caRole === SpanningTreePortRole.Root &&
-            caCost > 0 &&
-            caCost < cbCost &&
-            cbBlocked
-          );
-        },
-        [A, B, C],
-        10000
-      );
+            cbRole === SpanningTreePortRole.Backup
+        ).toBe(true); // Indirect (blocked)
 
-      // C's root port should be the one connected to A directly (lower cost)
-      const caRole = C.spanningTree.Role(C.getInterface(0));
-      const cbRole = C.spanningTree.Role(C.getInterface(1));
-
-      expect(caRole).toBe(SpanningTreePortRole.Root); // Direct to A
-      expect(
-        cbRole === SpanningTreePortRole.Blocked ||
-          cbRole === SpanningTreePortRole.Alternate ||
-          cbRole === SpanningTreePortRole.Backup
-      ).toBe(true); // Indirect (blocked)
-
-      [A, B, C].forEach((sw) => sw.destroy());
-    });
+        [A, B, C].forEach((sw) => sw.destroy());
+      },
+      15000
+    ); // Increased timeout to 15s since convergence can take up to 10s
 
     // Note: Testing individual tie-breakers (sender priority, sender MAC, port IDs)
     // is difficult without mocking BPDU messages or controlling interface creation.

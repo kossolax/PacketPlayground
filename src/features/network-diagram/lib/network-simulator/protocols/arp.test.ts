@@ -4,6 +4,7 @@ import { Link } from '../layers/physical';
 import { ArpMessage } from './arp';
 import { RouterHost } from '../nodes/router';
 import { SwitchHost } from '../nodes/switch';
+import { SpanningTreeProtocol } from '../services/spanningtree';
 import { ActionHandle, type DatalinkListener } from './base';
 import type { DatalinkMessage } from '../message';
 import {
@@ -70,7 +71,8 @@ describe('ARP Protocol test', () => {
     A.name = 'A';
     A.addInterface().up();
 
-    B = new SwitchHost();
+    // Disable STP in test switch to prevent RSTP message interference
+    B = new SwitchHost('', 0, SpanningTreeProtocol.None);
     B.name = 'B';
     B.addInterface().up();
     B.addInterface().up();
