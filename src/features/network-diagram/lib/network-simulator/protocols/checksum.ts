@@ -9,6 +9,9 @@
  * - Parity/LRC: Simple checksums for serial protocols (RS-232, UART)
  */
 
+/* eslint-disable no-restricted-syntax */
+/* eslint-disable no-plusplus */
+
 // ============================================================================
 // INTERNET CHECKSUM (RFC 1071)
 // ============================================================================

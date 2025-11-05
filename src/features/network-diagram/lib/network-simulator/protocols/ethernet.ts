@@ -80,6 +80,7 @@ export class EthernetMessage extends DatalinkMessage {
 
     // Add payload
     const payloadStr = this.payload.toString();
+    // eslint-disable-next-line no-plusplus
     for (let i = 0; i < payloadStr.length; i++) {
       bytes.push(payloadStr.charCodeAt(i) & 0xff);
     }
