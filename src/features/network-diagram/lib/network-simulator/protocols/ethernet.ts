@@ -6,6 +6,7 @@ import type {
 } from '../layers/datalink';
 import { DatalinkMessage, type Payload } from '../message';
 import { ActionHandle, type DatalinkListener } from './base';
+import { crc32 } from './checksum';
 
 export class EthernetMessage extends DatalinkMessage {
   public headerChecksum: number = 0;
@@ -30,11 +31,26 @@ export class EthernetMessage extends DatalinkMessage {
   }
 
   public checksum(): number {
-    // Stub implementation - Ethernet uses FCS (Frame Check Sequence) with CRC-32
-    // TODO: Implement proper CRC-32 calculation
-    let sum = 0;
-    sum += this.payload.length;
-    return sum;
+    // IEEE 802.3: FCS uses CRC-32 polynomial 0x04C11DB7
+    const bytes: number[] = [];
+
+    // Add destination MAC (6 bytes)
+    if (this.macDst) {
+      const dstBytes = this.macDst.toString().split(':').map(b => parseInt(b, 16));
+      bytes.push(...dstBytes);
+    }
+
+    // Add source MAC (6 bytes)
+    const srcBytes = this.macSrc.toString().split(':').map(b => parseInt(b, 16));
+    bytes.push(...srcBytes);
+
+    // Add payload
+    const payloadStr = this.payload.toString();
+    for (let i = 0; i < payloadStr.length; i++) {
+      bytes.push(payloadStr.charCodeAt(i) & 0xff);
+    }
+
+    return crc32(bytes);
   }
 
   public isReadyAtEndPoint(iface: HardwareInterface): boolean {
