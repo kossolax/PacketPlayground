@@ -8,7 +8,7 @@
     "build": "tsc -b tsconfig.app.json && vite build",
     "lint": "eslint --cache --cache-location /tmp/eslint \"src/**/*.{js,jsx,ts,tsx}\"",
     "lint:fix": "eslint --cache --cache-location /tmp/eslint \"src/**/*.{js,jsx,ts,tsx}\" --fix",
-    "test": "vitest run",
+    "test": "NODE_OPTIONS='--max-old-space-size=4096' vitest run",
     "test:ui": "vitest --ui",
     "coverage": "vitest run --coverage",
     "coverage:ui": "vitest --coverage --ui"

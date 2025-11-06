@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
   Scheduler,
   SchedulerState,
@@ -88,6 +88,10 @@ describe('IPv4 protocol', () => {
     const linkBC = new Link(B.getInterface(1), C.getInterface(0), 1000);
 
     listener = new TestListener();
+  });
+
+  afterEach(() => {
+    Scheduler.getInstance().clear();
   });
 
   it('Router->IPv4-->Router', async () => {
@@ -190,16 +194,14 @@ describe('IPv4 protocol', () => {
       B.getInterface(0).getNetAddress() as IPAddress
     );
 
-    expect(msgBuilder.build().length).toBe(1);
-    expect(msgBuilder.build()[0].IsReadyAtEndPoint(A.getInterface(0))).toBe(
-      false
-    );
-    expect(msgBuilder.build()[0].IsReadyAtEndPoint(B.getInterface(0))).toBe(
-      true
-    );
+    const builtMessages = msgBuilder.build();
+    expect(builtMessages.length).toBe(1);
+    expect(builtMessages[0].IsReadyAtEndPoint(A.getInterface(0))).toBe(false);
+    expect(builtMessages[0].IsReadyAtEndPoint(B.getInterface(0))).toBe(true);
 
     msgBuilder.setMaximumSize(1);
-    expect(msgBuilder.build().length).toBe(data.length);
-    expect(msgBuilder.build()[0].toString()).toContain('IPv4');
+    const fragmentedMessages = msgBuilder.build();
+    expect(fragmentedMessages.length).toBe(data.length);
+    expect(fragmentedMessages[0].toString()).toContain('IPv4');
   });
 });

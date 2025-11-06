@@ -159,4 +159,19 @@ export class Scheduler {
       i.callback.next(this.getDelay(i.delay));
     });
   }
+
+  public clear(): void {
+    // Complete and unsubscribe all listeners to prevent memory leaks
+    this.listener.forEach((i) => {
+      try {
+        i.callback.complete();
+        i.callback.unsubscribe();
+      } catch {
+        // Ignore errors during cleanup
+      }
+    });
+    this.listener = [];
+    this.startTime = Date.now();
+    this.startPause = 0;
+  }
 }
