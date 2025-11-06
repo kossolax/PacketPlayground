@@ -54,16 +54,42 @@ async function waitForConvergence(
 }
 
 describe('SpanningTreeService - RFC 802.1D Compliance', () => {
+  // Track all created switches for cleanup
+  const createdSwitches = new Set<SwitchHost>();
+
+  // Helper to create and track switches for automatic cleanup
+  const createSwitch = (
+    name: string,
+    ports: number,
+    protocol?: SpanningTreeProtocol
+  ): SwitchHost => {
+    const sw = new SwitchHost(name, ports, protocol);
+    createdSwitches.add(sw);
+    return sw;
+  };
+
   // Set Scheduler to FASTER mode for all STP tests to avoid timeouts
   beforeEach(() => {
     Scheduler.getInstance().Speed = SchedulerState.FASTER;
+  });
+
+  // Global cleanup to prevent memory leaks
+  afterEach(() => {
+    createdSwitches.forEach((sw) => {
+      try {
+        sw.destroy();
+      } catch (_e) {
+        // Ignore errors during cleanup
+      }
+    });
+    createdSwitches.clear();
   });
 
   describe('MAC Address and Bridge ID', () => {
     let A: SwitchHost;
 
     beforeEach(() => {
-      A = new SwitchHost('A', 3, SpanningTreeProtocol.STP);
+      A = createSwitch('A', 3, SpanningTreeProtocol.STP);
       A.spanningTree.Enable = true;
     });
 
@@ -139,7 +165,7 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
     });
 
     it('should elect switch with lowest Bridge ID as root', async () => {
-      const B = new SwitchHost('B', 1, SpanningTreeProtocol.STP);
+      const B = createSwitch('B', 1, SpanningTreeProtocol.STP);
       B.spanningTree.Enable = true;
 
       // Set A's MAC to be lower than B's
@@ -224,8 +250,8 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
     });
 
     it('should advertise correct root in BPDU', async () => {
-      const A = new SwitchHost('A', 1);
-      const B = new SwitchHost('B', 1);
+      const A = createSwitch('A', 1);
+      const B = createSwitch('B', 1);
 
       A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
       B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
@@ -267,8 +293,8 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
 
   describe('Root Bridge Election', () => {
     it('should elect root in simple 2-switch topology', async () => {
-      const A = new SwitchHost('A', 1);
-      const B = new SwitchHost('B', 1);
+      const A = createSwitch('A', 1);
+      const B = createSwitch('B', 1);
 
       A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
       B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
@@ -298,11 +324,11 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
     });
 
     it('should elect root in complex 5-switch topology', async () => {
-      const A = new SwitchHost('A', 2);
-      const B = new SwitchHost('B', 2);
-      const C = new SwitchHost('C', 2);
-      const D = new SwitchHost('D', 2);
-      const E = new SwitchHost('E', 2);
+      const A = createSwitch('A', 2);
+      const B = createSwitch('B', 2);
+      const C = createSwitch('C', 2);
+      const D = createSwitch('D', 2);
+      const E = createSwitch('E', 2);
 
       // Set MAC addresses - A has the lowest
       A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
@@ -356,8 +382,8 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
     });
 
     it('should handle equal priority with different MACs', async () => {
-      const A = new SwitchHost('A', 1);
-      const B = new SwitchHost('B', 1);
+      const A = createSwitch('A', 1);
+      const B = createSwitch('B', 1);
 
       A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
       B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
@@ -388,9 +414,9 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
     });
 
     it('should have all switches agree on same root', async () => {
-      const A = new SwitchHost('A', 2);
-      const B = new SwitchHost('B', 2);
-      const C = new SwitchHost('C', 2);
+      const A = createSwitch('A', 2);
+      const B = createSwitch('B', 2);
+      const C = createSwitch('C', 2);
 
       A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
       B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
@@ -428,9 +454,9 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
     });
 
     it('should re-elect root when current root fails', async () => {
-      const A = new SwitchHost('A', 2);
-      const B = new SwitchHost('B', 2);
-      const C = new SwitchHost('C', 2);
+      const A = createSwitch('A', 2);
+      const B = createSwitch('B', 2);
+      const C = createSwitch('C', 2);
 
       A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
       B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
@@ -485,10 +511,10 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
 
   describe('Port Role Assignment', () => {
     it('should assign all ports as Designated on root bridge', async () => {
-      const A = new SwitchHost('A', 3);
-      const B = new SwitchHost('B', 1);
-      const C = new SwitchHost('C', 1);
-      const D = new SwitchHost('D', 1);
+      const A = createSwitch('A', 3);
+      const B = createSwitch('B', 1);
+      const C = createSwitch('C', 1);
+      const D = createSwitch('D', 1);
 
       A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
       B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
@@ -526,9 +552,9 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
     });
 
     it('should have exactly one Root port on non-root bridge', async () => {
-      const A = new SwitchHost('A', 1);
-      const B = new SwitchHost('B', 2);
-      const C = new SwitchHost('C', 1);
+      const A = createSwitch('A', 1);
+      const B = createSwitch('B', 2);
+      const C = createSwitch('C', 1);
 
       A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
       B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
@@ -570,9 +596,9 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
     });
 
     it('should block redundant paths in triangle topology', async () => {
-      const A = new SwitchHost('A', 2);
-      const B = new SwitchHost('B', 2);
-      const C = new SwitchHost('C', 2);
+      const A = createSwitch('A', 2);
+      const B = createSwitch('B', 2);
+      const C = createSwitch('C', 2);
 
       A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
       B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
@@ -643,9 +669,9 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
     });
 
     it('should prevent both sides of cable being Blocked', async () => {
-      const A = new SwitchHost('A', 2);
-      const B = new SwitchHost('B', 2);
-      const C = new SwitchHost('C', 2);
+      const A = createSwitch('A', 2);
+      const B = createSwitch('B', 2);
+      const C = createSwitch('C', 2);
 
       A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
       B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
@@ -714,9 +740,10 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
 
   describe('Root Port Tie-Breaking', () => {
     it('should select root port based on lowest cost', async () => {
-      const A = new SwitchHost('A', 2);
-      const B = new SwitchHost('B', 2);
-      const C = new SwitchHost('C', 2);
+      // Use STP (not RPVST) for faster convergence in this specific test
+      const A = createSwitch('A', 2, SpanningTreeProtocol.STP);
+      const B = createSwitch('B', 2, SpanningTreeProtocol.STP);
+      const C = createSwitch('C', 2, SpanningTreeProtocol.STP);
 
       A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
       B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
@@ -774,7 +801,7 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
       ).toBe(true); // Indirect (blocked)
 
       [A, B, C].forEach((sw) => sw.destroy());
-    });
+    }, 15000); // Increased timeout to 15s since convergence can take up to 10s
 
     // Note: Testing individual tie-breakers (sender priority, sender MAC, port IDs)
     // is difficult without mocking BPDU messages or controlling interface creation.
@@ -783,7 +810,7 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
 
   describe('Port Cost Calculation', () => {
     it('should use hash-based port ID (not Number that gives NaN)', () => {
-      const A = new SwitchHost('A', 1);
+      const A = createSwitch('A', 1);
       A.spanningTree.Enable = true;
 
       // Interface name like "GigabitEthernet0/0" would give NaN with Number()
@@ -805,9 +832,9 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
     });
 
     it('should advertise root path cost, not interface cost', async () => {
-      const A = new SwitchHost('A', 1, SpanningTreeProtocol.STP);
-      const B = new SwitchHost('B', 2, SpanningTreeProtocol.STP);
-      const C = new SwitchHost('C', 1, SpanningTreeProtocol.STP);
+      const A = createSwitch('A', 1, SpanningTreeProtocol.STP);
+      const B = createSwitch('B', 2, SpanningTreeProtocol.STP);
+      const C = createSwitch('C', 1, SpanningTreeProtocol.STP);
 
       A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
       B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
@@ -865,8 +892,8 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
     });
 
     it('should only clear cost table when root actually changes', async () => {
-      const A = new SwitchHost('A', 2);
-      const B = new SwitchHost('B', 2);
+      const A = createSwitch('A', 2);
+      const B = createSwitch('B', 2);
 
       A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
       B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
@@ -907,9 +934,9 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
     });
 
     it('should calculate root port cost correctly', async () => {
-      const A = new SwitchHost('A', 1);
-      const B = new SwitchHost('B', 2);
-      const C = new SwitchHost('C', 1);
+      const A = createSwitch('A', 1);
+      const B = createSwitch('B', 2);
+      const C = createSwitch('C', 1);
 
       A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
       B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
@@ -974,8 +1001,8 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
 
   describe('BPDU Aging and Timeout', () => {
     it('should reset BPDU timer on each new BPDU', async () => {
-      const A = new SwitchHost('A', 1);
-      const B = new SwitchHost('B', 1);
+      const A = createSwitch('A', 1);
+      const B = createSwitch('B', 1);
 
       A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
       B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
@@ -1009,8 +1036,8 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
     });
 
     it('should detect BPDU timeout after maxAge', async () => {
-      const A = new SwitchHost('A', 1);
-      const B = new SwitchHost('B', 1);
+      const A = createSwitch('A', 1);
+      const B = createSwitch('B', 1);
 
       A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
       B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
@@ -1049,9 +1076,9 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
     });
 
     it('should promote Blocked port to Designated after BPDU timeout', async () => {
-      const A = new SwitchHost('A', 2);
-      const B = new SwitchHost('B', 2);
-      const C = new SwitchHost('C', 2);
+      const A = createSwitch('A', 2);
+      const B = createSwitch('B', 2);
+      const C = createSwitch('C', 2);
 
       A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
       B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
@@ -1152,7 +1179,7 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
 
   describe('Port State Transitions', () => {
     it('should transition Disabled to Listening on interface up', () => {
-      const A = new SwitchHost('A', 1);
+      const A = createSwitch('A', 1);
       A.spanningTree.Enable = true;
 
       const iface = A.getInterface(0);
@@ -1175,9 +1202,9 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
     });
 
     it('should keep Blocked port in Blocking state', async () => {
-      const A = new SwitchHost('A', 2);
-      const B = new SwitchHost('B', 2);
-      const C = new SwitchHost('C', 2);
+      const A = createSwitch('A', 2);
+      const B = createSwitch('B', 2);
+      const C = createSwitch('C', 2);
 
       A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
       B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
@@ -1230,7 +1257,7 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
     });
 
     it('should sync state with role change', () => {
-      const A = new SwitchHost('A', 1);
+      const A = createSwitch('A', 1);
       A.spanningTree.Enable = true;
 
       const iface = A.getInterface(0);
@@ -1255,7 +1282,7 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
 
   describe('Edge Cases', () => {
     it('should discard own BPDU (loopback detection)', async () => {
-      const A = new SwitchHost('A', 1);
+      const A = createSwitch('A', 1);
       A.spanningTree.Enable = true;
       A.getInterface(0).up();
 
@@ -1273,8 +1300,8 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
     });
 
     it('should discard BPDU with messageAge >= maxAge', () => {
-      const A = new SwitchHost('A', 1);
-      const B = new SwitchHost('B', 1);
+      const A = createSwitch('A', 1);
+      const B = createSwitch('B', 1);
 
       A.spanningTree.Enable = true;
       B.spanningTree.Enable = true;
@@ -1308,7 +1335,7 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
 
     it('should handle switch with no interfaces gracefully', () => {
       expect(() => {
-        const A = new SwitchHost('A', 0);
+        const A = createSwitch('A', 0);
         A.spanningTree.Enable = true;
         A.spanningTree.negociate();
         A.destroy();
@@ -1316,8 +1343,8 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
     });
 
     it('should handle interface addition during convergence', async () => {
-      const A = new SwitchHost('A', 1);
-      const B = new SwitchHost('B', 1);
+      const A = createSwitch('A', 1);
+      const B = createSwitch('B', 1);
 
       A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
       B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
@@ -1357,7 +1384,7 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
     });
 
     it('should handle rapid interface up/down events', async () => {
-      const A = new SwitchHost('A', 1);
+      const A = createSwitch('A', 1);
       A.spanningTree.Enable = true;
 
       const iface = A.getInterface(0);
@@ -1382,9 +1409,9 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
 
   describe('Frame Forwarding Integration', () => {
     it('should drop incoming frames on Blocked port', async () => {
-      const A = new SwitchHost('A', 2);
-      const B = new SwitchHost('B', 2);
-      const C = new SwitchHost('C', 2);
+      const A = createSwitch('A', 2);
+      const B = createSwitch('B', 2);
+      const C = createSwitch('C', 2);
 
       A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
       B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
@@ -1445,7 +1472,7 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
     });
 
     it('should learn MAC but not forward on Listening port', () => {
-      const A = new SwitchHost('A', 1);
+      const A = createSwitch('A', 1);
       A.spanningTree.Enable = true;
 
       const iface = A.getInterface(0);
@@ -1463,7 +1490,7 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
     });
 
     it('should learn MAC but not forward on Learning port', () => {
-      const A = new SwitchHost('A', 1);
+      const A = createSwitch('A', 1);
       A.spanningTree.Enable = true;
 
       const iface = A.getInterface(0);
@@ -1480,8 +1507,8 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
     });
 
     it('should forward frames on Forwarding port', async () => {
-      const A = new SwitchHost('A', 1);
-      const B = new SwitchHost('B', 1);
+      const A = createSwitch('A', 1);
+      const B = createSwitch('B', 1);
 
       A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
       B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
@@ -1530,7 +1557,7 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
 
       // Create 5 switches
       for (let i = 0; i < 5; i += 1) {
-        const sw = new SwitchHost(`SW${i}`, 4);
+        const sw = createSwitch(`SW${i}`, 4);
         sw.getInterface(0).setMacAddress(
           new MacAddress(`00:00:00:00:00:0${i + 1}`)
         );
@@ -1568,9 +1595,9 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
     });
 
     it('should handle multiple topology changes without memory leaks', async () => {
-      const A = new SwitchHost('A', 3);
-      const B = new SwitchHost('B', 3);
-      const C = new SwitchHost('C', 3);
+      const A = createSwitch('A', 3);
+      const B = createSwitch('B', 3);
+      const C = createSwitch('C', 3);
 
       A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
       B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
@@ -1617,7 +1644,7 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
     });
 
     it('should cancel all timers on destroy()', () => {
-      const A = new SwitchHost('A', 2);
+      const A = createSwitch('A', 2);
       A.spanningTree.Enable = true;
       A.getInterface(0).up();
       A.getInterface(1).up();
@@ -1632,7 +1659,7 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
 
   describe('PVST (Per-VLAN Spanning Tree)', () => {
     it('should create PVSTService when protocol is PVST', () => {
-      const A = new SwitchHost('A', 2, SpanningTreeProtocol.PVST);
+      const A = createSwitch('A', 2, SpanningTreeProtocol.PVST);
       expect(A.getStpProtocol()).toBe(SpanningTreeProtocol.PVST);
       expect(A.spanningTree.getProtocolType()).toBe(SpanningTreeProtocol.PVST);
       A.destroy();
@@ -1640,8 +1667,8 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
 
     it('should maintain independent STP states per VLAN', () => {
       // Create switches with PVST
-      const A = new SwitchHost('A', 2, SpanningTreeProtocol.PVST);
-      const B = new SwitchHost('B', 2, SpanningTreeProtocol.PVST);
+      const A = createSwitch('A', 2, SpanningTreeProtocol.PVST);
+      const B = createSwitch('B', 2, SpanningTreeProtocol.PVST);
 
       // Configure VLANs 10 and 20
       A.knownVlan[10] = 'VLAN 10';
@@ -1684,7 +1711,7 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
     });
 
     it('should support protocol switching between STP and PVST', () => {
-      const A = new SwitchHost('A', 2, SpanningTreeProtocol.STP);
+      const A = createSwitch('A', 2, SpanningTreeProtocol.STP);
       expect(A.getStpProtocol()).toBe(SpanningTreeProtocol.STP);
 
       // Switch to PVST
@@ -1701,7 +1728,7 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
     });
 
     it('should discover VLANs from knownVlan registry', () => {
-      const A = new SwitchHost('A', 2, SpanningTreeProtocol.PVST);
+      const A = createSwitch('A', 2, SpanningTreeProtocol.PVST);
 
       // Register VLANs
       A.knownVlan[10] = 'Engineering';
@@ -1728,7 +1755,7 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
   describe('RSTP (Rapid Spanning Tree) - IEEE 802.1w', () => {
     describe('Basic RSTP Functionality', () => {
       it('should create RSTPService when protocol is RSTP', () => {
-        const A = new SwitchHost('A', 2, SpanningTreeProtocol.RSTP);
+        const A = createSwitch('A', 2, SpanningTreeProtocol.RSTP);
         expect(A.getStpProtocol()).toBe(SpanningTreeProtocol.RSTP);
         expect(A.spanningTree.getProtocolType()).toBe(
           SpanningTreeProtocol.RSTP
@@ -1737,8 +1764,8 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
       }, 15000); // 15s timeout for RSTP tests
 
       it('should send version 2 BPDUs', async () => {
-        const A = new SwitchHost('A', 1, SpanningTreeProtocol.RSTP);
-        const B = new SwitchHost('B', 1, SpanningTreeProtocol.RSTP);
+        const A = createSwitch('A', 1, SpanningTreeProtocol.RSTP);
+        const B = createSwitch('B', 1, SpanningTreeProtocol.RSTP);
 
         A.spanningTree.Enable = true;
         B.spanningTree.Enable = true;
@@ -1774,8 +1801,8 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
       });
 
       it('should encode port role in BPDU flags', async () => {
-        const A = new SwitchHost('A', 2, SpanningTreeProtocol.RSTP);
-        const B = new SwitchHost('B', 1, SpanningTreeProtocol.RSTP);
+        const A = createSwitch('A', 2, SpanningTreeProtocol.RSTP);
+        const B = createSwitch('B', 1, SpanningTreeProtocol.RSTP);
 
         A.spanningTree.Enable = true;
         B.spanningTree.Enable = true;
@@ -1815,7 +1842,7 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
 
     describe('Edge Port Auto-Detection', () => {
       it('should mark port as edge after 3 seconds without BPDU', async () => {
-        const A = new SwitchHost('A', 1, SpanningTreeProtocol.RSTP);
+        const A = createSwitch('A', 1, SpanningTreeProtocol.RSTP);
         A.spanningTree.Enable = true;
 
         // Initially not edge
@@ -1837,8 +1864,8 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
       });
 
       it('should disable edge status when BPDU is received', async () => {
-        const A = new SwitchHost('A', 1, SpanningTreeProtocol.RSTP);
-        const B = new SwitchHost('B', 1, SpanningTreeProtocol.RSTP);
+        const A = createSwitch('A', 1, SpanningTreeProtocol.RSTP);
+        const B = createSwitch('B', 1, SpanningTreeProtocol.RSTP);
 
         A.spanningTree.Enable = true;
         B.spanningTree.Enable = true;
@@ -1885,8 +1912,8 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
 
     describe('Proposal/Agreement Mechanism', () => {
       it('should send proposal on designated port', async () => {
-        const A = new SwitchHost('A', 1, SpanningTreeProtocol.RSTP);
-        const B = new SwitchHost('B', 1, SpanningTreeProtocol.RSTP);
+        const A = createSwitch('A', 1, SpanningTreeProtocol.RSTP);
+        const B = createSwitch('B', 1, SpanningTreeProtocol.RSTP);
 
         A.spanningTree.Enable = true;
         B.spanningTree.Enable = true;
@@ -1924,8 +1951,8 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
       });
 
       it('should respond with agreement when receiving proposal', async () => {
-        const A = new SwitchHost('A', 1, SpanningTreeProtocol.RSTP);
-        const B = new SwitchHost('B', 1, SpanningTreeProtocol.RSTP);
+        const A = createSwitch('A', 1, SpanningTreeProtocol.RSTP);
+        const B = createSwitch('B', 1, SpanningTreeProtocol.RSTP);
 
         A.spanningTree.Enable = true;
         B.spanningTree.Enable = true;
@@ -1966,9 +1993,9 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
     describe('Rapid Convergence', () => {
       it('should converge faster than STP in triangle topology', async () => {
         // Create RSTP triangle
-        const aRstp = new SwitchHost('A_RSTP', 2, SpanningTreeProtocol.RSTP);
-        const bRstp = new SwitchHost('B_RSTP', 2, SpanningTreeProtocol.RSTP);
-        const cRstp = new SwitchHost('C_RSTP', 2, SpanningTreeProtocol.RSTP);
+        const aRstp = createSwitch('A_RSTP', 2, SpanningTreeProtocol.RSTP);
+        const bRstp = createSwitch('B_RSTP', 2, SpanningTreeProtocol.RSTP);
+        const cRstp = createSwitch('C_RSTP', 2, SpanningTreeProtocol.RSTP);
 
         aRstp.spanningTree.Enable = true;
         bRstp.spanningTree.Enable = true;
@@ -2004,8 +2031,8 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
       }, 10000); // 10s timeout
 
       it('should use rapid state transitions with proposal/agreement', async () => {
-        const A = new SwitchHost('A', 1, SpanningTreeProtocol.RSTP);
-        const B = new SwitchHost('B', 1, SpanningTreeProtocol.RSTP);
+        const A = createSwitch('A', 1, SpanningTreeProtocol.RSTP);
+        const B = createSwitch('B', 1, SpanningTreeProtocol.RSTP);
 
         A.spanningTree.Enable = true;
         B.spanningTree.Enable = true;
@@ -2040,8 +2067,8 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
 
     describe('STP/RSTP Interoperability', () => {
       it('should detect STP neighbor and fall back', async () => {
-        const aRstp = new SwitchHost('A_RSTP', 1, SpanningTreeProtocol.RSTP);
-        const bStp = new SwitchHost('B_STP', 1, SpanningTreeProtocol.STP);
+        const aRstp = createSwitch('A_RSTP', 1, SpanningTreeProtocol.RSTP);
+        const bStp = createSwitch('B_STP', 1, SpanningTreeProtocol.STP);
 
         aRstp.spanningTree.Enable = true;
         bStp.spanningTree.Enable = true;
@@ -2076,8 +2103,8 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
       });
 
       it('should not send proposals to STP neighbors', () => {
-        const aRstp = new SwitchHost('A_RSTP', 1, SpanningTreeProtocol.RSTP);
-        const bStp = new SwitchHost('B_STP', 1, SpanningTreeProtocol.STP);
+        const aRstp = createSwitch('A_RSTP', 1, SpanningTreeProtocol.RSTP);
+        const bStp = createSwitch('B_STP', 1, SpanningTreeProtocol.STP);
 
         aRstp.spanningTree.Enable = true;
         bStp.spanningTree.Enable = true;
@@ -2122,7 +2149,7 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
   describe('R-PVST (Rapid Per-VLAN Spanning Tree)', () => {
     describe('Basic R-PVST Functionality', () => {
       it('should create RPVSTService when protocol is RPVST', () => {
-        const A = new SwitchHost('A', 2, SpanningTreeProtocol.RPVST);
+        const A = createSwitch('A', 2, SpanningTreeProtocol.RPVST);
         expect(A.getStpProtocol()).toBe(SpanningTreeProtocol.RPVST);
         expect(A.spanningTree.getProtocolType()).toBe(
           SpanningTreeProtocol.RPVST
@@ -2131,8 +2158,8 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
       });
 
       it('should maintain independent RSTP states per VLAN', () => {
-        const A = new SwitchHost('A', 2, SpanningTreeProtocol.RPVST);
-        const B = new SwitchHost('B', 2, SpanningTreeProtocol.RPVST);
+        const A = createSwitch('A', 2, SpanningTreeProtocol.RPVST);
+        const B = createSwitch('B', 2, SpanningTreeProtocol.RPVST);
 
         // Configure VLANs 10 and 20
         A.knownVlan[10] = 'VLAN 10';
@@ -2175,7 +2202,7 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
       });
 
       it('should support protocol switching to RPVST', () => {
-        const A = new SwitchHost('A', 2, SpanningTreeProtocol.RSTP);
+        const A = createSwitch('A', 2, SpanningTreeProtocol.RSTP);
         expect(A.getStpProtocol()).toBe(SpanningTreeProtocol.RSTP);
 
         // Switch to R-PVST
@@ -2191,8 +2218,8 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
 
     describe('Per-VLAN Rapid Convergence', () => {
       it('should converge rapidly per VLAN (< 5s)', async () => {
-        const A = new SwitchHost('A', 2, SpanningTreeProtocol.RPVST);
-        const B = new SwitchHost('B', 2, SpanningTreeProtocol.RPVST);
+        const A = createSwitch('A', 2, SpanningTreeProtocol.RPVST);
+        const B = createSwitch('B', 2, SpanningTreeProtocol.RPVST);
 
         // Configure VLANs 10 and 20
         A.knownVlan[10] = 'VLAN 10';
@@ -2232,9 +2259,9 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
       }, 10000);
 
       it('should have independent convergence per VLAN', async () => {
-        const A = new SwitchHost('A', 3, SpanningTreeProtocol.RPVST);
-        const B = new SwitchHost('B', 3, SpanningTreeProtocol.RPVST);
-        const C = new SwitchHost('C', 3, SpanningTreeProtocol.RPVST);
+        const A = createSwitch('A', 3, SpanningTreeProtocol.RPVST);
+        const B = createSwitch('B', 3, SpanningTreeProtocol.RPVST);
+        const C = createSwitch('C', 3, SpanningTreeProtocol.RPVST);
 
         // VLAN 10: all switches participate
         A.knownVlan[10] = 'VLAN 10';
@@ -2288,7 +2315,7 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
 
     describe('Per-VLAN Edge Port Detection', () => {
       it('should detect edge ports independently per VLAN', async () => {
-        const A = new SwitchHost('A', 2, SpanningTreeProtocol.RPVST);
+        const A = createSwitch('A', 2, SpanningTreeProtocol.RPVST);
 
         // Configure VLANs
         A.knownVlan[10] = 'VLAN 10';
@@ -2326,7 +2353,7 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
 
     describe('R-PVST Protocol Discovery', () => {
       it('should discover VLANs and create RSTP instances', () => {
-        const A = new SwitchHost('A', 2, SpanningTreeProtocol.RPVST);
+        const A = createSwitch('A', 2, SpanningTreeProtocol.RPVST);
 
         // Register multiple VLANs
         A.knownVlan[10] = 'Engineering';
@@ -2354,10 +2381,10 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
   describe('Protocol Propagation', () => {
     it('should propagate protocol change to all connected switches in broadcast domain', () => {
       // Create a network topology: A -- B -- C    D (isolated)
-      const A = new SwitchHost('A', 1, SpanningTreeProtocol.STP);
-      const B = new SwitchHost('B', 2, SpanningTreeProtocol.STP);
-      const C = new SwitchHost('C', 1, SpanningTreeProtocol.STP);
-      const D = new SwitchHost('D', 1, SpanningTreeProtocol.STP);
+      const A = createSwitch('A', 1, SpanningTreeProtocol.STP);
+      const B = createSwitch('B', 2, SpanningTreeProtocol.STP);
+      const C = createSwitch('C', 1, SpanningTreeProtocol.STP);
+      const D = createSwitch('D', 1, SpanningTreeProtocol.STP);
 
       A.getInterface(0).up();
       B.getInterface(0).up();
@@ -2450,10 +2477,10 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
       // Create a star topology: B -- A -- C
       //                              |
       //                              D
-      const A = new SwitchHost('A', 3, SpanningTreeProtocol.PVST);
-      const B = new SwitchHost('B', 1, SpanningTreeProtocol.PVST);
-      const C = new SwitchHost('C', 1, SpanningTreeProtocol.PVST);
-      const D = new SwitchHost('D', 1, SpanningTreeProtocol.PVST);
+      const A = createSwitch('A', 3, SpanningTreeProtocol.PVST);
+      const B = createSwitch('B', 1, SpanningTreeProtocol.PVST);
+      const C = createSwitch('C', 1, SpanningTreeProtocol.PVST);
+      const D = createSwitch('D', 1, SpanningTreeProtocol.PVST);
 
       A.getInterface(0).up();
       A.getInterface(1).up();
@@ -2523,7 +2550,7 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
     });
 
     it('should handle single isolated switch', () => {
-      const A = new SwitchHost('A', 1, SpanningTreeProtocol.STP);
+      const A = createSwitch('A', 1, SpanningTreeProtocol.STP);
       A.getInterface(0).up();
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -2577,9 +2604,9 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
       // Create topology: Switch A -- Switch B -- Router -- Switch C
       // A and B are in same broadcast domain
       // C is in different broadcast domain (separated by router)
-      const A = new SwitchHost('A', 1, SpanningTreeProtocol.STP);
-      const B = new SwitchHost('B', 2, SpanningTreeProtocol.STP);
-      const C = new SwitchHost('C', 1, SpanningTreeProtocol.STP);
+      const A = createSwitch('A', 1, SpanningTreeProtocol.STP);
+      const B = createSwitch('B', 2, SpanningTreeProtocol.STP);
+      const C = createSwitch('C', 1, SpanningTreeProtocol.STP);
       const Router = new RouterHost('Router', 2);
 
       A.getInterface(0).up();

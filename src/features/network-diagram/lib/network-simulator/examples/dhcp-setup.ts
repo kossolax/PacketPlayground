@@ -38,7 +38,7 @@ export default function createDHCPSetupExample(): Network {
   server.services.dhcp.Enable = true;
 
   // Create Switch
-  const switchDevice = new SwitchHost('Switch-1', 4, true);
+  const switchDevice = new SwitchHost('Switch-1', 4);
   switchDevice.guid = 'switch-example';
   switchDevice.x = 300;
   switchDevice.y = 200;

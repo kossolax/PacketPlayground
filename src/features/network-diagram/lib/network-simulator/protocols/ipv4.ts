@@ -54,7 +54,9 @@ export class IPv4Message extends NetworkMessage {
     const words: number[] = [];
 
     // Version (4 bits) + IHL (4 bits) + TOS (8 bits)
-    words.push(((this.version << 12) | (this.headerLength << 8) | this.TOS) & 0xffff);
+    words.push(
+      ((this.version << 12) | (this.headerLength << 8) | this.TOS) & 0xffff
+    );
 
     // Total Length (16 bits)
     words.push(this.totalLength & 0xffff);
@@ -180,9 +182,10 @@ export class IPv4Message extends NetworkMessage {
       if (this.ttl > 255) throw new Error('TTL must be <= 255');
 
       // Convert payload to string for fragmentation
-      const payloadStr = typeof this.payload === 'string'
-        ? this.payload
-        : this.payload.toString();
+      const payloadStr =
+        typeof this.payload === 'string'
+          ? this.payload
+          : this.payload.toString();
       const payloadLength = payloadStr.length;
 
       // RFC 791: Header size (minimum 20 bytes for no options)
@@ -190,7 +193,8 @@ export class IPv4Message extends NetworkMessage {
 
       // RFC 791: Calculate maximum payload per fragment
       // Fragment data must be multiple of 8 bytes (except last fragment)
-      const maxDataPerFragment = Math.floor((this.maxSize - headerBytes) / 8) * 8;
+      const maxDataPerFragment =
+        Math.floor((this.maxSize - headerBytes) / 8) * 8;
 
       // If no fragmentation needed, return single packet
       if (headerBytes + payloadLength <= this.maxSize) {
@@ -230,7 +234,11 @@ export class IPv4Message extends NetworkMessage {
         );
 
         // Create fragment message
-        const message = new IPv4Message(fragmentPayload, this.netSrc, this.netDst);
+        const message = new IPv4Message(
+          fragmentPayload,
+          this.netSrc,
+          this.netDst
+        );
         message.ttl = this.ttl;
         message.identification = this.id;
         message.protocol = this.protocol;

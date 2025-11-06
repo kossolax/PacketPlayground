@@ -105,7 +105,8 @@ describe('CRC-32 (IEEE 802.3)', () => {
 
     it('should handle empty data', () => {
       const crc = crc32([]);
-      expect(crc).toBe(0xffffffff); // Initial value XOR 0xFFFFFFFF
+      // Empty data: initial (0xFFFFFFFF) XOR final (0xFFFFFFFF) = 0x00000000
+      expect(crc).toBe(0x00000000);
     });
 
     it('should handle single byte', () => {

@@ -19,7 +19,7 @@ export default function createARPDiscoveryExample(): Network {
   const network = new Network();
 
   // Create Switch
-  const switchDevice = new SwitchHost('Switch-1', 4, true);
+  const switchDevice = new SwitchHost('Switch-1', 4);
   switchDevice.guid = 'switch-arp-example';
   switchDevice.x = 300;
   switchDevice.y = 200;
