@@ -146,7 +146,9 @@ describe('IPv4 protocol', () => {
     expect(packets[0] instanceof IPv4Message).toBe(true);
     expect(packets[0].payload).toBe(message);
     expect((packets[0] as IPv4Message).flags.moreFragments).toBe(false);
-    expect((packets[0] as IPv4Message).totalLength).toBe(headerBytes + message.length);
+    expect((packets[0] as IPv4Message).totalLength).toBe(
+      headerBytes + message.length
+    );
   });
 
   it('Router->IPv4[fragmented]-->Router....>Router  (should not reconstruct)', async () => {
@@ -187,8 +189,12 @@ describe('IPv4 protocol', () => {
     // Fragments should split the payload
     // First fragment has alignedPayloadPerFragment bytes
     // Second fragment has the rest
-    expect(packets[0].payload).toBe(message.substring(0, alignedPayloadPerFragment));
-    expect(packets[1].payload).toBe(message.substring(alignedPayloadPerFragment));
+    expect(packets[0].payload).toBe(
+      message.substring(0, alignedPayloadPerFragment)
+    );
+    expect(packets[1].payload).toBe(
+      message.substring(alignedPayloadPerFragment)
+    );
 
     // Reconstruct and verify full message
     const reconstructed = packets[0].payload + packets[1].payload;
