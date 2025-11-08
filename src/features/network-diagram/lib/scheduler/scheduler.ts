@@ -138,10 +138,9 @@ export class Scheduler {
   }
 
   public once(delay: number): Observable<0> {
-    const actualDelay = this.getDelay(delay);
-    // CRITICAL FIX: Don't add to listener array for one-time timers
-    // This prevents memory leak from accumulating completed observables
-    return timer(actualDelay).pipe(take(1));
+    // Use repeat() with take(1) to ensure proper speed change handling
+    // The finalize() in repeat() will auto-remove from listener array after completion
+    return this.repeat(delay).pipe(take(1));
   }
 
   public repeat(delay: number, firstDelay: number = -1): Observable<0> {
@@ -155,7 +154,12 @@ export class Scheduler {
 
     return interval$.pipe(
       switchMap((duration) => timer(duration)),
-      tap(() => interval$.next(this.getDelay(delay))),
+      tap(() => {
+        // Only emit next value if subject is still active (not closed/completed)
+        if (!interval$.closed) {
+          interval$.next(this.getDelay(delay));
+        }
+      }),
       // CRITICAL FIX: Remove from listener array when unsubscribed
       finalize(() => {
         const index = this.listener.indexOf(listenerEntry);
@@ -173,8 +177,12 @@ export class Scheduler {
   }
 
   public clear(): void {
+    // Copy array to avoid modification during iteration (finalize() removes from array)
+    const listeners = [...this.listener];
+    this.listener = [];
+
     // Complete and unsubscribe all listeners to prevent memory leaks
-    this.listener.forEach((i) => {
+    listeners.forEach((i) => {
       try {
         i.callback.complete();
         i.callback.unsubscribe();
@@ -182,7 +190,7 @@ export class Scheduler {
         // Ignore errors during cleanup
       }
     });
-    this.listener = [];
+
     this.startTime = Date.now();
     this.startPause = 0;
   }
