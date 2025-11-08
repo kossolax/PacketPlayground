@@ -191,6 +191,13 @@ export class IPv4Message extends NetworkMessage {
       // RFC 791: Header size (minimum 20 bytes for no options)
       const headerBytes = this.protocol === 1 ? 20 : 20; // IHL=5 → 5*4=20 bytes
 
+      // RFC 791: Validate minimum packet size (header + at least 8 bytes of data)
+      if (this.maxSize < headerBytes + 8) {
+        throw new Error(
+          `Maximum size ${this.maxSize} is too small. Must be at least ${headerBytes + 8} bytes (${headerBytes}-byte header + 8 bytes minimum fragment data)`
+        );
+      }
+
       // RFC 791: Calculate maximum payload per fragment
       // Fragment data must be multiple of 8 bytes (except last fragment)
       const maxDataPerFragment =

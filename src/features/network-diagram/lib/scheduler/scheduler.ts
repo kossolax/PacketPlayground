@@ -1,5 +1,6 @@
 import {
   BehaviorSubject,
+  finalize,
   map,
   Observable,
   switchMap,
@@ -137,7 +138,10 @@ export class Scheduler {
   }
 
   public once(delay: number): Observable<0> {
-    return this.repeat(delay).pipe(take(1));
+    const actualDelay = this.getDelay(delay);
+    // CRITICAL FIX: Don't add to listener array for one-time timers
+    // This prevents memory leak from accumulating completed observables
+    return timer(actualDelay).pipe(take(1));
   }
 
   public repeat(delay: number, firstDelay: number = -1): Observable<0> {
@@ -146,11 +150,19 @@ export class Scheduler {
     const interval$: BehaviorSubject<number> = new BehaviorSubject<number>(
       this.getDelay(actualFirstDelay)
     );
-    this.listener.push({ delay, callback: interval$ });
+    const listenerEntry = { delay, callback: interval$ };
+    this.listener.push(listenerEntry);
 
     return interval$.pipe(
       switchMap((duration) => timer(duration)),
-      tap(() => interval$.next(this.getDelay(delay)))
+      tap(() => interval$.next(this.getDelay(delay))),
+      // CRITICAL FIX: Remove from listener array when unsubscribed
+      finalize(() => {
+        const index = this.listener.indexOf(listenerEntry);
+        if (index !== -1) {
+          this.listener.splice(index, 1);
+        }
+      })
     );
   }
 
