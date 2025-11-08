@@ -201,8 +201,8 @@ describe('Terminal FHRP (HSRP) test', () => {
       terminalRouter.exec('interface gig 0/0');
       terminalRouter.exec('standby 1 ip 192.168.1.254');
       terminalRouter.exec('standby 1 priority 110');
-      terminalRouter.exec('exit');
-      terminalRouter.exec('exit');
+      terminalRouter.exec('end');
+      terminalRouter.exec('end');
     });
 
     it('should show HSRP status', () => {
@@ -245,8 +245,8 @@ describe('Terminal FHRP (HSRP) test', () => {
     });
 
     it('should autocomplete show standby', () => {
-      terminalRouter.exec('exit');
-      terminalRouter.exec('exit');
+      terminalRouter.exec('end');
+      terminalRouter.exec('end');
       const suggestions = terminalRouter.autocomplete('show s');
       expect(suggestions).toContain('standby');
     });
@@ -329,7 +329,7 @@ describe('Terminal FHRP (HSRP) test', () => {
 
       terminalRouter.exec('interface gig 0/0');
       terminalRouter.exec('standby 1 ip 192.168.1.254');
-      terminalRouter.exec('exit');
+      terminalRouter.exec('end');
 
       terminalRouter.exec('interface gig 0/1');
       terminalRouter.exec('standby 1 ip 10.0.0.254');

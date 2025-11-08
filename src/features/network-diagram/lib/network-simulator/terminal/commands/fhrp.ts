@@ -52,13 +52,11 @@ export class StandbyCommand extends TerminalCommand {
         return;
       }
 
-      // Get existing group or prepare to create new one
-      let group = router.services.fhrp.getGroup(iface, groupNum);
-
       // standby <group> ip <virtual-ip>
       if (args[1] === 'ip' && args.length === 3) {
         try {
           const virtualIP = new IPAddress(args[2]);
+          const group = router.services.fhrp.getGroup(iface, groupNum);
 
           if (group) {
             // Update existing group
@@ -87,6 +85,7 @@ export class StandbyCommand extends TerminalCommand {
           throw new Error('Priority must be between 0 and 255');
         }
 
+        const group = router.services.fhrp.getGroup(iface, groupNum);
         if (!group) {
           throw new Error(
             `HSRP group ${groupNum} must be configured with IP first`
@@ -105,6 +104,7 @@ export class StandbyCommand extends TerminalCommand {
       }
       // standby <group> preempt
       else if (args[1] === 'preempt' && args.length === 2) {
+        const group = router.services.fhrp.getGroup(iface, groupNum);
         if (!group) {
           throw new Error(
             `HSRP group ${groupNum} must be configured with IP first`
@@ -129,6 +129,7 @@ export class StandbyCommand extends TerminalCommand {
           throw new Error('Hold time must be greater than hello time');
         }
 
+        const group = router.services.fhrp.getGroup(iface, groupNum);
         if (!group) {
           throw new Error(
             `HSRP group ${groupNum} must be configured with IP first`
@@ -147,6 +148,7 @@ export class StandbyCommand extends TerminalCommand {
           throw new Error('Authentication string maximum is 8 characters');
         }
 
+        const group = router.services.fhrp.getGroup(iface, groupNum);
         if (!group) {
           throw new Error(
             `HSRP group ${groupNum} must be configured with IP first`
@@ -185,14 +187,14 @@ export class StandbyCommand extends TerminalCommand {
         );
       }
 
-      // Default values for timers
+      // Default values for timers - only if arg is empty
       if (args[1] === 'timers') {
-        if (args.length === 3) return ['3']; // Default hello time
-        if (args.length === 4) return ['10']; // Default hold time
+        if (args.length === 3 && args[2] === '') return ['3']; // Default hello time
+        if (args.length === 4 && args[3] === '') return ['10']; // Default hold time
       }
 
-      // Default authentication
-      if (args[1] === 'authentication' && args.length === 3) {
+      // Default authentication - only if arg is empty
+      if (args[1] === 'authentication' && args.length === 3 && args[2] === '') {
         return ['cisco'];
       }
 
@@ -254,6 +256,7 @@ export class ShowStandbyCommand extends TerminalCommand {
       // Get all interfaces with HSRP groups
       const interfaces = router.getInterfaces();
       let hasOutput = false;
+      let headerPrinted = false;
 
       interfaces.forEach((ifaceName) => {
         if (interfaceFilter && ifaceName !== interfaceFilter) {
@@ -270,14 +273,15 @@ export class ShowStandbyCommand extends TerminalCommand {
         hasOutput = true;
 
         if (brief) {
-          // Brief output format
-          if (!hasOutput) {
+          // Brief output format - print header once
+          if (!headerPrinted) {
             this.terminal.write(
               'Interface   Grp  Pri  State    Virtual IP      Active router   Standby router'
             );
             this.terminal.write(
               '---------------------------------------------------------------------------------'
             );
+            headerPrinted = true;
           }
 
           groups.forEach((group) => {
