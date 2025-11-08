@@ -191,6 +191,13 @@ export class IPv4Message extends NetworkMessage {
       // RFC 791: Header size (minimum 20 bytes for no options)
       const headerBytes = this.protocol === 1 ? 20 : 20; // IHL=5 → 5*4=20 bytes
 
+      // RFC 791: Validate minimum packet size (header + at least 8 bytes of data)
+      if (this.maxSize < headerBytes + 8) {
+        throw new Error(
+          `Maximum size ${this.maxSize} is too small. Must be at least ${headerBytes + 8} bytes (${headerBytes}-byte header + 8 bytes minimum fragment data)`
+        );
+      }
+
       // RFC 791: Calculate maximum payload per fragment
       // Fragment data must be multiple of 8 bytes (except last fragment)
       const maxDataPerFragment =
@@ -329,14 +336,16 @@ export class IPv4Protocol implements NetworkListener {
 
       entry.message.sort((a, b) => a.fragmentOffset - b.fragmentOffset);
 
+      // RFC 791: Sum payload lengths (not totalLength which includes headers)
       const totalReceivedLength = entry.message.reduce(
-        (sum, i) => sum + i.totalLength,
+        (sum, i) => sum + i.payload.length,
         0
       );
 
-      const firstPacket = entry.message[0];
       const lastPacket = entry.message[entry.message.length - 1];
-      const totalSize = lastPacket.fragmentOffset + lastPacket.totalLength;
+      // RFC 791: fragmentOffset is in units of 8 octets, convert to bytes
+      const totalSize =
+        lastPacket.fragmentOffset * 8 + lastPacket.payload.length;
 
       if (
         lastPacket.flags.moreFragments === false &&
@@ -344,17 +353,31 @@ export class IPv4Protocol implements NetworkListener {
       ) {
         this.queue.delete(key);
 
+        // RFC 791: Reassemble all fragment payloads in order
+        const reassembledPayload = entry.message
+          .map((frag) => frag.payload)
+          .join('');
+
+        // RFC 791: Maximum size must include header + payload to avoid refragmentation
+        const headerBytes = 20; // IPv4 header without options
         const msg = new IPv4Message.Builder()
-          .setPayload(firstPacket.payload)
+          .setPayload(reassembledPayload)
           .setNetSource(message.netSrc as IPAddress)
           .setNetDestination(message.netDst as IPAddress)
           .setTTL(message.ttl)
           .setIdentification(message.identification)
           .setProtocol(message.protocol)
-          .setMaximumSize(totalReceivedLength)
+          .setMaximumSize(headerBytes + totalReceivedLength)
           .build();
 
         if (msg.length !== 1) throw new Error('Invalid message length');
+
+        // CRITICAL: Verify reconstructed message is defragmented to prevent infinite loop
+        if (msg[0].IsFragmented()) {
+          throw new Error(
+            'Reassembled message is still fragmented - reconstruction failed'
+          );
+        }
 
         this.iface.receivePacket(msg[0]);
 

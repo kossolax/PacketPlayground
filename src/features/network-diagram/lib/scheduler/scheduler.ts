@@ -1,5 +1,6 @@
 import {
   BehaviorSubject,
+  finalize,
   map,
   Observable,
   switchMap,
@@ -137,6 +138,8 @@ export class Scheduler {
   }
 
   public once(delay: number): Observable<0> {
+    // Use repeat() with take(1) to ensure proper speed change handling
+    // The finalize() in repeat() will auto-remove from listener array after completion
     return this.repeat(delay).pipe(take(1));
   }
 
@@ -146,11 +149,24 @@ export class Scheduler {
     const interval$: BehaviorSubject<number> = new BehaviorSubject<number>(
       this.getDelay(actualFirstDelay)
     );
-    this.listener.push({ delay, callback: interval$ });
+    const listenerEntry = { delay, callback: interval$ };
+    this.listener.push(listenerEntry);
 
     return interval$.pipe(
       switchMap((duration) => timer(duration)),
-      tap(() => interval$.next(this.getDelay(delay)))
+      tap(() => {
+        // Only emit next value if subject is still active (not closed/completed)
+        if (!interval$.closed) {
+          interval$.next(this.getDelay(delay));
+        }
+      }),
+      // CRITICAL FIX: Remove from listener array when unsubscribed
+      finalize(() => {
+        const index = this.listener.indexOf(listenerEntry);
+        if (index !== -1) {
+          this.listener.splice(index, 1);
+        }
+      })
     );
   }
 
@@ -158,5 +174,35 @@ export class Scheduler {
     this.listener.forEach((i) => {
       i.callback.next(this.getDelay(i.delay));
     });
+  }
+
+  public clear(): void {
+    // Copy array to avoid modification during iteration (finalize() removes from array)
+    const listeners = [...this.listener];
+    this.listener = [];
+
+    // Complete and unsubscribe all listeners to prevent memory leaks
+    listeners.forEach((i) => {
+      try {
+        i.callback.complete();
+        i.callback.unsubscribe();
+      } catch {
+        // Ignore errors during cleanup
+      }
+    });
+
+    this.startTime = Date.now();
+    this.startPause = 0;
+  }
+
+  public static resetInstance(): void {
+    // CRITICAL: Destroy and recreate the singleton for complete isolation between tests
+    if (Scheduler.instance) {
+      Scheduler.instance.clear();
+    }
+    // Force garbage collection of old instance by removing reference
+    // @ts-expect-error - Intentionally deleting singleton instance for test isolation
+    delete Scheduler.instance;
+    Scheduler.instance = new Scheduler();
   }
 }

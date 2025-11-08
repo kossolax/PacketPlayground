@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
   Scheduler,
   SchedulerState,
@@ -90,6 +90,12 @@ describe('IPv4 protocol', () => {
     listener = new TestListener();
   });
 
+  afterEach(() => {
+    // CRITICAL: Complete Scheduler isolation between tests
+    // This destroys and recreates the singleton to prevent memory leaks
+    Scheduler.resetInstance();
+  });
+
   it('Router->IPv4-->Router', async () => {
     B.getInterface(0).addListener(listener);
 
@@ -117,11 +123,19 @@ describe('IPv4 protocol', () => {
 
     const message = `Fragmented Packet ${Math.random()}`;
 
+    // RFC 791: maxSize must include 20-byte header + payload
+    // To get 2 fragments, set maxSize so each fragment holds ~half the payload
+    const headerBytes = 20;
+    const payloadPerFragment = Math.ceil(message.length / 2);
+    // Round UP to multiple of 8 to ensure 2 fragments (not 3)
+    const alignedPayloadPerFragment = Math.ceil(payloadPerFragment / 8) * 8;
+    const maxSize = headerBytes + alignedPayloadPerFragment;
+
     const msg = new IPv4Message.Builder()
       .setPayload(message)
       .setNetSource(A.getInterface(0).getNetAddress() as IPAddress)
       .setNetDestination(B.getInterface(0).getNetAddress() as IPAddress)
-      .setMaximumSize(Math.ceil(message.length / 2) + 1)
+      .setMaximumSize(maxSize)
       .build();
 
     expect(msg.length).toBe(2);
@@ -132,7 +146,9 @@ describe('IPv4 protocol', () => {
     expect(packets[0] instanceof IPv4Message).toBe(true);
     expect(packets[0].payload).toBe(message);
     expect((packets[0] as IPv4Message).flags.moreFragments).toBe(false);
-    expect((packets[0] as IPv4Message).totalLength).toBe(message.length);
+    expect((packets[0] as IPv4Message).totalLength).toBe(
+      headerBytes + message.length
+    );
   });
 
   it('Router->IPv4[fragmented]-->Router....>Router  (should not reconstruct)', async () => {
@@ -140,11 +156,18 @@ describe('IPv4 protocol', () => {
 
     const message = `Router->IPv4[fragmented]-->Router....>Router  (should not reconstruct) ${Math.random()}`;
 
+    // RFC 791: maxSize must include 20-byte header + payload
+    const headerBytes = 20;
+    const payloadPerFragment = Math.ceil(message.length / 2);
+    // Round UP to multiple of 8 to ensure 2 fragments (not 3)
+    const alignedPayloadPerFragment = Math.ceil(payloadPerFragment / 8) * 8;
+    const maxSize = headerBytes + alignedPayloadPerFragment;
+
     const msg = new IPv4Message.Builder()
       .setPayload(message)
       .setNetSource(A.getInterface(0).getNetAddress() as IPAddress)
       .setNetDestination(C.getInterface(0).getNetAddress() as IPAddress)
-      .setMaximumSize(Math.ceil(message.length / 2) + 1)
+      .setMaximumSize(maxSize)
       .build();
 
     expect(msg.length).toBe(2);
@@ -163,8 +186,19 @@ describe('IPv4 protocol', () => {
     expect(packets[0] instanceof IPv4Message).toBe(true);
     expect(packets[1] instanceof IPv4Message).toBe(true);
 
-    expect(packets[0].payload).toBe(message);
-    expect(packets[1].payload).toBe('');
+    // Fragments should split the payload
+    // First fragment has alignedPayloadPerFragment bytes
+    // Second fragment has the rest
+    expect(packets[0].payload).toBe(
+      message.substring(0, alignedPayloadPerFragment)
+    );
+    expect(packets[1].payload).toBe(
+      message.substring(alignedPayloadPerFragment)
+    );
+
+    // Reconstruct and verify full message
+    const reconstructed = packets[0].payload + packets[1].payload;
+    expect(reconstructed).toBe(message);
 
     expect((packets[0] as IPv4Message).flags.moreFragments).toBe(true);
     expect((packets[1] as IPv4Message).flags.moreFragments).toBe(false);
@@ -190,16 +224,17 @@ describe('IPv4 protocol', () => {
       B.getInterface(0).getNetAddress() as IPAddress
     );
 
-    expect(msgBuilder.build().length).toBe(1);
-    expect(msgBuilder.build()[0].IsReadyAtEndPoint(A.getInterface(0))).toBe(
-      false
-    );
-    expect(msgBuilder.build()[0].IsReadyAtEndPoint(B.getInterface(0))).toBe(
-      true
-    );
+    const builtMessages = msgBuilder.build();
+    expect(builtMessages.length).toBe(1);
+    expect(builtMessages[0].IsReadyAtEndPoint(A.getInterface(0))).toBe(false);
+    expect(builtMessages[0].IsReadyAtEndPoint(B.getInterface(0))).toBe(true);
 
-    msgBuilder.setMaximumSize(1);
-    expect(msgBuilder.build().length).toBe(data.length);
-    expect(msgBuilder.build()[0].toString()).toContain('IPv4');
+    // RFC 791: Minimum valid maxSize is 28 bytes (20 header + 8 payload)
+    msgBuilder.setMaximumSize(28);
+    const fragmentedMessages = msgBuilder.build();
+    // With maxSize=28, each fragment has 8 bytes payload
+    const expectedFragments = Math.ceil(data.length / 8);
+    expect(fragmentedMessages.length).toBe(expectedFragments);
+    expect(fragmentedMessages[0].toString()).toContain('IPv4');
   });
 });
