@@ -277,14 +277,12 @@ export class IPv4Protocol implements NetworkListener {
     this.queue = new Map();
 
     iface.addListener(this);
-    // TEMPORARILY DISABLED: This timer causes massive performance issues in test mode
-    // const subscription = Scheduler.getInstance()
-    //   .repeat(10)
-    //   .subscribe(() => {
-    //     this.cleanQueue();
-    //   });
-    // this.cleanupTimer = () => subscription.unsubscribe();
-    this.cleanupTimer = null;
+    const subscription = Scheduler.getInstance()
+      .repeat(10)
+      .subscribe(() => {
+        this.cleanQueue();
+      });
+    this.cleanupTimer = () => subscription.unsubscribe();
   }
 
   public destroy(): void {
@@ -321,16 +319,10 @@ export class IPv4Protocol implements NetworkListener {
 
       const entry = this.queue.get(key);
       if (!entry) {
-        console.log(
-          `[IPv4] First fragment received: id=${message.identification}, offset=${message.fragmentOffset}, more=${message.flags.moreFragments}, payload=${message.payload.length}b`
-        );
         this.queue.set(key, { message: [message], lastReceive: time });
         return ActionHandle.Stop;
       }
 
-      console.log(
-        `[IPv4] Fragment received: id=${message.identification}, offset=${message.fragmentOffset}, more=${message.flags.moreFragments}, payload=${message.payload.length}b, queue_size=${entry.message.length + 1}`
-      );
       entry.message.push(message);
       entry.lastReceive = time;
       this.queue.set(key, entry);
@@ -348,10 +340,6 @@ export class IPv4Protocol implements NetworkListener {
       const totalSize =
         lastPacket.fragmentOffset * 8 + lastPacket.payload.length;
 
-      console.log(
-        `[IPv4] Check reassembly: totalReceived=${totalReceivedLength}, totalSize=${totalSize}, more=${lastPacket.flags.moreFragments}, fragments=${entry.message.length}`
-      );
-
       if (
         lastPacket.flags.moreFragments === false &&
         totalReceivedLength >= totalSize
@@ -362,10 +350,6 @@ export class IPv4Protocol implements NetworkListener {
         const reassembledPayload = entry.message
           .map((frag) => frag.payload)
           .join('');
-
-        console.log(
-          `[IPv4] Reassembly SUCCESS: ${entry.message.length} fragments -> ${reassembledPayload.length}b payload`
-        );
 
         // RFC 791: Maximum size must include header + payload to avoid refragmentation
         const headerBytes = 20; // IPv4 header without options
@@ -379,17 +363,10 @@ export class IPv4Protocol implements NetworkListener {
           .setMaximumSize(headerBytes + totalReceivedLength)
           .build();
 
-        console.log(
-          `[IPv4] Rebuilt message: fragments=${msg.length}, isFragmented=${msg[0].IsFragmented()}, offset=${msg[0].fragmentOffset}, more=${msg[0].flags.moreFragments}`
-        );
-
         if (msg.length !== 1) throw new Error('Invalid message length');
 
-        // CRITICAL: Check if reconstructed message is properly defragmented
+        // CRITICAL: Verify reconstructed message is defragmented to prevent infinite loop
         if (msg[0].IsFragmented()) {
-          console.error(
-            '[IPv4] ERROR: Reconstructed message is still fragmented! This will cause infinite loop!'
-          );
           throw new Error(
             'Reassembled message is still fragmented - reconstruction failed'
           );

@@ -174,4 +174,15 @@ export class Scheduler {
     this.startTime = Date.now();
     this.startPause = 0;
   }
+
+  public static resetInstance(): void {
+    // CRITICAL: Destroy and recreate the singleton for complete isolation between tests
+    if (Scheduler.instance) {
+      Scheduler.instance.clear();
+    }
+    // Force garbage collection of old instance by removing reference
+    // @ts-expect-error - Intentionally deleting singleton instance for test isolation
+    delete Scheduler.instance;
+    Scheduler.instance = new Scheduler();
+  }
 }

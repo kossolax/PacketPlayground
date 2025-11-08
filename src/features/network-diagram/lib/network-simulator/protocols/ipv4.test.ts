@@ -91,7 +91,9 @@ describe('IPv4 protocol', () => {
   });
 
   afterEach(() => {
-    Scheduler.getInstance().clear();
+    // CRITICAL: Complete Scheduler isolation between tests
+    // This destroys and recreates the singleton to prevent memory leaks
+    Scheduler.resetInstance();
   });
 
   it('Router->IPv4-->Router', async () => {
