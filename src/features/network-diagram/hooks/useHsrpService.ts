@@ -4,7 +4,6 @@ import type { Network } from '../lib/network-simulator/network';
 import { IPAddress } from '../lib/network-simulator/address';
 import { HSRPState } from '../lib/network-simulator/protocols/hsrp';
 import type { HSRPGroup } from '../lib/network-simulator/services/fhrp';
-import type { NetworkInterface } from '../lib/network-simulator/layers/network';
 
 export interface HSRPGroupInfo {
   interfaceName: string;
@@ -31,7 +30,7 @@ export interface HSRPGroupFormData {
 
 export default function useHsrpService(
   node: RouterHost,
-  network?: Network | null
+  _network?: Network | null
 ) {
   const [enabled, setEnabled] = useState(node.services.fhrp.Enable);
   const [selectedInterface, setSelectedInterface] = useState<string | null>(
@@ -167,9 +166,10 @@ export default function useHsrpService(
   );
 
   // Get list of available interfaces
-  const getInterfaces = useCallback((): string[] => node.getInterfaces(), [
-    node,
-  ]);
+  const getInterfaces = useCallback(
+    (): string[] => node.getInterfaces(),
+    [node]
+  );
 
   // Get state string for display
   const getStateString = (state: HSRPState): string => {

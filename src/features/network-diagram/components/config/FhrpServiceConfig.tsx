@@ -182,7 +182,7 @@ export default function FhrpServiceConfig({
       setShowAddForm(false);
       setEditingGroup(null);
       setLocalFormData(defaultFormData);
-    } catch (error) {
+    } catch {
       // Error handled silently
     }
   };
@@ -195,7 +195,7 @@ export default function FhrpServiceConfig({
   const handleRemoveGroup = (interfaceName: string, groupNum: number) => {
     try {
       removeGroup(interfaceName, groupNum);
-    } catch (error) {
+    } catch {
       // Error handled silently
     }
   };
@@ -297,9 +297,7 @@ export default function FhrpServiceConfig({
                   </TableHeader>
                   <TableBody>
                     {filteredGroups.map((group) => (
-                      <TableRow
-                        key={`${group.interfaceName}-${group.group}`}
-                      >
+                      <TableRow key={`${group.interfaceName}-${group.group}`}>
                         <TableCell className="font-medium">
                           {group.interfaceName}
                         </TableCell>
@@ -601,9 +599,7 @@ export default function FhrpServiceConfig({
                         )}
                         {group.standbyRouter && (
                           <div>
-                            <span className="font-medium">
-                              Standby Router:
-                            </span>{' '}
+                            <span className="font-medium">Standby Router:</span>{' '}
                             <span className="font-mono">
                               {group.standbyRouter}
                             </span>
