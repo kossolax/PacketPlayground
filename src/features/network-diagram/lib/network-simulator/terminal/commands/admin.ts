@@ -2,7 +2,7 @@ import { PingCommand } from './basic';
 import { ConfigCommand } from './config';
 import { ShowStandbyCommand } from './fhrp';
 import { TerminalCommand } from '../command-base';
-import type { RouterHost } from '../nodes/router';
+import type { RouterHost } from '../../nodes/router';
 
 export { PingCommand };
 
