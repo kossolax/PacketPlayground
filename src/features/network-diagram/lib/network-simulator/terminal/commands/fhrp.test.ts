@@ -162,9 +162,9 @@ describe('Terminal FHRP (HSRP) test', () => {
     });
 
     it('should truncate authentication strings longer than 8 characters', () => {
-      expect(terminalRouter.exec('standby 1 authentication verylongstring')).toBe(
-        false
-      ); // Should fail validation
+      expect(
+        terminalRouter.exec('standby 1 authentication verylongstring')
+      ).toBe(false); // Should fail validation
     });
 
     it('should require group to be configured first', () => {

@@ -1,6 +1,6 @@
+/* eslint-disable no-param-reassign */
 import { Scheduler } from '@/features/network-diagram/lib/scheduler';
 import { IPAddress, MacAddress } from '../address';
-import type { Interface } from '../layers/datalink';
 import type { NetworkInterface } from '../layers/network';
 import { type NetworkMessage } from '../message';
 import { ActionHandle, type NetworkListener } from '../protocols/base';
@@ -198,10 +198,7 @@ export class FHRPService
   /**
    * RFC 2281: State machine - transition to Standby state
    */
-  private transitionToStandby(
-    iface: NetworkInterface,
-    group: HSRPGroup
-  ): void {
+  private transitionToStandby(iface: NetworkInterface, group: HSRPGroup): void {
     group.state = HSRPState.Standby;
     this.sendHello(iface, group);
   }
@@ -289,8 +286,7 @@ export class FHRPService
 
     // Check if active router has failed (no hello within holdtime)
     if (group.activeRouter && group.lastActiveHello > 0) {
-      const timeSinceActive =
-        currentTime - group.lastActiveHello;
+      const timeSinceActive = currentTime - group.lastActiveHello;
       if (timeSinceActive > Scheduler.getInstance().getDelay(group.holdtime)) {
         // Active router has failed
         group.activeRouter = null;
@@ -305,11 +301,8 @@ export class FHRPService
 
     // Check if standby router has failed
     if (group.standbyRouter && group.lastStandbyHello > 0) {
-      const timeSinceStandby =
-        currentTime - group.lastStandbyHello;
-      if (
-        timeSinceStandby > Scheduler.getInstance().getDelay(group.holdtime)
-      ) {
+      const timeSinceStandby = currentTime - group.lastStandbyHello;
+      if (timeSinceStandby > Scheduler.getInstance().getDelay(group.holdtime)) {
         // Standby router has failed
         group.standbyRouter = null;
 
@@ -360,6 +353,10 @@ export class FHRPService
           // In a real implementation, we'd check standby priority
           // For now, just maintain active state
         }
+        break;
+
+      default:
+        // All HSRP states are handled above
         break;
     }
   }
@@ -423,6 +420,10 @@ export class FHRPService
 
       case HSRPOpCode.Resign:
         this.processResign(from, group, message);
+        break;
+
+      default:
+        // All HSRP message types are handled above
         break;
     }
 

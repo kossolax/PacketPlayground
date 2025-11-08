@@ -1,10 +1,8 @@
-import { Scheduler } from '@/features/network-diagram/lib/scheduler';
 import { IPAddress } from '../address';
 import type { NetworkInterface } from '../layers/network';
 import { type NetworkMessage, type Payload } from '../message';
 import { IPv4Message } from './ipv4';
 import { ActionHandle, type NetworkListener } from './base';
-import { internetChecksum } from './checksum';
 
 // RFC 2281: HSRP States
 export enum HSRPState {

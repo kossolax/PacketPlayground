@@ -74,7 +74,7 @@ export class StandbyCommand extends TerminalCommand {
           this.terminal.write(
             `Configured HSRP group ${groupNum} with virtual IP ${args[2]}`
           );
-        } catch (error) {
+        } catch {
           throw new Error(`Invalid IP address: ${args[2]}`);
         }
       }
@@ -156,11 +156,9 @@ export class StandbyCommand extends TerminalCommand {
         }
 
         group.authentication = args[2].padEnd(8, '\x00');
-        this.terminal.write(
-          `Set HSRP group ${groupNum} authentication string`
-        );
+        this.terminal.write(`Set HSRP group ${groupNum} authentication string`);
       } else {
-        throw new Error(`Invalid standby command syntax`);
+        throw new Error('Invalid standby command syntax');
       }
 
       this.finalize();
@@ -218,7 +216,7 @@ export class ShowStandbyCommand extends TerminalCommand {
     this.parent = parent;
   }
 
-  private getStateString(state: HSRPState): string {
+  private static getStateString(state: HSRPState): string {
     switch (state) {
       case HSRPState.Initial:
         return 'Initial';
@@ -285,7 +283,7 @@ export class ShowStandbyCommand extends TerminalCommand {
           }
 
           groups.forEach((group) => {
-            const state = this.getStateString(group.state);
+            const state = ShowStandbyCommand.getStateString(group.state);
             const virtualIP = group.virtualIP.toString().padEnd(15);
             const activeRouter =
               group.activeRouter?.toString().padEnd(15) || 'local'.padEnd(15);
@@ -300,7 +298,7 @@ export class ShowStandbyCommand extends TerminalCommand {
         } else {
           // Detailed output format
           groups.forEach((group) => {
-            const state = this.getStateString(group.state);
+            const state = ShowStandbyCommand.getStateString(group.state);
 
             this.terminal.write(`${ifaceName} - Group ${group.group}`);
             this.terminal.write(
@@ -314,16 +312,18 @@ export class ShowStandbyCommand extends TerminalCommand {
                 `  Active router is ${group.activeRouter.toString()}${group.state === HSRPState.Active ? ' (local)' : ''}`
               );
             } else {
-              this.terminal.write(`  Active router is unknown`);
+              this.terminal.write('  Active router is unknown');
             }
             if (group.standbyRouter) {
               this.terminal.write(
                 `  Standby router is ${group.standbyRouter.toString()}${group.state === HSRPState.Standby ? ' (local)' : ''}`
               );
             } else {
-              this.terminal.write(`  Standby router is unknown`);
+              this.terminal.write('  Standby router is unknown');
             }
-            this.terminal.write(`  Priority ${group.priority}${group.preempt ? ' (preempt enabled)' : ''}`);
+            this.terminal.write(
+              `  Priority ${group.priority}${group.preempt ? ' (preempt enabled)' : ''}`
+            );
             this.terminal.write(
               `  Timers: hello ${group.hellotime}s, hold ${group.holdtime}s`
             );
