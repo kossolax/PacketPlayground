@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { GenericNode, Network } from '../lib/network-simulator';
 import { ServerHost } from '../lib/network-simulator/nodes/server';
 import { SwitchHost } from '../lib/network-simulator/nodes/switch';
+import { RouterHost } from '../lib/network-simulator/nodes/router';
 import ConfigTab from './config/ConfigTab';
 import ServiceTab from './config/ServiceTab';
 import TerminalTab from './config/TerminalTab';
@@ -30,7 +31,8 @@ export default function DeviceConfigDialog({
 }: DeviceConfigDialogProps) {
   const isServer = node instanceof ServerHost;
   const isSwitch = node instanceof SwitchHost;
-  const hasServices = isServer || isSwitch;
+  const isRouter = node instanceof RouterHost;
+  const hasServices = isServer || isSwitch || isRouter;
 
   return (
     <Dialog open={node !== null} onOpenChange={(open) => !open && onClose()}>
@@ -66,7 +68,7 @@ export default function DeviceConfigDialog({
               <TabsContent value="service" className="h-full">
                 {node && (
                   <ServiceTab
-                    node={node as ServerHost | SwitchHost}
+                    node={node as ServerHost | SwitchHost | RouterHost}
                     network={network}
                   />
                 )}
