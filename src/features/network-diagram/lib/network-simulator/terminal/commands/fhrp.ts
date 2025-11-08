@@ -19,6 +19,7 @@ export class StandbyCommand extends TerminalCommand {
   constructor(parent: TerminalCommand) {
     super(parent.Terminal, 'standby');
     this.parent = parent;
+    this.canBeNegative = true;
   }
 
   public override exec(
