@@ -2,6 +2,7 @@ import { PingCommand } from './basic';
 import { ConfigCommand } from './config';
 import { ShowStandbyCommand } from './fhrp';
 import { TerminalCommand } from '../command-base';
+import type { RouterHost } from '../nodes/router';
 
 export { PingCommand };
 
@@ -12,7 +13,8 @@ class ShowCommand extends TerminalCommand {
     this.parent = parent;
 
     // Register show subcommands conditionally based on device type
-    if ('services' in this.terminal.Node && 'fhrp' in this.terminal.Node.services) {
+    const node = this.terminal.Node;
+    if ('services' in node && 'fhrp' in (node as RouterHost).services) {
       this.registerCommand(new ShowStandbyCommand(this));
     }
   }
@@ -43,7 +45,8 @@ class ShowCommand extends TerminalCommand {
       const suggestions: string[] = [];
 
       // Add 'standby' if FHRP is available
-      if ('services' in this.terminal.Node && 'fhrp' in this.terminal.Node.services) {
+      const node = this.terminal.Node;
+      if ('services' in node && 'fhrp' in (node as RouterHost).services) {
         suggestions.push('standby');
       }
 

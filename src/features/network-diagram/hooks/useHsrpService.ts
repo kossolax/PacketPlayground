@@ -31,7 +31,7 @@ export interface HSRPGroupFormData {
 
 export default function useHsrpService(
   node: RouterHost,
-  network?: Network | null
+  _network?: Network | null
 ) {
   const [enabled, setEnabled] = useState(node.services.fhrp.Enable);
   const [selectedInterface, setSelectedInterface] = useState<string | null>(
