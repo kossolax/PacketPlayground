@@ -37,26 +37,32 @@ class TestListener implements PhysicalListener {
 function collectBits(
   listener: TestListener,
   count: number,
-  timeoutMs: number = 5000
+  timeoutMs: number = 5000,
+  filter?: (msg: PhysicalMessage) => boolean
 ): Promise<PhysicalMessage[]> {
   return new Promise((resolve, reject) => {
     const collected: PhysicalMessage[] = [];
     let timeoutId: NodeJS.Timeout | null = null;
 
     // Check if we already have enough messages
-    if (listener.receivedBits.length >= count) {
-      resolve(listener.receivedBits.slice(0, count));
+    const existingFiltered = filter
+      ? listener.receivedBits.filter(filter)
+      : listener.receivedBits;
+    if (existingFiltered.length >= count) {
+      resolve(existingFiltered.slice(0, count));
       return;
     }
 
     // eslint-disable-next-line no-param-reassign
     listener.onReceiveBits = (message) => {
-      collected.push(message);
-      if (collected.length >= count) {
-        if (timeoutId) clearTimeout(timeoutId);
-        // eslint-disable-next-line no-param-reassign
-        listener.onReceiveBits = undefined;
-        resolve(collected);
+      if (!filter || filter(message)) {
+        collected.push(message);
+        if (collected.length >= count) {
+          if (timeoutId) clearTimeout(timeoutId);
+          // eslint-disable-next-line no-param-reassign
+          listener.onReceiveBits = undefined;
+          resolve(collected);
+        }
       }
     };
 
@@ -97,7 +103,13 @@ describe('AutoNegotiation Protocol test', () => {
   it('On cable connects', async () => {
     B.getInterface(0).addListener(listener);
 
-    const messages = await collectBits(listener, 4);
+    // Filter to collect only AutoNegotiation messages (ignore RSTP and other protocols)
+    const messages = await collectBits(
+      listener,
+      4,
+      5000,
+      (msg) => msg instanceof AutonegotiationMessage
+    );
 
     expect(messages[0]).toBeInstanceOf(AutonegotiationMessage);
     expect(messages[1]).toBeInstanceOf(AutonegotiationMessage);
@@ -108,12 +120,24 @@ describe('AutoNegotiation Protocol test', () => {
   it('On cable goes UP', async () => {
     B.getInterface(0).addListener(listener);
 
-    await collectBits(listener, 4);
+    // Wait for initial AutoNegotiation handshake (filter out RSTP)
+    await collectBits(
+      listener,
+      4,
+      5000,
+      (msg) => msg instanceof AutonegotiationMessage
+    );
 
     A.getInterface(0).down();
     A.getInterface(0).up();
 
-    const messages = await collectBits(listener, 2);
+    // Collect AutoNegotiation messages after interface goes UP
+    const messages = await collectBits(
+      listener,
+      2,
+      5000,
+      (msg) => msg instanceof AutonegotiationMessage
+    );
 
     expect(messages[0]).toBeInstanceOf(AutonegotiationMessage);
     expect(messages[1]).toBeInstanceOf(AutonegotiationMessage);
