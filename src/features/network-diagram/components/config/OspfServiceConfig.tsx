@@ -18,12 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import type { RouterHost } from '../../lib/network-simulator/nodes/router';
 import type { Network } from '../../lib/network-simulator/network';
 import useOspfService, {
@@ -149,14 +144,15 @@ export default function OspfServiceConfig({
       setValidationErrors({});
     } catch (error) {
       setValidationErrors({
-        network: error instanceof Error ? error.message : 'Failed to add network',
+        network:
+          error instanceof Error ? error.message : 'Failed to add network',
       });
     }
   };
 
-  const handleRemoveNetwork = (network: string, wildcardMask: string) => {
+  const handleRemoveNetwork = (networkAddr: string, wildcardMask: string) => {
     try {
-      removeNetwork(network, wildcardMask);
+      removeNetwork(networkAddr, wildcardMask);
     } catch {
       // Error handled silently
     }
@@ -209,42 +205,40 @@ export default function OspfServiceConfig({
           </div>
 
           {enabled && (
-            <>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="process-id">Process ID (1-65535)</Label>
-                  <Input
-                    id="process-id"
-                    type="number"
-                    min="1"
-                    max="65535"
-                    value={localProcessID}
-                    onChange={(e) => setLocalProcessID(e.target.value)}
-                    onBlur={handleProcessIDBlur}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="router-id">Router ID</Label>
-                  <Input
-                    id="router-id"
-                    type="text"
-                    placeholder="0.0.0.0"
-                    value={localRouterID}
-                    onChange={(e) => setLocalRouterID(e.target.value)}
-                    onBlur={handleRouterIDBlur}
-                    className={
-                      localRouterID && !validateIPAddress(localRouterID)
-                        ? 'border-destructive'
-                        : ''
-                    }
-                  />
-                  <p className="text-muted-foreground text-xs">
-                    Unique identifier for this router (IP format)
-                  </p>
-                </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="process-id">Process ID (1-65535)</Label>
+                <Input
+                  id="process-id"
+                  type="number"
+                  min="1"
+                  max="65535"
+                  value={localProcessID}
+                  onChange={(e) => setLocalProcessID(e.target.value)}
+                  onBlur={handleProcessIDBlur}
+                />
               </div>
-            </>
+
+              <div className="space-y-2">
+                <Label htmlFor="router-id">Router ID</Label>
+                <Input
+                  id="router-id"
+                  type="text"
+                  placeholder="0.0.0.0"
+                  value={localRouterID}
+                  onChange={(e) => setLocalRouterID(e.target.value)}
+                  onBlur={handleRouterIDBlur}
+                  className={
+                    localRouterID && !validateIPAddress(localRouterID)
+                      ? 'border-destructive'
+                      : ''
+                  }
+                />
+                <p className="text-muted-foreground text-xs">
+                  Unique identifier for this router (IP format)
+                </p>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -288,8 +282,8 @@ export default function OspfServiceConfig({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {allNetworks.map((net, index) => (
-                        <TableRow key={`${net.network}-${net.wildcardMask}-${index}`}>
+                      {allNetworks.map((net) => (
+                        <TableRow key={`${net.network}-${net.wildcardMask}`}>
                           <TableCell className="font-mono text-xs">
                             {net.network}
                           </TableCell>
@@ -302,7 +296,10 @@ export default function OspfServiceConfig({
                           <TableCell>
                             <Button
                               onClick={() =>
-                                handleRemoveNetwork(net.network, net.wildcardMask)
+                                handleRemoveNetwork(
+                                  net.network,
+                                  net.wildcardMask
+                                )
                               }
                               variant="ghost"
                               size="sm"
@@ -354,10 +351,15 @@ export default function OspfServiceConfig({
                         placeholder="0.0.0.255"
                         value={localNetworkFormData.wildcardMask}
                         onChange={(e) =>
-                          handleNetworkInputChange('wildcardMask', e.target.value)
+                          handleNetworkInputChange(
+                            'wildcardMask',
+                            e.target.value
+                          )
                         }
                         className={
-                          validationErrors.wildcardMask ? 'border-destructive' : ''
+                          validationErrors.wildcardMask
+                            ? 'border-destructive'
+                            : ''
                         }
                       />
                       {validationErrors.wildcardMask && (
@@ -439,7 +441,9 @@ export default function OspfServiceConfig({
                           </TableCell>
                           <TableCell>{neighbor.priority}</TableCell>
                           <TableCell>
-                            <Badge variant={getStateBadgeVariant(neighbor.state)}>
+                            <Badge
+                              variant={getStateBadgeVariant(neighbor.state)}
+                            >
                               {getStateString(neighbor.state)}
                             </Badge>
                           </TableCell>
@@ -470,8 +474,8 @@ export default function OspfServiceConfig({
               <CardContent>
                 {ospfInterfaces.length === 0 ? (
                   <p className="text-muted-foreground text-center py-4 text-sm">
-                    No interfaces enabled for OSPF. Add network statements to enable
-                    interfaces.
+                    No interfaces enabled for OSPF. Add network statements to
+                    enable interfaces.
                   </p>
                 ) : (
                   <Table>
@@ -506,7 +510,9 @@ export default function OspfServiceConfig({
                             Dead: {iface.deadInterval}s
                           </TableCell>
                           <TableCell>
-                            <Badge variant="outline">{iface.neighbors.length}</Badge>
+                            <Badge variant="outline">
+                              {iface.neighbors.length}
+                            </Badge>
                           </TableCell>
                         </TableRow>
                       ))}

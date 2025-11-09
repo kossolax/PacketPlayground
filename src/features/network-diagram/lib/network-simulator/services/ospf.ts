@@ -1,6 +1,6 @@
 /* eslint-disable no-param-reassign */
 import { Scheduler } from '@/features/network-diagram/lib/scheduler';
-import { IPAddress, type NetworkAddress } from '../address';
+import { IPAddress } from '../address';
 import type { NetworkInterface } from '../layers/network';
 import { type NetworkMessage } from '../message';
 import { ActionHandle, type NetworkListener } from '../protocols/base';
@@ -146,7 +146,11 @@ export class OSPFService
   // Hello timers for each interface
   private helloTimers = new Map<string, (() => void) | null>();
 
-  constructor(host: RouterHost, processID: number = 0, enabled: boolean = false) {
+  constructor(
+    host: RouterHost,
+    processID: number = 0,
+    enabled: boolean = false
+  ) {
     super(host);
     this.processID = processID;
     this.Enable = enabled;
@@ -159,7 +163,8 @@ export class OSPFService
   private autoGenerateRouterID(): void {
     let highestIP = new IPAddress('0.0.0.0');
 
-    Object.values(this.host.Interfaces).forEach((iface) => {
+    this.host.getInterfaces().forEach((ifaceName) => {
+      const iface = this.host.getInterface(ifaceName);
       const ip = iface.getNetAddress();
       if (ip instanceof IPAddress && ip.compareTo(highestIP) > 0) {
         highestIP = ip;
@@ -226,7 +231,8 @@ export class OSPFService
     });
 
     // Then enable on matching interfaces
-    Object.values(this.host.Interfaces).forEach((iface) => {
+    this.host.getInterfaces().forEach((ifaceName) => {
+      const iface = this.host.getInterface(ifaceName);
       const ip = iface.getNetAddress();
       if (!(ip instanceof IPAddress)) return;
 
@@ -263,7 +269,9 @@ export class OSPFService
   /**
    * Get interface configuration
    */
-  public getInterfaceConfig(iface: NetworkInterface): OSPFInterfaceConfig | null {
+  public getInterfaceConfig(
+    iface: NetworkInterface
+  ): OSPFInterfaceConfig | null {
     return this.interfaceConfigs.get(iface) || null;
   }
 
@@ -582,6 +590,7 @@ export class OSPFService
   /**
    * Start or restart the dead timer for a neighbor
    */
+  // eslint-disable-next-line @typescript-eslint/class-methods-use-this
   private startNeighborDeadTimer(
     neighbor: OSPFNeighbor,
     config: OSPFInterfaceConfig
@@ -594,7 +603,7 @@ export class OSPFService
 
     // Set new timer
     const subscription = Scheduler.getInstance()
-      .delay(config.deadInterval)
+      .once(config.deadInterval)
       .subscribe(() => {
         // Neighbor dead - transition to Down
         neighbor.state = OSPFState.Down;
@@ -608,7 +617,7 @@ export class OSPFService
    * Process Database Description message
    */
   private processDatabaseDescription(
-    iface: NetworkInterface,
+    _iface: NetworkInterface,
     message: OSPFDatabaseDescriptionMessage,
     config: OSPFInterfaceConfig
   ): void {
@@ -664,14 +673,13 @@ export class OSPFService
    * Calculate OSPF routes using Dijkstra's algorithm
    * This would update the router's routing table
    */
+  // eslint-disable-next-line @typescript-eslint/class-methods-use-this
   public calculateRoutes(): void {
     // RFC 2328: Run Dijkstra's SPF algorithm on link-state database
     // For this simulation, we keep it simplified
-
     // Would build complete network topology from LSAs
     // Then use Dijkstra to find shortest paths
     // Finally update routing table with calculated routes
-
     // Placeholder for full implementation
   }
 

@@ -3,11 +3,6 @@ import type { RouterHost } from '../lib/network-simulator/nodes/router';
 import type { Network } from '../lib/network-simulator/network';
 import { IPAddress } from '../lib/network-simulator/address';
 import { OSPFState } from '../lib/network-simulator/protocols/ospf';
-import type {
-  OSPFNetwork,
-  OSPFNeighbor,
-  OSPFInterfaceConfig,
-} from '../lib/network-simulator/services/ospf';
 
 export interface OSPFNetworkInfo {
   network: string;
@@ -52,7 +47,7 @@ export default function useOspfService(
   node: RouterHost,
   _network?: Network | null
 ) {
-  const [enabled, setEnabled] = useState(node.services.ospf.Enabled);
+  const [enabled, setEnabled] = useState(node.services.ospf.Enable);
   const [processID, setProcessID] = useState(node.services.ospf.processID);
   const [routerID, setRouterID] = useState(
     node.services.ospf.routerID.toString()

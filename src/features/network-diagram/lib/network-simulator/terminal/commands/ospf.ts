@@ -1,8 +1,8 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { IPAddress } from '../../address';
 import type { RouterHost } from '../../nodes/router';
 import { OSPFState } from '../../protocols/ospf';
 import { TerminalCommand } from '../command-base';
-import type { ConfigCommand } from './config';
 
 /**
  * Router OSPF command - Enter OSPF configuration mode
@@ -38,8 +38,8 @@ export class RouterOSPFCommand extends TerminalCommand {
 
       // Enter OSPF config mode
       const ospfConfig = new OSPFConfigCommand(this);
-      this.addCommand(ospfConfig);
-      this.pushInteractiveMode(ospfConfig);
+      this.registerCommand(ospfConfig);
+      this.terminal.changeDirectory(ospfConfig);
     } else {
       super.exec(command, args, negated);
     }
@@ -66,16 +66,12 @@ export class RouterOSPFCommand extends TerminalCommand {
  */
 class OSPFConfigCommand extends TerminalCommand {
   constructor(parent: TerminalCommand) {
-    super(parent.Terminal, 'ospf-config');
+    super(parent.Terminal, 'ospf-config', '(config-router)#');
     this.parent = parent;
 
     // Add subcommands
-    this.addCommand(new NetworkCommand(this));
-    this.addCommand(new RouterIDCommand(this));
-  }
-
-  public override getPrompt(): string {
-    return 'config-router';
+    this.registerCommand(new NetworkCommand(this));
+    this.registerCommand(new RouterIDCommand(this));
   }
 }
 
@@ -101,7 +97,9 @@ class NetworkCommand extends TerminalCommand {
       const router = this.Terminal.Node as RouterHost;
 
       if (args.length < 2) {
-        throw new Error('Usage: network <address> <wildcard-mask> area <area-id>');
+        throw new Error(
+          'Usage: network <address> <wildcard-mask> area <area-id>'
+        );
       }
 
       try {
@@ -111,13 +109,13 @@ class NetworkCommand extends TerminalCommand {
         if (negated) {
           // Remove network statement
           router.services.ospf.removeNetwork(networkAddr, wildcardMask);
-          this.terminal.write(
-            `Removed OSPF network ${args[0]} ${args[1]}`
-          );
+          this.terminal.write(`Removed OSPF network ${args[0]} ${args[1]}`);
         } else {
           // Add network statement
           if (args.length < 4 || args[2] !== 'area') {
-            throw new Error('Usage: network <address> <wildcard-mask> area <area-id>');
+            throw new Error(
+              'Usage: network <address> <wildcard-mask> area <area-id>'
+            );
           }
 
           const areaID = new IPAddress(args[3]);
@@ -127,13 +125,15 @@ class NetworkCommand extends TerminalCommand {
           );
 
           // Enable OSPF if not already enabled
-          if (!router.services.ospf.Enabled) {
+          if (!router.services.ospf.Enable) {
             router.services.ospf.Enable = true;
             this.terminal.write('OSPF process enabled');
           }
         }
       } catch (error) {
-        throw new Error(`Invalid IP address: ${error instanceof Error ? error.message : String(error)}`);
+        throw new Error(
+          `Invalid IP address: ${error instanceof Error ? error.message : String(error)}`
+        );
       }
 
       this.finalize();
@@ -253,14 +253,12 @@ export class ShowIPOSPFCommand extends TerminalCommand {
         throw new Error('OSPF is not supported on this device');
       }
 
-      const ospf = router.services.ospf;
+      const { ospf } = router.services;
 
       this.terminal.write(`Routing Process "ospf ${ospf.processID}"`);
+      this.terminal.write(`  Router ID ${ospf.routerID.toString()}`);
       this.terminal.write(
-        `  Router ID ${ospf.routerID.toString()}`
-      );
-      this.terminal.write(
-        `  OSPF process is ${ospf.Enabled ? 'enabled' : 'disabled'}`
+        `  OSPF process is ${ospf.Enable ? 'enabled' : 'disabled'}`
       );
 
       // Display network statements
@@ -334,7 +332,7 @@ export class ShowIPOSPFNeighborCommand extends TerminalCommand {
         throw new Error('OSPF is not supported on this device');
       }
 
-      const ospf = router.services.ospf;
+      const { ospf } = router.services;
       const neighbors = ospf.getAllNeighbors();
       const detail = args[0] === 'detail';
 
@@ -347,7 +345,9 @@ export class ShowIPOSPFNeighborCommand extends TerminalCommand {
       if (detail) {
         // Detailed output
         neighbors.forEach((neighbor) => {
-          const state = ShowIPOSPFNeighborCommand.getStateString(neighbor.state);
+          const state = ShowIPOSPFNeighborCommand.getStateString(
+            neighbor.state
+          );
           this.terminal.write(`Neighbor ${neighbor.neighborID.toString()}`);
           this.terminal.write(`  State: ${state}`);
           this.terminal.write(`  Address: ${neighbor.neighborIP.toString()}`);
@@ -357,7 +357,9 @@ export class ShowIPOSPFNeighborCommand extends TerminalCommand {
               `  Designated Router: ${neighbor.designatedRouter.toString()}`
             );
           }
-          if (!neighbor.backupDesignatedRouter.equals(new IPAddress('0.0.0.0'))) {
+          if (
+            !neighbor.backupDesignatedRouter.equals(new IPAddress('0.0.0.0'))
+          ) {
             this.terminal.write(
               `  Backup Designated Router: ${neighbor.backupDesignatedRouter.toString()}`
             );
@@ -366,15 +368,15 @@ export class ShowIPOSPFNeighborCommand extends TerminalCommand {
         });
       } else {
         // Brief output
-        this.terminal.write(
-          'Neighbor ID     Pri   State           Address'
-        );
+        this.terminal.write('Neighbor ID     Pri   State           Address');
         this.terminal.write(
           '--------------------------------------------------------'
         );
 
         neighbors.forEach((neighbor) => {
-          const state = ShowIPOSPFNeighborCommand.getStateString(neighbor.state);
+          const state = ShowIPOSPFNeighborCommand.getStateString(
+            neighbor.state
+          );
           const neighborID = neighbor.neighborID.toString().padEnd(15);
           const priority = neighbor.priority.toString().padStart(3);
           const stateStr = state.padEnd(15);
@@ -428,7 +430,7 @@ export class ShowIPOSPFInterfaceCommand extends TerminalCommand {
         throw new Error('OSPF is not supported on this device');
       }
 
-      const ospf = router.services.ospf;
+      const { ospf } = router.services;
       const interfaceFilter = args.length > 0 ? args[0] : null;
 
       // Get all interfaces
@@ -491,7 +493,9 @@ export class ShowIPOSPFInterfaceCommand extends TerminalCommand {
   ): string[] {
     if (command === this.name && args.length === 1) {
       const router = this.Terminal.Node as RouterHost;
-      return router.getInterfaces().filter((iface) => iface.startsWith(args[0]));
+      return router
+        .getInterfaces()
+        .filter((iface) => iface.startsWith(args[0]));
     }
     return super.autocomplete(command, args, negated);
   }

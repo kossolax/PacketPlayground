@@ -1,11 +1,7 @@
 import { PingCommand } from './basic';
 import { ConfigCommand } from './config';
 import { ShowStandbyCommand } from './fhrp';
-import {
-  ShowIPOSPFCommand,
-  ShowIPOSPFNeighborCommand,
-  ShowIPOSPFInterfaceCommand,
-} from './ospf';
+import { ShowIPOSPFCommand } from './ospf';
 import { TerminalCommand } from '../command-base';
 import type { RouterHost } from '../../nodes/router';
 

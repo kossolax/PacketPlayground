@@ -184,6 +184,16 @@ export class OSPFHelloMessage extends OSPFMessage {
   // RFC 2328: List of neighbor Router IDs seen via this interface
   public neighbors: IPAddress[] = [];
 
+  // eslint-disable-next-line @typescript-eslint/no-useless-constructor
+  constructor(
+    payload: Payload | string,
+    netSrc: IPAddress,
+    netDst: IPAddress | null
+  ) {
+    super(payload, netSrc, netDst);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/class-methods-use-this
   public override toString(): string {
     return 'OSPF\nHello';
   }
@@ -313,6 +323,16 @@ export class OSPFDatabaseDescriptionMessage extends OSPFMessage {
   // RFC 2328: Database Description sequence number
   public ddSequenceNumber: number = 0;
 
+  // eslint-disable-next-line @typescript-eslint/no-useless-constructor
+  constructor(
+    payload: Payload | string,
+    netSrc: IPAddress,
+    netDst: IPAddress | null
+  ) {
+    super(payload, netSrc, netDst);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/class-methods-use-this
   public override toString(): string {
     return 'OSPF\nDBD';
   }
