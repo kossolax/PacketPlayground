@@ -23,15 +23,27 @@ class ShowIpCommand extends TerminalCommand {
 
   private ipRouteCmd: ShowIpRouteCommand;
 
+  private ipRipCmd: ShowIpRipCommand;
+
+  private ipProtocolsCmd: ShowIpProtocolsCommand;
+
+  private ipOspfCmd: ShowIPOSPFCommand;
+
   constructor(parent: TerminalCommand) {
     super(parent.Terminal, 'ip');
     this.parent = parent;
 
     this.ipInterfaceBriefCmd = new ShowIpInterfaceBriefCommand(this);
     this.ipRouteCmd = new ShowIpRouteCommand(this);
+    this.ipRipCmd = new ShowIpRipCommand(this);
+    this.ipProtocolsCmd = new ShowIpProtocolsCommand(this);
+    this.ipOspfCmd = new ShowIPOSPFCommand(this);
 
     this.registerCommand(this.ipInterfaceBriefCmd);
     this.registerCommand(this.ipRouteCmd);
+    this.registerCommand(this.ipRipCmd);
+    this.registerCommand(this.ipProtocolsCmd);
+    this.registerCommand(this.ipOspfCmd);
   }
 
   public override exec(
@@ -50,6 +62,12 @@ class ShowIpCommand extends TerminalCommand {
         this.ipInterfaceBriefCmd.exec('ip', args, negated);
       } else if (args[0] === 'route') {
         this.ipRouteCmd.exec('ip', args, negated);
+      } else if (args[0] === 'rip') {
+        this.ipRipCmd.exec('ip', args, negated);
+      } else if (args[0] === 'protocols') {
+        this.ipProtocolsCmd.exec('ip', args, negated);
+      } else if (args[0] === 'ospf') {
+        this.ipOspfCmd.exec('ip', args, negated);
       } else {
         throw new Error('% Incomplete or invalid command');
       }
@@ -65,7 +83,9 @@ class ShowIpCommand extends TerminalCommand {
   ): string[] {
     if (command === this.name) {
       if (args.length === 1) {
-        return ['interface', 'route'].filter((s) => s.startsWith(args[0]));
+        return ['interface', 'ospf', 'protocols', 'rip', 'route'].filter((s) =>
+          s.startsWith(args[0])
+        );
       }
       if (args.length === 2 && args[0] === 'interface') {
         return ['brief'].filter((s) => s.startsWith(args[1]));
