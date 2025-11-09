@@ -289,21 +289,25 @@ describe('Datalink layer test', () => {
   });
 
   it('L2 dot1Q', () => {
-    const native = 1;
+    const native = 2;
 
     const dot1q = A.getInterface(0) as HardwareInterface;
-    expect(dot1q.Vlan[0]).toBe(0);
-    dot1q.addVlan(1);
-    expect(dot1q.Vlan[0]).toBe(1);
+    expect(dot1q.Vlan[0]).toBe(1); // Default native VLAN is 1
+    dot1q.addVlan(10);
+    expect(dot1q.Vlan[0]).toBe(10);
 
-    dot1q.removeVlan(1);
-    expect(dot1q.Vlan[0]).toBe(0);
+    dot1q.removeVlan(10);
+    expect(dot1q.Vlan[0]).toBe(1); // Restored to native VLAN 1
 
     dot1q.NativeVlan = native;
-    expect(dot1q.Vlan[0]).toBe(0);
-    expect(dot1q.NativeVlan).toBe(1);
-    dot1q.removeVlan(0);
-    expect(dot1q.Vlan[0]).toBe(1);
+    expect(dot1q.Vlan[0]).toBe(1); // Still has VLAN 1
+    expect(dot1q.NativeVlan).toBe(2); // But native is now 2
+    dot1q.removeVlan(1);
+    expect(dot1q.Vlan[0]).toBe(2); // Restored to new native VLAN 2
+
+    // Reset to native 1 for rest of test
+    dot1q.NativeVlan = 1;
+    dot1q.addVlan(1);
 
     dot1q.VlanMode = VlanMode.Trunk;
     dot1q.addVlan(2);

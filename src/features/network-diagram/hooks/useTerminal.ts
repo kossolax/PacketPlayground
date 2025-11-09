@@ -109,8 +109,25 @@ export default function useTerminal(node: GenericNode | null) {
         return;
       }
 
-      // Tab key (9) or ? key (63) - autocomplete/help
-      if (code === 9 || code === 63) {
+      // ? key (63) - show help/available commands
+      if (code === 63) {
+        let command = bufferRef.current.join('');
+        // Ensure trailing space for help context (Cisco IOS behavior)
+        if (!command.endsWith(' ')) {
+          command += ' ';
+        }
+        const completions = terminal.autocomplete(command);
+
+        if (completions.length > 0) {
+          // Show suggestions without adding "?" to buffer
+          xterm.write(`\r\n${completions.join('  ')}\r\n${terminal.Prompt} `);
+          xterm.write(bufferRef.current.join('')); // Redraw buffer without "?"
+        }
+        return; // Don't add "?" to buffer
+      }
+
+      // Tab key (9) - autocomplete/complete
+      if (code === 9) {
         const command = bufferRef.current.join('');
         const completions = terminal.autocomplete(command);
 

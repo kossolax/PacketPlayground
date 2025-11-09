@@ -91,6 +91,14 @@ export class Terminal {
         }
       }
 
+      // Propagate onComplete callback and unlock when command finishes
+      node.onComplete = () => {
+        if (this.onComplete) {
+          this.onComplete();
+        }
+        this.locked = false;
+      };
+
       node.exec(command, args, negated);
       return true;
     } catch (e) {
@@ -139,13 +147,17 @@ export class Terminal {
       negated
     );
 
-    if (commandsAvailable.length === 1) {
+    // Only try to get subcommands if:
+    // 1. We got exactly one command match
+    // 2. We're at the first level (args.length <= 1)
+    // This prevents trying to find children after multi-level delegation
+    if (commandsAvailable.length === 1 && args.length <= 1) {
       const subCommands = this.location.autocompleteChild(
         commandsAvailable[0],
-        args,
+        [],
         negated
       );
-      if (subCommands.length >= 1 || args.length >= 1) return subCommands;
+      if (subCommands.length >= 1) return subCommands;
     }
 
     return commandsAvailable;

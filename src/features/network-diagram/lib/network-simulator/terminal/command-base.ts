@@ -64,6 +64,8 @@ export abstract class TerminalCommand {
       command in this.subCommands &&
       ((negated && this.subCommands[command].canBeNegative) || !negated)
     ) {
+      // Propagate onComplete callback to child command
+      this.subCommands[command].onComplete = this.onComplete;
       this.subCommands[command].exec(command, args, negated);
     } else {
       throw new Error(`Command "${negated ? 'no ' : ''}${command}" not found.`);
@@ -72,7 +74,7 @@ export abstract class TerminalCommand {
 
   public autocomplete(
     command: string,
-    _args: string[],
+    args: string[],
     negated: boolean
   ): string[] {
     const commands = Object.keys(this.subCommands).filter(
@@ -83,7 +85,14 @@ export abstract class TerminalCommand {
 
     if (!command) return commands;
 
-    return commands.filter((c) => c.startsWith(command));
+    const matches = commands.filter((c) => c.startsWith(command));
+
+    // If we have exactly one match and args to process, delegate to that command
+    if (matches.length === 1 && args.length > 0) {
+      return this.autocompleteChild(matches[0], args, negated);
+    }
+
+    return matches;
   }
 
   public autocompleteChild(

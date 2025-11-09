@@ -175,6 +175,384 @@ class IPInterfaceCommand extends TerminalCommand {
   }
 }
 
+// Interface configuration commands
+
+class ShutdownCommand extends TerminalCommand {
+  constructor(parent: TerminalCommand) {
+    super(parent.Terminal, 'shutdown');
+    this.parent = parent;
+    this.canBeNegative = true;
+  }
+
+  public override exec(
+    command: string,
+    args: string[],
+    negated: boolean
+  ): void {
+    if (command === this.name) {
+      // eslint-disable-next-line prefer-destructuring
+      const iface = (this.parent as InterfaceCommand).iface;
+
+      if (!iface) {
+        throw new Error('No interface selected');
+      }
+
+      if (negated) {
+        iface.up();
+        this.terminal.write('Interface enabled');
+      } else {
+        iface.down();
+        this.terminal.write('Interface disabled');
+      }
+
+      this.finalize();
+    } else {
+      super.exec(command, args, negated);
+    }
+  }
+}
+
+class DescriptionCommand extends TerminalCommand {
+  constructor(parent: TerminalCommand) {
+    super(parent.Terminal, 'description');
+    this.parent = parent;
+    this.canBeNegative = true;
+  }
+
+  public override exec(
+    command: string,
+    args: string[],
+    negated: boolean
+  ): void {
+    if (command === this.name) {
+      // eslint-disable-next-line prefer-destructuring
+      const iface = (this.parent as InterfaceCommand).iface;
+
+      if (!iface) {
+        throw new Error('No interface selected');
+      }
+
+      if (negated) {
+        iface.Description = '';
+        this.terminal.write('Description removed');
+      } else if (args.length > 0) {
+        const description = args.join(' ');
+        iface.Description = description;
+        this.terminal.write(`Description set to: ${description}`);
+      } else {
+        throw new Error('Description requires text argument');
+      }
+
+      this.finalize();
+    } else {
+      super.exec(command, args, negated);
+    }
+  }
+}
+
+class SpeedCommand extends TerminalCommand {
+  constructor(parent: TerminalCommand) {
+    super(parent.Terminal, 'speed');
+    this.parent = parent;
+  }
+
+  public override exec(
+    command: string,
+    args: string[],
+    negated: boolean
+  ): void {
+    if (command === this.name) {
+      // eslint-disable-next-line prefer-destructuring
+      const iface = (this.parent as InterfaceCommand).iface;
+
+      if (!iface) {
+        throw new Error('No interface selected');
+      }
+
+      if (args.length === 1) {
+        const speed = args[0];
+
+        if (speed === 'auto') {
+          // Auto-negotiation would be handled by AutoNegotiationProtocol
+          this.terminal.write('Speed set to auto-negotiation');
+        } else {
+          const speedValue = parseInt(speed, 10);
+          if ([10, 100, 1000].includes(speedValue)) {
+            iface.Speed = speedValue;
+            this.terminal.write(`Speed set to ${speedValue}Mb/s`);
+          } else {
+            throw new Error(
+              'Invalid speed. Valid options: 10, 100, 1000, auto'
+            );
+          }
+        }
+      } else {
+        throw new Error('Speed requires an argument (10, 100, 1000, or auto)');
+      }
+
+      this.finalize();
+    } else {
+      super.exec(command, args, negated);
+    }
+  }
+
+  public override autocomplete(
+    command: string,
+    args: string[],
+    negated: boolean
+  ): string[] {
+    if (command === this.name && args.length === 1) {
+      return ['10', '100', '1000', 'auto'].filter((s) => s.startsWith(args[0]));
+    }
+
+    return super.autocomplete(command, args, negated);
+  }
+}
+
+class DuplexCommand extends TerminalCommand {
+  constructor(parent: TerminalCommand) {
+    super(parent.Terminal, 'duplex');
+    this.parent = parent;
+  }
+
+  public override exec(
+    command: string,
+    args: string[],
+    negated: boolean
+  ): void {
+    if (command === this.name) {
+      // eslint-disable-next-line prefer-destructuring
+      const iface = (this.parent as InterfaceCommand).iface;
+
+      if (!iface) {
+        throw new Error('No interface selected');
+      }
+
+      if (args.length === 1) {
+        const duplex = args[0];
+
+        if (duplex === 'auto') {
+          // Auto-negotiation would be handled by AutoNegotiationProtocol
+          this.terminal.write('Duplex set to auto-negotiation');
+        } else if (duplex === 'full') {
+          iface.FullDuplex = true;
+          this.terminal.write('Duplex set to full');
+        } else if (duplex === 'half') {
+          iface.FullDuplex = false;
+          this.terminal.write('Duplex set to half');
+        } else {
+          throw new Error(
+            'Invalid duplex mode. Valid options: auto, full, half'
+          );
+        }
+      } else {
+        throw new Error('Duplex requires an argument (auto, full, or half)');
+      }
+
+      this.finalize();
+    } else {
+      super.exec(command, args, negated);
+    }
+  }
+
+  public override autocomplete(
+    command: string,
+    args: string[],
+    negated: boolean
+  ): string[] {
+    if (command === this.name && args.length === 1) {
+      return ['auto', 'full', 'half'].filter((s) => s.startsWith(args[0]));
+    }
+
+    return super.autocomplete(command, args, negated);
+  }
+}
+
+// InterfaceRangeCommand - Configure multiple interfaces at once
+class InterfaceRangeCommand extends TerminalCommand {
+  private interfaces: (NetworkInterface | HardwareInterface)[] = [];
+
+  public iface: NetworkInterface | HardwareInterface | null = null;
+
+  constructor(parent: TerminalCommand) {
+    super(parent.Terminal, 'range', '(config-if-range)#');
+    this.parent = parent;
+    this.isRecursive = true;
+
+    // Register same subcommands as InterfaceCommand
+    if ('RoutingTable' in this.terminal.Node) {
+      this.registerCommand(new IPInterfaceCommand(this));
+      this.registerCommand(new StandbyCommand(this));
+    }
+    if ('knownVlan' in this.terminal.Node) {
+      this.registerCommand(new SwitchPortCommand(this));
+      this.registerCommand(new SpanningTreeInterfaceCommand(this));
+    }
+
+    // Common interface commands (all devices)
+    this.registerCommand(new ShutdownCommand(this));
+    this.registerCommand(new DescriptionCommand(this));
+    this.registerCommand(new SpeedCommand(this));
+    this.registerCommand(new DuplexCommand(this));
+  }
+
+  public override exec(
+    command: string,
+    args: string[],
+    negated: boolean
+  ): void {
+    if (command === this.name) {
+      // Expected: range <type> <range>
+      // Example: range gi 0/1-24, range fa 1-10
+      if (args.length !== 2) {
+        throw new Error('Usage: interface range <type> <range>');
+      }
+
+      const interfaceType = args[0];
+      const rangeStr = args[1];
+
+      // Parse and validate all interfaces in range
+      this.interfaces = this.parseAndValidateRange(interfaceType, rangeStr);
+
+      // Enter range config mode
+      this.terminal.changeDirectory(this);
+    } else {
+      // Apply command to all interfaces in range
+      this.interfaces.forEach((iface) => {
+        // Temporarily set the interface for subcommands to access
+        this.iface = iface;
+
+        try {
+          super.exec(command, args, negated);
+        } finally {
+          // Clear interface after command execution
+          this.iface = null;
+        }
+      });
+    }
+  }
+
+  private parseAndValidateRange(
+    interfaceType: string,
+    rangeStr: string
+  ): (NetworkInterface | HardwareInterface)[] {
+    // Parse range: "0/1-24" or "1-10"
+    const rangeParts = rangeStr.split('-');
+    if (rangeParts.length !== 2) {
+      throw new Error('Invalid range format. Expected: <start>-<end>');
+    }
+
+    const start = rangeParts[0];
+    const end = rangeParts[1];
+
+    // Check if range includes slashes (e.g., 0/1-0/24)
+    const hasSlash = start.includes('/');
+
+    let interfaceNames: string[];
+
+    if (hasSlash) {
+      // Format: 0/1-0/24 or 0/1-24
+      const startParts = start.split('/');
+      const endNum = end.includes('/') ? end.split('/')[1] : end;
+
+      const startSlot = startParts[0];
+      const startPort = parseInt(startParts[1], 10);
+      const endPort = parseInt(endNum, 10);
+
+      if (Number.isNaN(startPort) || Number.isNaN(endPort)) {
+        throw new Error('Invalid port numbers in range');
+      }
+
+      if (startPort > endPort) {
+        throw new Error('Start port must be less than or equal to end port');
+      }
+
+      // Generate interface names
+      interfaceNames = [];
+      for (let port = startPort; port <= endPort; port += 1) {
+        const ifaceName = parseInterfaceName(
+          interfaceType,
+          `${startSlot}/${port}`
+        );
+        interfaceNames.push(ifaceName);
+      }
+    } else {
+      // Format: 1-10 (simple numeric range)
+      const startNum = parseInt(start, 10);
+      const endNum = parseInt(end, 10);
+
+      if (Number.isNaN(startNum) || Number.isNaN(endNum)) {
+        throw new Error('Invalid port numbers in range');
+      }
+
+      if (startNum > endNum) {
+        throw new Error('Start port must be less than or equal to end port');
+      }
+
+      // Generate interface names
+      interfaceNames = [];
+      for (let port = startNum; port <= endNum; port += 1) {
+        const ifaceName = parseInterfaceName(interfaceType, port.toString());
+        interfaceNames.push(ifaceName);
+      }
+    }
+
+    // Validate all interfaces exist
+    const allInterfaces = this.Terminal.Node.getInterfaces();
+    const resolvedInterfaces: (NetworkInterface | HardwareInterface)[] = [];
+
+    interfaceNames.forEach((ifaceName) => {
+      const matchingIface = allInterfaces.find(
+        (iface) =>
+          iface === ifaceName || iface.toLowerCase() === ifaceName.toLowerCase()
+      );
+
+      if (!matchingIface) {
+        throw new Error(
+          `Interface ${ifaceName} does not exist. Range command aborted.`
+        );
+      }
+
+      resolvedInterfaces.push(this.Terminal.Node.getInterface(matchingIface));
+    });
+
+    if (resolvedInterfaces.length === 0) {
+      throw new Error('No interfaces found in range');
+    }
+
+    return resolvedInterfaces;
+  }
+
+  public override autocomplete(
+    command: string,
+    args: string[],
+    negated: boolean
+  ): string[] {
+    if (command === this.name) {
+      if (args.length === 1) {
+        // Show short interface type names
+        const ifaces = this.Terminal.Node.getInterfaces()
+          .map((iface) => {
+            const match = iface.match(/^([a-zA-Z-]+)(\d+(?:\/\d+)*)$/);
+            return match ? toShortName(iface) : null;
+          })
+          .filter((iface): iface is string => iface !== null)
+          .map((iface) => {
+            const match = iface.match(/^([a-z-]+)(\d+(?:\/\d+)*)$/);
+            return match ? match[1] : iface;
+          })
+          .filter((type) => type.startsWith(args[0].toLowerCase()));
+
+        return Array.from(new Set(ifaces));
+      }
+
+      return [];
+    }
+
+    return super.autocomplete(command, args, negated);
+  }
+}
+
 // Main InterfaceCommand class
 
 export class InterfaceCommand extends TerminalCommand {
@@ -194,6 +572,15 @@ export class InterfaceCommand extends TerminalCommand {
       this.registerCommand(new SwitchPortCommand(this));
       this.registerCommand(new SpanningTreeInterfaceCommand(this));
     }
+
+    // Common interface commands (all devices)
+    this.registerCommand(new ShutdownCommand(this));
+    this.registerCommand(new DescriptionCommand(this));
+    this.registerCommand(new SpeedCommand(this));
+    this.registerCommand(new DuplexCommand(this));
+
+    // Register interface range command
+    this.registerCommand(new InterfaceRangeCommand(this));
   }
 
   public override exec(
@@ -202,6 +589,13 @@ export class InterfaceCommand extends TerminalCommand {
     negated: boolean
   ): void {
     if (command === this.name) {
+      // Check if this is an interface range command
+      if (args.length > 0 && args[0] === 'range') {
+        // Delegate to InterfaceRangeCommand
+        super.exec('range', args.slice(1), negated);
+        return;
+      }
+
       if (args.length === 2) {
         // Parse interface name using utility (supports both short and full names)
         const requestedName = parseInterfaceName(args[0], args[1]);
@@ -234,6 +628,25 @@ export class InterfaceCommand extends TerminalCommand {
   ): string[] {
     if (command === this.name) {
       if (args.length === 1) {
+        // Check if user is typing "range"
+        if ('range'.startsWith(args[0].toLowerCase())) {
+          // Show both "range" and interface types
+          const interfaceTypes = this.Terminal.Node.getInterfaces()
+            .map((iface) => {
+              const match = iface.match(/^([a-zA-Z-]+)(\d+(?:\/\d+)*)$/);
+              return match ? toShortName(iface) : null;
+            })
+            .filter((iface): iface is string => iface !== null)
+            .map((iface) => {
+              const match = iface.match(/^([a-z-]+)(\d+(?:\/\d+)*)$/);
+              return match ? match[1] : iface;
+            })
+            .filter((type) => type.startsWith(args[0].toLowerCase()));
+
+          const suggestions = Array.from(new Set(['range', ...interfaceTypes]));
+          return suggestions.filter((s) => s.startsWith(args[0].toLowerCase()));
+        }
+
         // Show short interface type names for autocomplete
         const ifaces = this.Terminal.Node.getInterfaces()
           .map((iface) => {
@@ -250,6 +663,11 @@ export class InterfaceCommand extends TerminalCommand {
         return Array.from(new Set(ifaces));
       }
       if (args.length === 2) {
+        // Check if first arg is "range" - delegate to InterfaceRangeCommand
+        if (args[0] === 'range') {
+          return this.autocompleteChild('range', args.slice(1), negated);
+        }
+
         // Show port numbers for matching interface types
         const ifaces = this.Terminal.Node.getInterfaces()
           .map((iface) => toShortName(iface))
@@ -265,6 +683,10 @@ export class InterfaceCommand extends TerminalCommand {
           .filter((port) => port.startsWith(args[1]));
 
         return Array.from(new Set(ifaces));
+      }
+      if (args.length === 3 && args[0] === 'range') {
+        // Delegate to InterfaceRangeCommand for range-specific autocomplete
+        return this.autocompleteChild('range', args.slice(1), negated);
       }
 
       return [];

@@ -11,9 +11,11 @@ import type { GenericNode } from '../../lib/network-simulator';
 import { HardwareInterface } from '../../lib/network-simulator/layers/datalink';
 import { Node } from '../../lib/network-simulator/nodes/generic';
 import { RouterHost } from '../../lib/network-simulator/nodes/router';
+import { SwitchHost } from '../../lib/network-simulator/nodes/switch';
 import GeneralTab from './GeneralTab';
 import InterfaceTab from './InterfaceTab';
 import RoutingTab from './RoutingTab';
+import VlanDatabaseTab from './VlanDatabaseTab';
 
 interface ConfigTabProps {
   node: GenericNode;
@@ -29,6 +31,9 @@ export default function ConfigTab({ node }: ConfigTabProps) {
   // Check if node is a router (for routing table)
   const isRouter = node instanceof RouterHost;
 
+  // Check if node is a switch (for VLAN database)
+  const isSwitchHost = node instanceof SwitchHost;
+
   return (
     <Tabs className="flex w-full flex-row gap-6 h-full" defaultValue="general">
       <TabsList className="flex h-full flex-col items-start justify-start">
@@ -38,6 +43,14 @@ export default function ConfigTab({ node }: ConfigTabProps) {
         >
           General
         </TabsTrigger>
+        {isSwitchHost && (
+          <TabsTrigger
+            className="w-40 shrink-0 grow-0 justify-start"
+            value="vlan-database"
+          >
+            VLAN Database
+          </TabsTrigger>
+        )}
         {isRouter && (
           <TabsTrigger
             className="w-40 shrink-0 grow-0 justify-start"
@@ -68,6 +81,12 @@ export default function ConfigTab({ node }: ConfigTabProps) {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {isSwitchHost && (
+          <TabsContent value="vlan-database">
+            <VlanDatabaseTab node={node as SwitchHost} />
+          </TabsContent>
+        )}
 
         {isRouter && (
           <TabsContent value="routage">

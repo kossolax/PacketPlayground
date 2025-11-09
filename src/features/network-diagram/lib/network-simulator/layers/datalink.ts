@@ -33,6 +33,8 @@ export abstract class Interface {
 
   private status: boolean;
 
+  private description: string = '';
+
   protected speed: number = 100;
 
   protected fullDuplex: boolean = false;
@@ -83,6 +85,18 @@ export abstract class Interface {
 
   set FullDuplex(fullDuplex: boolean) {
     this.fullDuplex = fullDuplex;
+  }
+
+  get Description(): string {
+    return this.description;
+  }
+
+  set Description(description: string) {
+    this.description = description;
+  }
+
+  get Name(): string {
+    return this.name;
   }
 
   // ---
@@ -347,7 +361,7 @@ export class Dot1QInterface extends EthernetInterface {
 
   protected vlanMode: VlanMode;
 
-  protected natif: number = 0;
+  protected natif: number = 1;
 
   protected dot1q: Dot1QProtocol;
 
@@ -376,6 +390,14 @@ export class Dot1QInterface extends EthernetInterface {
   }
 
   public addVlan(vlanId: number): void {
+    // Auto-create VLAN in switch database if it doesn't exist
+    if ('knownVlan' in this.host) {
+      const { knownVlan } = this.host as { knownVlan: Record<number, string> };
+      if (!knownVlan[vlanId]) {
+        knownVlan[vlanId] = `vlan-${vlanId}`;
+      }
+    }
+
     if (this.VlanMode === VlanMode.Access) {
       this.vlan = [vlanId];
     } else if (this.vlan.indexOf(vlanId) === -1) {
