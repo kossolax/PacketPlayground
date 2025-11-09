@@ -68,11 +68,11 @@ export default function StpServiceConfig({
     setEnabled,
     protocol,
     setProtocol,
-    getBridgeId,
-    getRootId,
-    getIsRoot,
-    getPriority,
-    getPortsInfo,
+    bridgeId,
+    rootId,
+    isRoot,
+    priority,
+    portsInfo,
   } = useStpService(node, network);
 
   return (
@@ -147,13 +147,13 @@ export default function StpServiceConfig({
                   <Label className="text-muted-foreground text-xs">
                     Bridge ID
                   </Label>
-                  <p className="font-mono text-sm">{getBridgeId()}</p>
+                  <p className="font-mono text-sm">{bridgeId}</p>
                 </div>
                 <div className="space-y-1">
                   <Label className="text-muted-foreground text-xs">
                     Priority
                   </Label>
-                  <p className="font-mono text-sm">{getPriority()}</p>
+                  <p className="font-mono text-sm">{priority}</p>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -161,14 +161,14 @@ export default function StpServiceConfig({
                   <Label className="text-muted-foreground text-xs">
                     Root Bridge ID
                   </Label>
-                  <p className="font-mono text-sm">{getRootId()}</p>
+                  <p className="font-mono text-sm">{rootId}</p>
                 </div>
                 <div className="space-y-1">
                   <Label className="text-muted-foreground text-xs">
                     Root Bridge
                   </Label>
                   <div>
-                    {getIsRoot() ? (
+                    {isRoot ? (
                       <Badge variant="default" className="bg-green-500">
                         This switch
                       </Badge>
@@ -193,7 +193,7 @@ export default function StpServiceConfig({
                   <div>Role</div>
                   <div className="text-right">Cost</div>
                 </div>
-                {getPortsInfo().map((port) => (
+                {portsInfo.map((port) => (
                   <div
                     key={port.name}
                     className="grid grid-cols-4 gap-2 py-2 border-b last:border-0 text-sm"

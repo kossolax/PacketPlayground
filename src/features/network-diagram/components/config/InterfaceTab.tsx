@@ -3,7 +3,7 @@
  * Displays and edits network interface settings
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -13,6 +13,7 @@ import { HardwareInterface } from '../../lib/network-simulator/layers/datalink';
 import { NetworkInterface } from '../../lib/network-simulator/layers/network';
 import { MacAddress, IPAddress } from '../../lib/network-simulator/address';
 import type { Node } from '../../lib/network-simulator/nodes/generic';
+import { Scheduler } from '../../lib/scheduler/scheduler';
 
 interface InterfaceTabProps {
   node: Node<HardwareInterface>;
@@ -23,11 +24,13 @@ export default function InterfaceTab({
   node,
   interfaceName,
 }: InterfaceTabProps) {
+  const scheduler = Scheduler.getInstance();
   const iface = node.getInterface(interfaceName);
   const isNetworkInterface = iface instanceof NetworkInterface;
 
   // State for all fields
   const [isActive, setIsActive] = useState(iface.isActive());
+  const [isConnected, setIsConnected] = useState(iface.isConnected);
   const [isDhcp, setIsDhcp] = useState(
     isNetworkInterface ? iface.AutoNegociateAddress : false
   );
@@ -46,6 +49,31 @@ export default function InterfaceTab({
   const [macError, setMacError] = useState('');
   const [ipError, setIpError] = useState('');
   const [maskError, setMaskError] = useState('');
+
+  // Subscribe to scheduler timer to reactively update interface state
+  useEffect(() => {
+    const subscription = scheduler.Timer$.subscribe(() => {
+      // Update interface active status
+      setIsActive(iface.isActive());
+
+      // Update connection status (for speed radio buttons)
+      setIsConnected(iface.isConnected);
+
+      // Update speed (for auto-negotiation)
+      setSpeed(iface.Speed);
+
+      // Update IP and subnet mask only if DHCP is enabled
+      // (when DHCP is disabled, user is editing these fields manually)
+      if (isNetworkInterface && isDhcp) {
+        setIpAddress(iface.getNetAddress().toString());
+        setSubnetMask(iface.getNetMask().toString());
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [iface, isNetworkInterface, isDhcp, scheduler]);
 
   // Interface Status Handler
   const handleStatusChange = (checked: boolean) => {
@@ -176,11 +204,11 @@ export default function InterfaceTab({
                 <RadioGroupItem
                   value="10"
                   id={`${interfaceName}-speed-10`}
-                  disabled={!iface.isConnected}
+                  disabled={!isConnected}
                 />
                 <Label
                   htmlFor={`${interfaceName}-speed-10`}
-                  className={!iface.isConnected ? 'text-muted-foreground' : ''}
+                  className={!isConnected ? 'text-muted-foreground' : ''}
                 >
                   10 Mbps
                 </Label>
@@ -189,11 +217,11 @@ export default function InterfaceTab({
                 <RadioGroupItem
                   value="100"
                   id={`${interfaceName}-speed-100`}
-                  disabled={!iface.isConnected}
+                  disabled={!isConnected}
                 />
                 <Label
                   htmlFor={`${interfaceName}-speed-100`}
-                  className={!iface.isConnected ? 'text-muted-foreground' : ''}
+                  className={!isConnected ? 'text-muted-foreground' : ''}
                 >
                   100 Mbps
                 </Label>
@@ -202,11 +230,11 @@ export default function InterfaceTab({
                 <RadioGroupItem
                   value="1000"
                   id={`${interfaceName}-speed-1000`}
-                  disabled={!iface.isConnected}
+                  disabled={!isConnected}
                 />
                 <Label
                   htmlFor={`${interfaceName}-speed-1000`}
-                  className={!iface.isConnected ? 'text-muted-foreground' : ''}
+                  className={!isConnected ? 'text-muted-foreground' : ''}
                 >
                   1000 Mbps
                 </Label>

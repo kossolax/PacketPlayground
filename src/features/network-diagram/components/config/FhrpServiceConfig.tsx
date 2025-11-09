@@ -110,10 +110,7 @@ export default function FhrpServiceConfig({
   const {
     enabled,
     setEnabled,
-    selectedInterface,
-    setSelectedInterface,
-    getAllGroups,
-    getGroupsForInterface,
+    groups,
     setGroup,
     removeGroup,
     getGroupFormData,
@@ -207,11 +204,6 @@ export default function FhrpServiceConfig({
     setValidationErrors({});
   };
 
-  const allGroups = getAllGroups();
-  const filteredGroups = selectedInterface
-    ? getGroupsForInterface(selectedInterface)
-    : allGroups;
-
   return (
     <div className="space-y-6">
       <Card>
@@ -232,30 +224,6 @@ export default function FhrpServiceConfig({
               onCheckedChange={setEnabled}
             />
           </div>
-
-          {enabled && interfaces.length > 0 && (
-            <div className="space-y-2">
-              <Label htmlFor="interface-filter">Filter by Interface</Label>
-              <Select
-                value={selectedInterface || 'all'}
-                onValueChange={(value) =>
-                  setSelectedInterface(value === 'all' ? null : value)
-                }
-              >
-                <SelectTrigger id="interface-filter">
-                  <SelectValue placeholder="All interfaces" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All interfaces</SelectItem>
-                  {interfaces.map((iface) => (
-                    <SelectItem key={iface} value={iface}>
-                      {iface}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
         </CardContent>
       </Card>
 
@@ -278,7 +246,7 @@ export default function FhrpServiceConfig({
               </Button>
             </CardHeader>
             <CardContent>
-              {filteredGroups.length === 0 ? (
+              {groups.length === 0 ? (
                 <p className="text-muted-foreground text-center py-4 text-sm">
                   No HSRP groups configured
                 </p>
@@ -291,12 +259,11 @@ export default function FhrpServiceConfig({
                       <TableHead>Virtual IP</TableHead>
                       <TableHead>Priority</TableHead>
                       <TableHead>State</TableHead>
-                      <TableHead>Virtual MAC</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredGroups.map((group) => (
+                    {groups.map((group) => (
                       <TableRow key={`${group.interfaceName}-${group.group}`}>
                         <TableCell className="font-medium">
                           {group.interfaceName}
@@ -310,9 +277,6 @@ export default function FhrpServiceConfig({
                           <Badge variant={getStateBadgeVariant(group.state)}>
                             {getStateString(group.state)}
                           </Badge>
-                        </TableCell>
-                        <TableCell className="font-mono text-xs">
-                          {group.virtualMAC}
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-2">
@@ -547,67 +511,6 @@ export default function FhrpServiceConfig({
                   >
                     {editingGroup ? 'Update' : 'Add'} Group
                   </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {filteredGroups.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>HSRP Status Details</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {filteredGroups.map((group) => (
-                    <div
-                      key={`${group.interfaceName}-${group.group}`}
-                      className="border-border rounded-lg border p-4"
-                    >
-                      <div className="mb-2 flex items-center justify-between">
-                        <h4 className="font-semibold">
-                          {group.interfaceName} - Group {group.group}
-                        </h4>
-                        <Badge variant={getStateBadgeVariant(group.state)}>
-                          {getStateString(group.state)}
-                        </Badge>
-                      </div>
-                      <div className="text-muted-foreground grid grid-cols-2 gap-2 text-sm">
-                        <div>
-                          <span className="font-medium">Virtual IP:</span>{' '}
-                          <span className="font-mono">{group.virtualIP}</span>
-                        </div>
-                        <div>
-                          <span className="font-medium">Virtual MAC:</span>{' '}
-                          <span className="font-mono">{group.virtualMAC}</span>
-                        </div>
-                        <div>
-                          <span className="font-medium">Priority:</span>{' '}
-                          {group.priority}
-                        </div>
-                        <div>
-                          <span className="font-medium">Preempt:</span>{' '}
-                          {group.preempt ? 'Enabled' : 'Disabled'}
-                        </div>
-                        {group.activeRouter && (
-                          <div>
-                            <span className="font-medium">Active Router:</span>{' '}
-                            <span className="font-mono">
-                              {group.activeRouter}
-                            </span>
-                          </div>
-                        )}
-                        {group.standbyRouter && (
-                          <div>
-                            <span className="font-medium">Standby Router:</span>{' '}
-                            <span className="font-mono">
-                              {group.standbyRouter}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
                 </div>
               </CardContent>
             </Card>
