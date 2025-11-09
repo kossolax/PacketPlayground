@@ -92,8 +92,13 @@ export class BGPMessage extends IPv4Message {
   // RFC 4271: Marker field (16 bytes, all ones for authentication compatibility)
   public marker: bigint = BigInt('0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF');
 
+  // RFC 4271: Message length field
+  protected bgpLength: number = 19; // Minimum header size
+
   // RFC 4271: Total length of message including header (bytes)
-  public length: number = 19; // Minimum header size
+  public override get length(): number {
+    return this.bgpLength;
+  }
 
   // RFC 4271: Message type
   public type: BGPMessageType = BGPMessageType.Keepalive;
@@ -136,7 +141,7 @@ export class BGPMessage extends IPv4Message {
       // Set BGP-specific fields
       message.marker = BigInt('0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF');
       message.type = this.bgpType;
-      message.length = 19; // Minimum BGP header
+      message.bgpLength = 19; // Minimum BGP header
 
       // Set IPv4 fields
       message.ttl = this.ttl;
@@ -263,7 +268,7 @@ export class BGPOpenMessage extends BGPMessage {
 
       // Calculate BGP message length
       // 19 (header) + 10 (OPEN fixed fields) + optional parameters length
-      message.length = 19 + 10 + message.optionalParametersLength;
+      message.bgpLength = 19 + 10 + message.optionalParametersLength;
 
       // Set IPv4 fields
       message.ttl = this.ttl;
@@ -375,7 +380,7 @@ export class BGPUpdateMessage extends BGPMessage {
       const nlriLength = this.nlriList.length * 5; // Approximate
 
       // Calculate BGP message length
-      message.length =
+      message.bgpLength =
         19 + 2 + withdrawnLength + 2 + pathAttrLength + nlriLength;
 
       // Set IPv4 fields
@@ -465,7 +470,7 @@ export class BGPNotificationMessage extends BGPMessage {
 
       // Calculate BGP message length
       // 19 (header) + 2 (error code + subcode) + data length
-      message.length = 19 + 2 + this.errData.length;
+      message.bgpLength = 19 + 2 + this.errData.length;
 
       // Set IPv4 fields
       message.ttl = this.ttl;

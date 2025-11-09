@@ -22,6 +22,29 @@ import { NetworkServices } from './dhcp';
 import type { RouterHost } from '../nodes/router';
 
 /**
+ * Create IP mask from CIDR prefix length
+ * @param cidr CIDR prefix length (0-32)
+ * @returns IPAddress mask
+ */
+function createMaskFromCIDR(cidr: number): IPAddress {
+  if (cidr < 0 || cidr > 32) {
+    throw new Error('CIDR must be between 0 and 32');
+  }
+
+  let mask = 0;
+  for (let i = 0; i < cidr; i += 1) {
+    mask |= 1 << (31 - i);
+  }
+
+  const octet1 = (mask >>> 24) & 0xff;
+  const octet2 = (mask >>> 16) & 0xff;
+  const octet3 = (mask >>> 8) & 0xff;
+  const octet4 = mask & 0xff;
+
+  return new IPAddress(`${octet1}.${octet2}.${octet3}.${octet4}`, true);
+}
+
+/**
  * BGP Neighbor Configuration and State
  * Represents a configured BGP peer relationship
  */
@@ -224,9 +247,7 @@ export class BGPService
           routesToRemove.push(routeKey);
           // Remove from main routing table
           try {
-            const mask = new IPAddress(`255.255.255.255`).getNetworkIP(
-              new IPAddress(`255.255.255.255`, true).fromCIDR(route.prefixLength)
-            ) as IPAddress;
+            const mask = createMaskFromCIDR(route.prefixLength);
             this.host.deleteRoute(route.network, mask, route.nextHop);
           } catch {
             // Route might not be in main table
@@ -367,7 +388,7 @@ export class BGPService
     // Simplified: Move directly to OpenSent and send OPEN message
     // In real BGP, TCP connection establishment happens first
     Scheduler.getInstance()
-      .delay(0.1)
+      .once(0.1)
       .subscribe(() => {
         if (neighbor.state === BGPState.Connect) {
           this.sendOpen(neighbor);
@@ -523,7 +544,7 @@ export class BGPService
    */
   public receivePacket(
     message: NetworkMessage,
-    from: NetworkInterface
+    _from: NetworkInterface
   ): ActionHandle {
     if (!(message instanceof BGPMessage)) {
       return ActionHandle.Continue;
@@ -621,9 +642,7 @@ export class BGPService
 
         // Remove from main routing table
         try {
-          const mask = new IPAddress(`255.255.255.255`).getNetworkIP(
-            new IPAddress(`255.255.255.255`, true).fromCIDR(nlri.prefixLength)
-          ) as IPAddress;
+          const mask = createMaskFromCIDR(nlri.prefixLength);
           this.host.deleteRoute(route.network, mask, route.nextHop);
         } catch {
           // Route might not be in main table
@@ -649,9 +668,7 @@ export class BGPService
 
       // Add to main routing table
       try {
-        const mask = new IPAddress(`255.255.255.255`).getNetworkIP(
-          new IPAddress(`255.255.255.255`, true).fromCIDR(nlri.prefixLength)
-        ) as IPAddress;
+        const mask = createMaskFromCIDR(nlri.prefixLength);
         this.host.addRoute(route.network, mask, route.nextHop);
       } catch {
         // Route might already exist
