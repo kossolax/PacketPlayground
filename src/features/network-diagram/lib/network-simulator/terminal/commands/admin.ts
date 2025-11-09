@@ -1,20 +1,26 @@
 import { PingCommand } from './basic';
 import { ConfigCommand } from './config';
 import { ShowStandbyCommand } from './fhrp';
+import { ShowIpRipCommand, ShowIpProtocolsCommand } from './rip';
 import { ShowIPOSPFCommand } from './ospf';
 import { TerminalCommand } from '../command-base';
 import type { RouterHost } from '../../nodes/router';
 
 export { PingCommand };
 
-// ShowIPCommand - parent for 'show ip' commands
+// ShowIpCommand - parent for 'show ip' commands
 class ShowIPCommand extends TerminalCommand {
   constructor(parent: TerminalCommand) {
     super(parent.Terminal, 'ip');
     this.parent = parent;
 
-    // Register OSPF show commands
+    // Register show ip subcommands
     const node = this.terminal.Node;
+    if ('services' in node && 'rip' in (node as RouterHost).services) {
+      this.registerCommand(new ShowIpRipCommand(this));
+      this.registerCommand(new ShowIpProtocolsCommand(this));
+    }
+    // Register OSPF show commands
     if ('services' in node && 'ospf' in (node as RouterHost).services) {
       this.registerCommand(new ShowIPOSPFCommand(this));
     }
@@ -42,16 +48,28 @@ class ShowIPCommand extends TerminalCommand {
     args: string[],
     negated: boolean
   ): string[] {
-    if (command === this.name && args.length === 1) {
-      const suggestions: string[] = [];
+    if (command === this.name) {
+      if (args.length === 1) {
+        const suggestions: string[] = [];
+        const node = this.terminal.Node;
 
-      // Add 'ospf' if OSPF is available
-      const node = this.terminal.Node;
-      if ('services' in node && 'ospf' in (node as RouterHost).services) {
-        suggestions.push('ospf');
+        // Add 'rip' and 'protocols' if RIP is available
+        if ('services' in node && 'rip' in (node as RouterHost).services) {
+          suggestions.push('rip', 'protocols');
+        }
+
+        // Add 'ospf' if OSPF is available
+        if ('services' in node && 'ospf' in (node as RouterHost).services) {
+          suggestions.push('ospf');
+        }
+
+        return suggestions.filter((s) => s.startsWith(args[0]));
       }
 
-      return suggestions.filter((s) => s.startsWith(args[0]));
+      if (args.length > 1) {
+        // Delegate to subcommand
+        return this.autocompleteChild(args[0], args.slice(1), negated);
+      }
     }
 
     return super.autocomplete(command, args, negated);
@@ -68,6 +86,11 @@ class ShowCommand extends TerminalCommand {
     const node = this.terminal.Node;
     if ('services' in node && 'fhrp' in (node as RouterHost).services) {
       this.registerCommand(new ShowStandbyCommand(this));
+    }
+
+    // Register show ip commands
+    if ('services' in node && 'rip' in (node as RouterHost).services) {
+      this.registerCommand(new ShowIPCommand(this));
     }
     if ('services' in node && 'ospf' in (node as RouterHost).services) {
       this.registerCommand(new ShowIPCommand(this));
@@ -96,21 +119,31 @@ class ShowCommand extends TerminalCommand {
     args: string[],
     negated: boolean
   ): string[] {
-    if (command === this.name && args.length === 1) {
-      const suggestions: string[] = [];
+    if (command === this.name) {
+      if (args.length === 1) {
+        const suggestions: string[] = [];
 
-      // Add 'standby' if FHRP is available
-      const node = this.terminal.Node;
-      if ('services' in node && 'fhrp' in (node as RouterHost).services) {
-        suggestions.push('standby');
+        // Add 'standby' if FHRP is available
+        const node = this.terminal.Node;
+        if ('services' in node && 'fhrp' in (node as RouterHost).services) {
+          suggestions.push('standby');
+        }
+
+        // Add 'ip' if RIP or OSPF is available
+        if ('services' in node && 'rip' in (node as RouterHost).services) {
+          suggestions.push('ip');
+        }
+        if ('services' in node && 'ospf' in (node as RouterHost).services) {
+          suggestions.push('ip');
+        }
+
+        return suggestions.filter((s) => s.startsWith(args[0]));
       }
 
-      // Add 'ip' if OSPF is available
-      if ('services' in node && 'ospf' in (node as RouterHost).services) {
-        suggestions.push('ip');
+      if (args.length > 1) {
+        // Delegate to subcommand
+        return this.autocompleteChild(args[0], args.slice(1), negated);
       }
-
-      return suggestions.filter((s) => s.startsWith(args[0]));
     }
 
     return super.autocomplete(command, args, negated);

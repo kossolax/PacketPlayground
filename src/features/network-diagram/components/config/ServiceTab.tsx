@@ -14,6 +14,7 @@ import { RouterHost } from '../../lib/network-simulator/nodes/router';
 import DhcpServiceConfig from './DhcpServiceConfig';
 import StpServiceConfig from './StpServiceConfig';
 import FhrpServiceConfig from './FhrpServiceConfig';
+import RipServiceConfig from './RipServiceConfig';
 import OspfServiceConfig from './OspfServiceConfig';
 
 interface ServiceTabProps {
@@ -29,7 +30,7 @@ export default function ServiceTab({ node, network }: ServiceTabProps) {
   // Determine default tab based on device type
   let defaultTab = 'stp';
   if (isServer) defaultTab = 'dhcp';
-  if (isRouter) defaultTab = 'fhrp';
+  if (isRouter) defaultTab = 'rip';
 
   return (
     <Tabs
@@ -52,6 +53,12 @@ export default function ServiceTab({ node, network }: ServiceTabProps) {
               value="fhrp"
             >
               FHRP
+            </TabsTrigger>
+            <TabsTrigger
+              className="w-40 shrink-0 grow-0 justify-start"
+              value="rip"
+            >
+              RIP
             </TabsTrigger>
             <TabsTrigger
               className="w-40 shrink-0 grow-0 justify-start"
@@ -95,6 +102,9 @@ export default function ServiceTab({ node, network }: ServiceTabProps) {
           <>
             <TabsContent value="fhrp">
               <FhrpServiceConfig node={node as RouterHost} network={network} />
+            </TabsContent>
+            <TabsContent value="rip">
+              <RipServiceConfig node={node as RouterHost} network={network} />
             </TabsContent>
             <TabsContent value="ospf">
               <OspfServiceConfig node={node as RouterHost} network={network} />

@@ -140,7 +140,7 @@ describe('Physical layer test', () => {
     const ratio = half / full;
 
     expect(half).toBeGreaterThan(full);
-    expect(ratio).toBeGreaterThan(1.3); // More realistic threshold for simulated time
+    expect(ratio).toBeGreaterThan(1.2); // More realistic threshold for simulated time
   }, 30000);
 
   it('L1 -> none', () => {

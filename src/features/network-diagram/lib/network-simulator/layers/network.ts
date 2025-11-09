@@ -199,8 +199,8 @@ export class IPInterface extends NetworkInterface {
 
   private protocols2: ICMPProtocol;
 
-  constructor(node: GenericNode, _name: string, datalink: HardwareInterface) {
-    super(node, 'ethip', datalink);
+  constructor(node: GenericNode, name: string, datalink: HardwareInterface) {
+    super(node, name, datalink);
     this.protocols1 = new IPv4Protocol(this);
     this.protocols2 = new ICMPProtocol(this);
   }

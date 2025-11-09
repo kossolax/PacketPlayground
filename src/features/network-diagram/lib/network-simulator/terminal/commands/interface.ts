@@ -2,10 +2,12 @@ import { IPAddress } from '../../address';
 import type { Dot1QInterface, HardwareInterface } from '../../layers/datalink';
 import type { NetworkInterface } from '../../layers/network';
 import type { SwitchHost } from '../../nodes/switch';
+import type { RouterHost } from '../../nodes/router';
 import { VlanMode } from '../../protocols/ethernet';
 import { TerminalCommand } from '../command-base';
 import { parseInterfaceName, toShortName } from '../../utils/interface-names';
 import { StandbyCommand } from './fhrp';
+import { IpRipCommand } from './rip';
 
 export { VlanMode };
 
@@ -134,6 +136,13 @@ class IPInterfaceCommand extends TerminalCommand {
   constructor(parent: TerminalCommand) {
     super(parent.Terminal, 'ip');
     this.parent = parent;
+    this.canBeNegative = true;
+
+    // Register RIP command if available
+    const node = this.terminal.Node;
+    if ('services' in node && 'rip' in (node as RouterHost).services) {
+      this.registerCommand(new IpRipCommand(this));
+    }
   }
 
   public override exec(
@@ -152,7 +161,12 @@ class IPInterfaceCommand extends TerminalCommand {
         iface.setNetAddress(network);
         iface.setNetMask(mask);
         this.finalize();
-      } else throw new Error(`${this.name} requires a subcommand`);
+      } else if (args.length > 0) {
+        // Try to dispatch to subcommands
+        super.exec(args[0], args.slice(1), negated);
+      } else {
+        throw new Error(`${this.name} requires a subcommand`);
+      }
     } else {
       super.exec(command, args, negated);
     }
@@ -164,8 +178,17 @@ class IPInterfaceCommand extends TerminalCommand {
     negated: boolean
   ): string[] {
     if (command === this.name) {
-      if (args.length === 1)
-        return ['address'].filter((c) => c.startsWith(args[0]));
+      if (args.length === 1) {
+        const suggestions = ['address'];
+
+        // Add 'rip' if RIP is available
+        const node = this.terminal.Node;
+        if ('services' in node && 'rip' in (node as RouterHost).services) {
+          suggestions.push('rip');
+        }
+
+        return suggestions.filter((c) => c.startsWith(args[0]));
+      }
 
       return [];
     }
