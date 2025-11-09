@@ -190,7 +190,10 @@ describe('OSPF Protocol - RFC 2328 Compliance', () => {
 
     it('should require source and destination addresses', () => {
       expect(() => {
-        builder.setPayload('test').setRouterID(new IPAddress('1.1.1.1')).build();
+        builder
+          .setPayload('test')
+          .setRouterID(new IPAddress('1.1.1.1'))
+          .build();
       }).toThrow();
     });
   });
@@ -341,10 +344,12 @@ describe('OSPF Protocol - RFC 2328 Compliance', () => {
         .build();
 
       const message = messages[0] as OSPFHelloMessage;
-      expect(message.designatedRouter.equals(new IPAddress('0.0.0.0'))).toBe(true);
-      expect(message.backupDesignatedRouter.equals(new IPAddress('0.0.0.0'))).toBe(
+      expect(message.designatedRouter.equals(new IPAddress('0.0.0.0'))).toBe(
         true
       );
+      expect(
+        message.backupDesignatedRouter.equals(new IPAddress('0.0.0.0'))
+      ).toBe(true);
     });
 
     it('should include list of neighbors', () => {

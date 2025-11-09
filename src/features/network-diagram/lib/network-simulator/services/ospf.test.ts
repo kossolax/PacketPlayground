@@ -2,7 +2,11 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { OSPFService } from './ospf';
 import { RouterHost } from '../nodes/router';
 import { IPAddress } from '../address';
-import { OSPFState, OSPFHelloMessage, OSPF_ALL_ROUTERS } from '../protocols/ospf';
+import {
+  OSPFState,
+  OSPFHelloMessage,
+  OSPF_ALL_ROUTERS,
+} from '../protocols/ospf';
 
 // Mock the Scheduler to avoid timing issues in tests
 vi.mock('@/features/network-diagram/lib/scheduler', () => ({
@@ -28,14 +32,27 @@ describe('OSPFService - RFC 2328 Compliance', () => {
   beforeEach(() => {
     router = new RouterHost('R1', 3);
     // Assign IPs to interfaces
-    router.getInterface('GigabitEthernet0/0').setNetAddress(new IPAddress('10.0.0.1'));
-    router.getInterface('GigabitEthernet0/0').setNetMask(new IPAddress('255.255.255.0', true));
-    router.getInterface('GigabitEthernet0/1').setNetAddress(new IPAddress('192.168.1.1'));
-    router.getInterface('GigabitEthernet0/1').setNetMask(new IPAddress('255.255.255.0', true));
-    router.getInterface('GigabitEthernet0/2').setNetAddress(new IPAddress('172.16.0.1'));
-    router.getInterface('GigabitEthernet0/2').setNetMask(new IPAddress('255.255.0.0', true));
+    router
+      .getInterface('GigabitEthernet0/0')
+      .setNetAddress(new IPAddress('10.0.0.1'));
+    router
+      .getInterface('GigabitEthernet0/0')
+      .setNetMask(new IPAddress('255.255.255.0', true));
+    router
+      .getInterface('GigabitEthernet0/1')
+      .setNetAddress(new IPAddress('192.168.1.1'));
+    router
+      .getInterface('GigabitEthernet0/1')
+      .setNetMask(new IPAddress('255.255.255.0', true));
+    router
+      .getInterface('GigabitEthernet0/2')
+      .setNetAddress(new IPAddress('172.16.0.1'));
+    router
+      .getInterface('GigabitEthernet0/2')
+      .setNetMask(new IPAddress('255.255.0.0', true));
 
-    ospfService = router.services.ospf;
+    const { ospf } = router.services;
+    ospfService = ospf;
   });
 
   describe('Router ID Generation', () => {
@@ -43,7 +60,7 @@ describe('OSPFService - RFC 2328 Compliance', () => {
       // RFC 2328: Router ID is typically set to highest IP address
       // Router ID is auto-generated in constructor, but interfaces are configured after
       // So we trigger regeneration or check that it's set to a valid value
-      const routerID = ospfService.routerID;
+      const { routerID } = ospfService;
       expect(routerID).toBeDefined();
       expect(routerID.toString()).not.toBe('0.0.0.0');
     });
@@ -326,9 +343,10 @@ describe('OSPFService - RFC 2328 Compliance', () => {
         .build();
 
       // Should not crash when receiving from different area
-      expect(() => ospfService.receivePacket(helloMessages[0], iface)).not.toThrow();
+      expect(() =>
+        ospfService.receivePacket(helloMessages[0], iface)
+      ).not.toThrow();
     });
-
   });
 
   describe('OSPF State Machine', () => {
