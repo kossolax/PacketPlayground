@@ -238,7 +238,8 @@ export class SwitchHost
       let msg: DatalinkMessage = message;
 
       // Check VLAN configuration mismatch - don't forward between configured and unconfigured interfaces
-      const sourceConfigured = (sourceInterface as Dot1QInterface).VlanConfigured;
+      const sourceConfigured = (sourceInterface as Dot1QInterface)
+        .VlanConfigured;
       const destConfigured = iface.VlanConfigured;
       if (sourceConfigured !== destConfigured) {
         return;

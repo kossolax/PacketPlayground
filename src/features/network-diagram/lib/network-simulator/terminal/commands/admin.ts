@@ -72,7 +72,7 @@ class ShowIpCommand extends TerminalCommand {
         this.ipInterfaceBriefCmd.exec(command, args, negated);
       } else if (args[0] === 'route') {
         this.ipRouteCmd.exec(command, args, negated);
-      // Commands with name='rip', 'protocols', 'ospf' expect their own name
+        // Commands with name='rip', 'protocols', 'ospf' expect their own name
       } else if (args[0] === 'rip') {
         this.ipRipCmd.exec(args[0], args.slice(1), negated);
       } else if (args[0] === 'protocols') {
