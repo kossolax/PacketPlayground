@@ -3,6 +3,7 @@ import { ConfigCommand } from './config';
 import { ShowStandbyCommand } from './fhrp';
 import { ShowIpRipCommand, ShowIpProtocolsCommand } from './rip';
 import { ShowIPOSPFCommand } from './ospf';
+import { ShowIpBgpCommand } from './bgp';
 import { TerminalCommand } from '../command-base';
 import type { RouterHost } from '../../nodes/router';
 
@@ -23,6 +24,10 @@ class ShowIPCommand extends TerminalCommand {
     // Register OSPF show commands
     if ('services' in node && 'ospf' in (node as RouterHost).services) {
       this.registerCommand(new ShowIPOSPFCommand(this));
+    }
+    // Register BGP show commands
+    if ('services' in node && 'bgp' in (node as RouterHost).services) {
+      this.registerCommand(new ShowIpBgpCommand(this));
     }
   }
 
@@ -63,6 +68,11 @@ class ShowIPCommand extends TerminalCommand {
           suggestions.push('ospf');
         }
 
+        // Add 'bgp' if BGP is available
+        if ('services' in node && 'bgp' in (node as RouterHost).services) {
+          suggestions.push('bgp');
+        }
+
         return suggestions.filter((s) => s.startsWith(args[0]));
       }
 
@@ -93,6 +103,9 @@ class ShowCommand extends TerminalCommand {
       this.registerCommand(new ShowIPCommand(this));
     }
     if ('services' in node && 'ospf' in (node as RouterHost).services) {
+      this.registerCommand(new ShowIPCommand(this));
+    }
+    if ('services' in node && 'bgp' in (node as RouterHost).services) {
       this.registerCommand(new ShowIPCommand(this));
     }
   }
@@ -129,11 +142,14 @@ class ShowCommand extends TerminalCommand {
           suggestions.push('standby');
         }
 
-        // Add 'ip' if RIP or OSPF is available
+        // Add 'ip' if RIP, OSPF or BGP is available
         if ('services' in node && 'rip' in (node as RouterHost).services) {
           suggestions.push('ip');
         }
         if ('services' in node && 'ospf' in (node as RouterHost).services) {
+          suggestions.push('ip');
+        }
+        if ('services' in node && 'bgp' in (node as RouterHost).services) {
           suggestions.push('ip');
         }
 
