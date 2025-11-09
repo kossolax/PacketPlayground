@@ -319,7 +319,8 @@ export class ShowIpProtocolsCommand extends TerminalCommand {
           `  Poison reverse: ${router.services.rip.poisonReverse ? 'enabled' : 'disabled'}`
         );
 
-        const enabledInterfaceNames = router.services.rip.getEnabledInterfaces();
+        const enabledInterfaceNames =
+          router.services.rip.getEnabledInterfaces();
         if (enabledInterfaceNames.length > 0) {
           this.terminal.write('  Routing for Networks:');
           // Get all router interfaces and filter by enabled ones

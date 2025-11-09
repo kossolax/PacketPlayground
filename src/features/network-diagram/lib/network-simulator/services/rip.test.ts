@@ -1,11 +1,10 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import {
   Scheduler,
   SchedulerState,
 } from '@/features/network-diagram/lib/scheduler';
 import { IPAddress } from '../address';
 import { Link } from '../layers/physical';
-import { RIPService } from './rip';
 import { RouterHost } from '../nodes/router';
 import { RIP_METRIC_INFINITY } from '../protocols/rip';
 
@@ -347,7 +346,9 @@ describe('RIP Service', () => {
 
       // R3 should learn about R1's network (10.0.0.0/24) with metric 3
       const r3Routes = R3.services.rip.getRoutes();
-      const r1Network = r3Routes.find((r) => r.network.toString() === '10.0.0.0');
+      const r1Network = r3Routes.find(
+        (r) => r.network.toString() === '10.0.0.0'
+      );
 
       expect(r1Network).toBeDefined();
       if (r1Network) {

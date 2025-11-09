@@ -31,8 +31,12 @@ export class RouterHost extends NetworkHost implements NetworkListener {
     return this.routingTable;
   }
 
-  public services: { dhcp: DhcpServer; fhrp: FHRPService; rip: RIPService };
-  public services: { dhcp: DhcpServer; fhrp: FHRPService; ospf: OSPFService };
+  public services: {
+    dhcp: DhcpServer;
+    fhrp: FHRPService;
+    rip: RIPService;
+    ospf: OSPFService;
+  };
 
   // Modern callback pattern instead of RxJS Subject
   public onReceivePacket?: (message: NetworkMessage) => void;

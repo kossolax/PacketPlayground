@@ -133,7 +133,7 @@ describe('RIP protocol', () => {
       const routes: RIPRouteEntry[] = [];
 
       // Create 30 routes (should split into 2 messages)
-      for (let i = 0; i < 30; i++) {
+      for (let i = 0; i < 30; i += 1) {
         const route = new RIPRouteEntry(
           new IPAddress(`10.${i}.0.0`),
           new IPAddress('255.255.0.0', true),
@@ -179,7 +179,7 @@ describe('RIP protocol', () => {
         .setNetDestination(RIP_MULTICAST_IP);
 
       // Add exactly max routes - should work
-      for (let i = 0; i < RIP_MAX_ROUTES_PER_MESSAGE; i++) {
+      for (let i = 0; i < RIP_MAX_ROUTES_PER_MESSAGE; i += 1) {
         const route = new RIPRouteEntry(
           new IPAddress(`10.${i}.0.0`),
           new IPAddress('255.255.0.0', true),
