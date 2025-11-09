@@ -136,6 +136,7 @@ class IPInterfaceCommand extends TerminalCommand {
   constructor(parent: TerminalCommand) {
     super(parent.Terminal, 'ip');
     this.parent = parent;
+    this.canBeNegative = true;
 
     // Register RIP command if available
     const node = this.terminal.Node;

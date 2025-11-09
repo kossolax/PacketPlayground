@@ -43,16 +43,23 @@ class ShowIpCommand extends TerminalCommand {
     args: string[],
     negated: boolean
   ): string[] {
-    if (command === this.name && args.length === 1) {
-      const suggestions: string[] = [];
+    if (command === this.name) {
+      if (args.length === 1) {
+        const suggestions: string[] = [];
 
-      // Add 'rip' and 'protocols' if RIP is available
-      const node = this.terminal.Node;
-      if ('services' in node && 'rip' in (node as RouterHost).services) {
-        suggestions.push('rip', 'protocols');
+        // Add 'rip' and 'protocols' if RIP is available
+        const node = this.terminal.Node;
+        if ('services' in node && 'rip' in (node as RouterHost).services) {
+          suggestions.push('rip', 'protocols');
+        }
+
+        return suggestions.filter((s) => s.startsWith(args[0]));
       }
 
-      return suggestions.filter((s) => s.startsWith(args[0]));
+      if (args.length > 1) {
+        // Delegate to subcommand
+        return this.autocompleteChild(args[0], args.slice(1), negated);
+      }
     }
 
     return super.autocomplete(command, args, negated);
@@ -99,21 +106,28 @@ class ShowCommand extends TerminalCommand {
     args: string[],
     negated: boolean
   ): string[] {
-    if (command === this.name && args.length === 1) {
-      const suggestions: string[] = [];
+    if (command === this.name) {
+      if (args.length === 1) {
+        const suggestions: string[] = [];
 
-      // Add 'standby' if FHRP is available
-      const node = this.terminal.Node;
-      if ('services' in node && 'fhrp' in (node as RouterHost).services) {
-        suggestions.push('standby');
+        // Add 'standby' if FHRP is available
+        const node = this.terminal.Node;
+        if ('services' in node && 'fhrp' in (node as RouterHost).services) {
+          suggestions.push('standby');
+        }
+
+        // Add 'ip' if RIP is available
+        if ('services' in node && 'rip' in (node as RouterHost).services) {
+          suggestions.push('ip');
+        }
+
+        return suggestions.filter((s) => s.startsWith(args[0]));
       }
 
-      // Add 'ip' if RIP is available
-      if ('services' in node && 'rip' in (node as RouterHost).services) {
-        suggestions.push('ip');
+      if (args.length > 1) {
+        // Delegate to subcommand
+        return this.autocompleteChild(args[0], args.slice(1), negated);
       }
-
-      return suggestions.filter((s) => s.startsWith(args[0]));
     }
 
     return super.autocomplete(command, args, negated);

@@ -155,6 +155,7 @@ class RouterCommand extends TerminalCommand {
   constructor(parent: TerminalCommand) {
     super(parent.Terminal, 'router');
     this.parent = parent;
+    this.canBeNegative = true;
 
     // Register router subcommands conditionally based on device type
     const node = this.terminal.Node;

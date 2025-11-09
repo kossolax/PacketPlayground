@@ -131,8 +131,9 @@ export class RIPMessage extends IPv4Message {
     }
 
     public setRoutes(routes: RIPRouteEntry[]): this {
-      this.routes = [];
-      this.addRoutes(routes);
+      // Set routes directly without validation
+      // build() will handle splitting into multiple messages if needed
+      this.routes = [...routes];
       return this;
     }
 

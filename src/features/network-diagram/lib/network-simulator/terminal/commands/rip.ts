@@ -319,19 +319,24 @@ export class ShowIpProtocolsCommand extends TerminalCommand {
           `  Poison reverse: ${router.services.rip.poisonReverse ? 'enabled' : 'disabled'}`
         );
 
-        const enabledInterfaces = router.services.rip.getEnabledInterfaces();
-        if (enabledInterfaces.length > 0) {
+        const enabledInterfaceNames = router.services.rip.getEnabledInterfaces();
+        if (enabledInterfaceNames.length > 0) {
           this.terminal.write('  Routing for Networks:');
-          enabledInterfaces.forEach((ifaceName) => {
-            const iface = router.getInterface(ifaceName);
-            const netAddr = iface.getNetAddress();
-            const mask = iface.getNetMask();
-            if (netAddr && mask) {
-              // Calculate network address by ANDing IP with mask
-              const networkAddr = (netAddr as IPAddress).getNetworkIP(
-                mask as IPAddress
-              );
-              this.terminal.write(`    ${networkAddr.toString()}/${mask.CIDR}`);
+          // Get all router interfaces and filter by enabled ones
+          router.getInterfaces().forEach((ifaceKey) => {
+            const iface = router.getInterface(ifaceKey);
+            if (router.services.rip.isEnabledOnInterface(iface)) {
+              const netAddr = iface.getNetAddress();
+              const mask = iface.getNetMask();
+              if (netAddr && mask) {
+                // Calculate network address by ANDing IP with mask
+                const networkAddr = (netAddr as IPAddress).getNetworkIP(
+                  mask as IPAddress
+                );
+                this.terminal.write(
+                  `    ${networkAddr.toString()}/${mask.CIDR}`
+                );
+              }
             }
           });
         }
