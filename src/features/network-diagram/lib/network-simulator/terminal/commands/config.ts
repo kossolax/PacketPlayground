@@ -2,6 +2,7 @@ import { IPAddress } from '../../address';
 import type { RouterHost } from '../../nodes/router';
 import type { SwitchHost } from '../../nodes/switch';
 import { InterfaceCommand } from './interface';
+import { RouterOSPFCommand } from './ospf';
 import { TerminalCommand } from '../command-base';
 import { RouterRipCommand } from './rip';
 
@@ -112,6 +113,56 @@ class VlanNameCommand extends TerminalCommand {
   }
 }
 
+class RouterCommand extends TerminalCommand {
+  constructor(parent: TerminalCommand) {
+    super(parent.Terminal, 'router');
+    this.parent = parent;
+
+    // Register OSPF router command
+    const node = this.terminal.Node;
+    if ('services' in node && 'ospf' in (node as RouterHost).services) {
+      this.registerCommand(new RouterOSPFCommand(this));
+    }
+  }
+
+  public override exec(
+    command: string,
+    args: string[],
+    negated: boolean
+  ): void {
+    if (command === this.name) {
+      // If no subcommand, show available commands
+      if (args.length === 0) {
+        throw new Error('% Incomplete command');
+      }
+      // Let subcommands handle the rest
+      super.exec(args[0], args.slice(1), negated);
+    } else {
+      super.exec(command, args, negated);
+    }
+  }
+
+  public override autocomplete(
+    command: string,
+    args: string[],
+    negated: boolean
+  ): string[] {
+    if (command === this.name && args.length === 1) {
+      const suggestions: string[] = [];
+
+      // Add 'ospf' if OSPF is available
+      const node = this.terminal.Node;
+      if ('services' in node && 'ospf' in (node as RouterHost).services) {
+        suggestions.push('ospf');
+      }
+
+      return suggestions.filter((s) => s.startsWith(args[0]));
+    }
+
+    return super.autocomplete(command, args, negated);
+  }
+}
+
 class VlanConfigCommand extends TerminalCommand {
   public vlanId: number = 0;
 
@@ -219,6 +270,10 @@ export class ConfigCommand extends TerminalCommand {
       'services' in this.terminal.Node &&
       'rip' in (this.terminal.Node as RouterHost).services
     )
+      this.registerCommand(new RouterCommand(this));
+
+    // Register router command for routers with services
+    if ('services' in this.terminal.Node)
       this.registerCommand(new RouterCommand(this));
 
     this.registerCommand(new InterfaceCommand(this));

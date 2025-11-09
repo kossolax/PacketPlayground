@@ -15,6 +15,7 @@ import DhcpServiceConfig from './DhcpServiceConfig';
 import StpServiceConfig from './StpServiceConfig';
 import FhrpServiceConfig from './FhrpServiceConfig';
 import RipServiceConfig from './RipServiceConfig';
+import OspfServiceConfig from './OspfServiceConfig';
 
 interface ServiceTabProps {
   node: ServerHost | SwitchHost | RouterHost;
@@ -49,15 +50,21 @@ export default function ServiceTab({ node, network }: ServiceTabProps) {
           <>
             <TabsTrigger
               className="w-40 shrink-0 grow-0 justify-start"
+              value="fhrp"
+            >
+              FHRP
+            </TabsTrigger>
+            <TabsTrigger
+              className="w-40 shrink-0 grow-0 justify-start"
               value="rip"
             >
               RIP
             </TabsTrigger>
             <TabsTrigger
               className="w-40 shrink-0 grow-0 justify-start"
-              value="fhrp"
+              value="ospf"
             >
-              FHRP
+              OSPF
             </TabsTrigger>
           </>
         )}
@@ -93,11 +100,14 @@ export default function ServiceTab({ node, network }: ServiceTabProps) {
         )}
         {isRouter && (
           <>
+            <TabsContent value="fhrp">
+              <FhrpServiceConfig node={node as RouterHost} network={network} />
+            </TabsContent>
             <TabsContent value="rip">
               <RipServiceConfig node={node as RouterHost} network={network} />
             </TabsContent>
-            <TabsContent value="fhrp">
-              <FhrpServiceConfig node={node as RouterHost} network={network} />
+            <TabsContent value="ospf">
+              <OspfServiceConfig node={node as RouterHost} network={network} />
             </TabsContent>
           </>
         )}

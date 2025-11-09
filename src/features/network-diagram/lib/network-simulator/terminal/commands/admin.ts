@@ -2,13 +2,14 @@ import { PingCommand } from './basic';
 import { ConfigCommand } from './config';
 import { ShowStandbyCommand } from './fhrp';
 import { ShowIpRipCommand, ShowIpProtocolsCommand } from './rip';
+import { ShowIPOSPFCommand } from './ospf';
 import { TerminalCommand } from '../command-base';
 import type { RouterHost } from '../../nodes/router';
 
 export { PingCommand };
 
 // ShowIpCommand - parent for 'show ip' commands
-class ShowIpCommand extends TerminalCommand {
+class ShowIPCommand extends TerminalCommand {
   constructor(parent: TerminalCommand) {
     super(parent.Terminal, 'ip');
     this.parent = parent;
@@ -18,6 +19,10 @@ class ShowIpCommand extends TerminalCommand {
     if ('services' in node && 'rip' in (node as RouterHost).services) {
       this.registerCommand(new ShowIpRipCommand(this));
       this.registerCommand(new ShowIpProtocolsCommand(this));
+    // Register OSPF show commands
+    const node = this.terminal.Node;
+    if ('services' in node && 'ospf' in (node as RouterHost).services) {
+      this.registerCommand(new ShowIPOSPFCommand(this));
     }
   }
 
@@ -60,6 +65,16 @@ class ShowIpCommand extends TerminalCommand {
         // Delegate to subcommand
         return this.autocompleteChild(args[0], args.slice(1), negated);
       }
+    if (command === this.name && args.length === 1) {
+      const suggestions: string[] = [];
+
+      // Add 'ospf' if OSPF is available
+      const node = this.terminal.Node;
+      if ('services' in node && 'ospf' in (node as RouterHost).services) {
+        suggestions.push('ospf');
+      }
+
+      return suggestions.filter((s) => s.startsWith(args[0]));
     }
 
     return super.autocomplete(command, args, negated);
@@ -81,6 +96,8 @@ class ShowCommand extends TerminalCommand {
     // Register show ip commands
     if ('services' in node && 'rip' in (node as RouterHost).services) {
       this.registerCommand(new ShowIpCommand(this));
+    if ('services' in node && 'ospf' in (node as RouterHost).services) {
+      this.registerCommand(new ShowIPCommand(this));
     }
   }
 
@@ -128,6 +145,12 @@ class ShowCommand extends TerminalCommand {
         // Delegate to subcommand
         return this.autocompleteChild(args[0], args.slice(1), negated);
       }
+      // Add 'ip' if OSPF is available
+      if ('services' in node && 'ospf' in (node as RouterHost).services) {
+        suggestions.push('ip');
+      }
+
+      return suggestions.filter((s) => s.startsWith(args[0]));
     }
 
     return super.autocomplete(command, args, negated);
