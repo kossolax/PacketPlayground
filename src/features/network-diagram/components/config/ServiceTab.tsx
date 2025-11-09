@@ -14,6 +14,7 @@ import { RouterHost } from '../../lib/network-simulator/nodes/router';
 import DhcpServiceConfig from './DhcpServiceConfig';
 import StpServiceConfig from './StpServiceConfig';
 import FhrpServiceConfig from './FhrpServiceConfig';
+import OspfServiceConfig from './OspfServiceConfig';
 
 interface ServiceTabProps {
   node: ServerHost | SwitchHost | RouterHost;
@@ -45,12 +46,20 @@ export default function ServiceTab({ node, network }: ServiceTabProps) {
           </TabsTrigger>
         )}
         {isRouter && (
-          <TabsTrigger
-            className="w-40 shrink-0 grow-0 justify-start"
-            value="fhrp"
-          >
-            FHRP
-          </TabsTrigger>
+          <>
+            <TabsTrigger
+              className="w-40 shrink-0 grow-0 justify-start"
+              value="fhrp"
+            >
+              FHRP
+            </TabsTrigger>
+            <TabsTrigger
+              className="w-40 shrink-0 grow-0 justify-start"
+              value="ospf"
+            >
+              OSPF
+            </TabsTrigger>
+          </>
         )}
         {isServer && (
           <>
@@ -83,9 +92,14 @@ export default function ServiceTab({ node, network }: ServiceTabProps) {
           </TabsContent>
         )}
         {isRouter && (
-          <TabsContent value="fhrp">
-            <FhrpServiceConfig node={node as RouterHost} network={network} />
-          </TabsContent>
+          <>
+            <TabsContent value="fhrp">
+              <FhrpServiceConfig node={node as RouterHost} network={network} />
+            </TabsContent>
+            <TabsContent value="ospf">
+              <OspfServiceConfig node={node as RouterHost} network={network} />
+            </TabsContent>
+          </>
         )}
         {isServer && (
           <>
