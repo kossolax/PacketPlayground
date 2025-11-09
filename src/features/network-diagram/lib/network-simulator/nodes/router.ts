@@ -5,6 +5,7 @@ import {
   type NetworkListener,
 } from '../protocols/base';
 import { DhcpServer } from '../services/dhcp';
+import { FHRPService } from '../services/fhrp';
 import { NetworkHost } from './generic';
 import { NetworkMessage } from '../message';
 import type { NetworkInterface } from '../layers/network';
@@ -28,7 +29,7 @@ export class RouterHost extends NetworkHost implements NetworkListener {
     return this.routingTable;
   }
 
-  public services: { dhcp: DhcpServer };
+  public services: { dhcp: DhcpServer; fhrp: FHRPService };
 
   // Modern callback pattern instead of RxJS Subject
   public onReceivePacket?: (message: NetworkMessage) => void;
@@ -41,6 +42,7 @@ export class RouterHost extends NetworkHost implements NetworkListener {
 
     this.services = {
       dhcp: new DhcpServer(this),
+      fhrp: new FHRPService(this),
     };
   }
 

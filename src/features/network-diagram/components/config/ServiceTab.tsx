@@ -1,6 +1,6 @@
 /**
  * Service Tab Component
- * Displays service configuration for ServerHost (DHCP, DNS, etc.) and SwitchHost (STP)
+ * Displays service configuration for ServerHost (DHCP, DNS, etc.), SwitchHost (STP), and RouterHost (FHRP)
  */
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,20 +10,25 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import type { Network } from '../../lib/network-simulator';
 import { ServerHost } from '../../lib/network-simulator/nodes/server';
 import { SwitchHost } from '../../lib/network-simulator/nodes/switch';
+import { RouterHost } from '../../lib/network-simulator/nodes/router';
 import DhcpServiceConfig from './DhcpServiceConfig';
 import StpServiceConfig from './StpServiceConfig';
+import FhrpServiceConfig from './FhrpServiceConfig';
 
 interface ServiceTabProps {
-  node: ServerHost | SwitchHost;
+  node: ServerHost | SwitchHost | RouterHost;
   network?: Network | null;
 }
 
 export default function ServiceTab({ node, network }: ServiceTabProps) {
   const isServer = node instanceof ServerHost;
   const isSwitch = node instanceof SwitchHost;
+  const isRouter = node instanceof RouterHost;
 
   // Determine default tab based on device type
-  const defaultTab = isServer ? 'dhcp' : 'stp';
+  let defaultTab = 'stp';
+  if (isServer) defaultTab = 'dhcp';
+  if (isRouter) defaultTab = 'fhrp';
 
   return (
     <Tabs
@@ -37,6 +42,14 @@ export default function ServiceTab({ node, network }: ServiceTabProps) {
             value="stp"
           >
             STP
+          </TabsTrigger>
+        )}
+        {isRouter && (
+          <TabsTrigger
+            className="w-40 shrink-0 grow-0 justify-start"
+            value="fhrp"
+          >
+            FHRP
           </TabsTrigger>
         )}
         {isServer && (
@@ -67,6 +80,11 @@ export default function ServiceTab({ node, network }: ServiceTabProps) {
         {isSwitch && (
           <TabsContent value="stp">
             <StpServiceConfig node={node} network={network} />
+          </TabsContent>
+        )}
+        {isRouter && (
+          <TabsContent value="fhrp">
+            <FhrpServiceConfig node={node as RouterHost} network={network} />
           </TabsContent>
         )}
         {isServer && (
