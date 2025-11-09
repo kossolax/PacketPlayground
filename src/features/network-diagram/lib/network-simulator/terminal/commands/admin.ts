@@ -12,7 +12,6 @@ import {
 } from './show';
 import { ShowIpRipCommand, ShowIpProtocolsCommand } from './rip';
 import { ShowIPOSPFCommand } from './ospf';
-import { ShowIpBgpCommand } from './bgp';
 import { TerminalCommand } from '../command-base';
 import type { RouterHost } from '../../nodes/router';
 
@@ -34,32 +33,26 @@ class ShowIpCommand extends TerminalCommand {
     super(parent.Terminal, 'ip');
     this.parent = parent;
 
-    // Register show ip subcommands
-    const node = this.terminal.Node;
-    if ('services' in node && 'rip' in (node as RouterHost).services) {
-      this.registerCommand(new ShowIpRipCommand(this));
-      this.registerCommand(new ShowIpProtocolsCommand(this));
-    }
-    // Register OSPF show commands
-    if ('services' in node && 'ospf' in (node as RouterHost).services) {
-      this.registerCommand(new ShowIPOSPFCommand(this));
-    }
-    // Register BGP show commands
-    if ('services' in node && 'bgp' in (node as RouterHost).services) {
-      this.registerCommand(new ShowIpBgpCommand(this));
-    }
-
+    // Instantiate all commands
     this.ipInterfaceBriefCmd = new ShowIpInterfaceBriefCommand(this);
     this.ipRouteCmd = new ShowIpRouteCommand(this);
     this.ipRipCmd = new ShowIpRipCommand(this);
     this.ipProtocolsCmd = new ShowIpProtocolsCommand(this);
     this.ipOspfCmd = new ShowIPOSPFCommand(this);
 
+    // Register commands unconditionally (always available)
     this.registerCommand(this.ipInterfaceBriefCmd);
     this.registerCommand(this.ipRouteCmd);
-    this.registerCommand(this.ipRipCmd);
-    this.registerCommand(this.ipProtocolsCmd);
-    this.registerCommand(this.ipOspfCmd);
+
+    // Register show ip subcommands conditionally based on device capabilities
+    const node = this.terminal.Node;
+    if ('services' in node && 'rip' in (node as RouterHost).services) {
+      this.registerCommand(this.ipRipCmd);
+      this.registerCommand(this.ipProtocolsCmd);
+    }
+    if ('services' in node && 'ospf' in (node as RouterHost).services) {
+      this.registerCommand(this.ipOspfCmd);
+    }
   }
 
   public override exec(
@@ -74,16 +67,18 @@ class ShowIpCommand extends TerminalCommand {
 
       // Dispatch based on next argument
       // Note: onComplete is now automatically propagated by parent class
+      // Commands with name='ip' expect command='ip'
       if (args[0] === 'interface' && args[1] === 'brief') {
-        this.ipInterfaceBriefCmd.exec('ip', args, negated);
+        this.ipInterfaceBriefCmd.exec(command, args, negated);
       } else if (args[0] === 'route') {
-        this.ipRouteCmd.exec('ip', args, negated);
+        this.ipRouteCmd.exec(command, args, negated);
+      // Commands with name='rip', 'protocols', 'ospf' expect their own name
       } else if (args[0] === 'rip') {
-        this.ipRipCmd.exec('ip', args, negated);
+        this.ipRipCmd.exec(args[0], args.slice(1), negated);
       } else if (args[0] === 'protocols') {
-        this.ipProtocolsCmd.exec('ip', args, negated);
+        this.ipProtocolsCmd.exec(args[0], args.slice(1), negated);
       } else if (args[0] === 'ospf') {
-        this.ipOspfCmd.exec('ip', args, negated);
+        this.ipOspfCmd.exec(args[0], args.slice(1), negated);
       } else {
         throw new Error('% Incomplete or invalid command');
       }
@@ -106,6 +101,10 @@ class ShowIpCommand extends TerminalCommand {
       if (args.length === 2 && args[0] === 'interface') {
         return ['brief'].filter((s) => s.startsWith(args[1]));
       }
+      // Delegate to child commands for deeper autocomplete
+      if (args.length >= 2) {
+        return this.autocompleteChild(args[0], args.slice(1), negated);
+      }
     }
     return super.autocomplete(command, args, negated);
   }
@@ -117,11 +116,6 @@ class ShowVlanCommand extends TerminalCommand {
   constructor(parent: TerminalCommand) {
     super(parent.Terminal, 'vlan');
     this.parent = parent;
-
-        // Add 'bgp' if BGP is available
-        if ('services' in node && 'bgp' in (node as RouterHost).services) {
-          suggestions.push('bgp');
-        }
 
     this.vlanBriefCmd = new ShowVlanBriefCommand(this);
     this.registerCommand(this.vlanBriefCmd);
@@ -138,7 +132,8 @@ class ShowVlanCommand extends TerminalCommand {
       }
 
       // Note: onComplete is now automatically propagated by parent class
-      this.vlanBriefCmd.exec('vlan', args, negated);
+      // ShowVlanBriefCommand has name='vlan', so pass command='vlan'
+      this.vlanBriefCmd.exec(command, args, negated);
     } else {
       super.exec(command, args, negated);
     }
@@ -178,7 +173,8 @@ class ShowMacCommand extends TerminalCommand {
       }
 
       // Note: onComplete is now automatically propagated by parent class
-      this.macAddressTableCmd.exec('mac', args, negated);
+      // ShowMacAddressTableCommand has name='mac', so pass command='mac'
+      this.macAddressTableCmd.exec(command, args, negated);
     } else {
       super.exec(command, args, negated);
     }
@@ -225,12 +221,6 @@ class ShowCommand extends TerminalCommand {
     }
     if ('spanningTree' in node) {
       this.registerCommand(new ShowSpanningTreeCommand(this));
-    }
-    if ('services' in node && 'ospf' in (node as RouterHost).services) {
-      this.registerCommand(new ShowIPCommand(this));
-    }
-    if ('services' in node && 'bgp' in (node as RouterHost).services) {
-      this.registerCommand(new ShowIPCommand(this));
     }
   }
 

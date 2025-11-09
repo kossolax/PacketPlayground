@@ -167,6 +167,11 @@ export class SwitchHost
       vlanId = firstVlan;
     }
 
+    // Check if VLAN exists in switch database - only enforce if VLANs are explicitly configured
+    if (Object.keys(this.knownVlan).length > 0 && !this.knownVlan[vlanId]) {
+      return ActionHandle.Stop;
+    }
+
     // Check STP state for this VLAN
     if (
       this.spanningTree.State(sourceInterface, vlanId) ===
@@ -231,6 +236,13 @@ export class SwitchHost
     // Forward to all target interfaces with proper VLAN tagging
     interfaces.forEach((iface) => {
       let msg: DatalinkMessage = message;
+
+      // Check VLAN configuration mismatch - don't forward between configured and unconfigured interfaces
+      const sourceConfigured = (sourceInterface as Dot1QInterface).VlanConfigured;
+      const destConfigured = iface.VlanConfigured;
+      if (sourceConfigured !== destConfigured) {
+        return;
+      }
 
       // Check both state and role - non-forwarding roles/states drop frames (per-VLAN)
       if (this.spanningTree.State(iface, vlanId) === SpanningTreeState.Blocking)

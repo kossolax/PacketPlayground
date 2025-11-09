@@ -205,7 +205,7 @@ describe('Terminal show commands test', () => {
 
     it('should autocomplete "show ip ?" with ip subcommands', () => {
       const suggestions = terminalRouter.autocomplete('show ip ');
-      expect(suggestions).toEqual(['interface', 'route']);
+      expect(suggestions).toEqual(['interface', 'ospf', 'protocols', 'rip', 'route']);
     });
 
     it('should autocomplete "show ip interface ?" with brief', () => {

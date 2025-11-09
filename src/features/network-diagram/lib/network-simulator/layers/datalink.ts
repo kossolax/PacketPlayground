@@ -365,6 +365,8 @@ export class Dot1QInterface extends EthernetInterface {
 
   protected dot1q: Dot1QProtocol;
 
+  protected vlanConfigured: boolean = false;
+
   constructor(
     node: GenericNode,
     addr: MacAddress,
@@ -397,6 +399,9 @@ export class Dot1QInterface extends EthernetInterface {
         knownVlan[vlanId] = `vlan-${vlanId}`;
       }
     }
+
+    // Mark interface as explicitly configured
+    this.vlanConfigured = true;
 
     if (this.VlanMode === VlanMode.Access) {
       this.vlan = [vlanId];
@@ -435,6 +440,10 @@ export class Dot1QInterface extends EthernetInterface {
 
   set NativeVlan(natif: number) {
     this.natif = natif;
+  }
+
+  get VlanConfigured(): boolean {
+    return this.vlanConfigured;
   }
 
   public override sendTrame(message: DatalinkMessage): void {

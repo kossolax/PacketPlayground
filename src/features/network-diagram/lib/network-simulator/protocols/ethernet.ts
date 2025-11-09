@@ -200,9 +200,18 @@ export class EthernetProtocol implements DatalinkListener {
 
 export class Dot1QProtocol extends EthernetProtocol {
   public override receiveTrame(message: DatalinkMessage): ActionHandle {
+    const iface = this.iface as Dot1QInterface;
+
     if (message instanceof Dot1QMessage) {
-      if ((this.iface as Dot1QInterface).Vlan.indexOf(message.vlanId) === -1)
+      // Access ports should not accept tagged frames
+      if (iface.VlanMode === VlanMode.Access) {
         return ActionHandle.Stop;
+      }
+
+      // Check VLAN membership for trunk ports
+      if (iface.Vlan.indexOf(message.vlanId) === -1) {
+        return ActionHandle.Stop;
+      }
     }
 
     return ActionHandle.Continue;
