@@ -92,7 +92,8 @@ export class IpRipCommand extends TerminalCommand {
       // Navigate up to InterfaceCommand parent
       // this.parent is IPInterfaceCommand, this.parent.parent is InterfaceCommand
       let iface: NetworkInterface | null = null;
-      let currentParent = this.parent;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let currentParent: any = this.parent;
 
       // Walk up the parent chain to find a command with an 'iface' property
       while (currentParent && !iface) {
@@ -100,6 +101,7 @@ export class IpRipCommand extends TerminalCommand {
           iface = currentParent.iface as NetworkInterface;
           break;
         }
+        // Access protected parent property via any type
         currentParent = currentParent.parent;
       }
 
