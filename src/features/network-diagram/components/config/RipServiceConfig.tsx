@@ -305,9 +305,9 @@ export default function RipServiceConfig({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredRoutes.map((route, index) => (
+                    {filteredRoutes.map((route) => (
                       <TableRow
-                        key={`${route.network}-${route.nextHop}-${index}`}
+                        key={`${route.network}/${route.cidr}-${route.nextHop}-${route.interface}`}
                       >
                         <TableCell className="font-mono text-xs">
                           {route.network}/{route.cidr}

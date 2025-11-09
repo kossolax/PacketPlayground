@@ -1,6 +1,6 @@
 /* eslint-disable no-param-reassign */
 import { Scheduler } from '@/features/network-diagram/lib/scheduler';
-import { IPAddress, type NetworkAddress } from '../address';
+import { IPAddress } from '../address';
 import type { NetworkInterface } from '../layers/network';
 import { type NetworkMessage } from '../message';
 import { ActionHandle, type NetworkListener } from '../protocols/base';
@@ -354,7 +354,7 @@ export class RIPService
     // If triggered update, only send changed routes
     const routesToSend = triggered
       ? routes.filter((route) => {
-          const key = this.getRouteKey(route.network, route.mask);
+          const key = RIPService.getRouteKey(route.network, route.mask);
           const ripRoute = this.ripRoutes.get(key);
           return ripRoute?.changed;
         })
@@ -445,7 +445,7 @@ export class RIPService
   /**
    * Generate unique key for a route
    */
-  private getRouteKey(network: IPAddress, mask: IPAddress): string {
+  private static getRouteKey(network: IPAddress, mask: IPAddress): string {
     return `${network.toString()}/${mask.CIDR}`;
   }
 
@@ -507,7 +507,7 @@ export class RIPService
         return;
       }
 
-      const key = this.getRouteKey(routeEntry.network, routeEntry.mask);
+      const key = RIPService.getRouteKey(routeEntry.network, routeEntry.mask);
       const existingRoute = this.ripRoutes.get(key);
 
       // RFC 2453: Increment metric by 1 (cost of this link)

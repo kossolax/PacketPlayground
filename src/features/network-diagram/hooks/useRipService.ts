@@ -131,8 +131,8 @@ export default function useRipService(
   );
 
   // Get RIP configuration
-  const getConfiguration = useCallback((): RIPConfiguration => {
-    return {
+  const getConfiguration = useCallback(
+    (): RIPConfiguration => ({
       enabled: node.services.rip.Enable,
       updateInterval: node.services.rip.updateInterval,
       invalidAfter: node.services.rip.invalidAfter,
@@ -141,8 +141,9 @@ export default function useRipService(
       poisonReverse: node.services.rip.poisonReverse,
       defaultMetric: node.services.rip.defaultMetric,
       enabledInterfaces: node.services.rip.getEnabledInterfaces(),
-    };
-  }, [node]);
+    }),
+    [node]
+  );
 
   // Update RIP configuration
   const updateConfiguration = useCallback(

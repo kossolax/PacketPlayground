@@ -2,7 +2,6 @@ import type { NetworkInterface } from '../../layers/network';
 import type { RouterHost } from '../../nodes/router';
 import { RIP_METRIC_INFINITY } from '../../protocols/rip';
 import { TerminalCommand } from '../command-base';
-import type { InterfaceCommand } from './interface';
 import { Scheduler } from '@/features/network-diagram/lib/scheduler';
 import { IPAddress } from '../../address';
 
@@ -92,9 +91,17 @@ export class IpRipCommand extends TerminalCommand {
 
       // Navigate up to InterfaceCommand parent
       // this.parent is IPInterfaceCommand, this.parent.parent is InterfaceCommand
-      const parentCmd = this.parent as any;
-      const ifaceCmd = parentCmd?.parent as any;
-      const iface = ifaceCmd?.iface as NetworkInterface;
+      let iface: NetworkInterface | null = null;
+      let currentParent = this.parent;
+
+      // Walk up the parent chain to find a command with an 'iface' property
+      while (currentParent && !iface) {
+        if ('iface' in currentParent && currentParent.iface instanceof Object) {
+          iface = currentParent.iface as NetworkInterface;
+          break;
+        }
+        currentParent = currentParent.parent;
+      }
 
       if (!iface) {
         throw new Error('No interface selected');
