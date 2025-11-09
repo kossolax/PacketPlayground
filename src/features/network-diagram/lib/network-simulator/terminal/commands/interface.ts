@@ -6,6 +6,7 @@ import { VlanMode } from '../../protocols/ethernet';
 import { TerminalCommand } from '../command-base';
 import { parseInterfaceName, toShortName } from '../../utils/interface-names';
 import { StandbyCommand } from './fhrp';
+import { SpanningTreeInterfaceCommand } from './stp';
 
 export { VlanMode };
 
@@ -189,8 +190,10 @@ export class InterfaceCommand extends TerminalCommand {
       this.registerCommand(new IPInterfaceCommand(this));
       this.registerCommand(new StandbyCommand(this));
     }
-    if ('knownVlan' in this.terminal.Node)
+    if ('knownVlan' in this.terminal.Node) {
       this.registerCommand(new SwitchPortCommand(this));
+      this.registerCommand(new SpanningTreeInterfaceCommand(this));
+    }
   }
 
   public override exec(

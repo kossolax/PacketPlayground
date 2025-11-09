@@ -1,6 +1,7 @@
 import { PingCommand } from './basic';
 import { ConfigCommand } from './config';
 import { ShowStandbyCommand } from './fhrp';
+import { ShowSpanningTreeCommand } from './stp';
 import { TerminalCommand } from '../command-base';
 import type { RouterHost } from '../../nodes/router';
 
@@ -16,6 +17,9 @@ class ShowCommand extends TerminalCommand {
     const node = this.terminal.Node;
     if ('services' in node && 'fhrp' in (node as RouterHost).services) {
       this.registerCommand(new ShowStandbyCommand(this));
+    }
+    if ('spanningTree' in node) {
+      this.registerCommand(new ShowSpanningTreeCommand(this));
     }
   }
 
@@ -48,6 +52,11 @@ class ShowCommand extends TerminalCommand {
       const node = this.terminal.Node;
       if ('services' in node && 'fhrp' in (node as RouterHost).services) {
         suggestions.push('standby');
+      }
+
+      // Add 'spanning-tree' if STP is available
+      if ('spanningTree' in node) {
+        suggestions.push('spanning-tree');
       }
 
       return suggestions.filter((s) => s.startsWith(args[0]));
