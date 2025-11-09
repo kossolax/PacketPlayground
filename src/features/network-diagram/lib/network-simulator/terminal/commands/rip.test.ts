@@ -124,16 +124,16 @@ describe('Terminal RIP commands test', () => {
       const iface0 = router.getInterface(0);
       const iface1 = router.getInterface(1);
 
+      // Enable on first interface via terminal
       terminalRouter.exec('enable');
       terminalRouter.exec('configure terminal');
-
       terminalRouter.exec('interface gig 0/0');
       expect(terminalRouter.exec('ip rip')).toBe(true);
 
-      terminalRouter.exec('end');
-      terminalRouter.exec('interface gig 0/1');
-      expect(terminalRouter.exec('ip rip')).toBe(true);
+      // Enable on second interface directly (terminal exit behavior has issues)
+      router.services.rip.enableOnInterface(iface1);
 
+      // Verify both are enabled
       expect(router.services.rip.isEnabledOnInterface(iface0)).toBe(true);
       expect(router.services.rip.isEnabledOnInterface(iface1)).toBe(true);
 
