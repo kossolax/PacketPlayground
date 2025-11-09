@@ -50,7 +50,6 @@ export default function BgpServiceConfig({
     addNeighbor,
     removeNeighbor,
     getConfiguration,
-    updateConfiguration,
     clearRoutes,
     getRouterID,
   } = useBgpService(node, network);
@@ -74,6 +73,7 @@ export default function BgpServiceConfig({
     try {
       const asNumber = parseInt(newRemoteAS, 10);
       if (Number.isNaN(asNumber) || asNumber < 0 || asNumber > 65535) {
+        // eslint-disable-next-line no-alert
         alert('AS number must be between 0 and 65535');
         return;
       }
@@ -84,6 +84,7 @@ export default function BgpServiceConfig({
       setNewRemoteAS('');
       setNewDescription('');
     } catch (error) {
+      // eslint-disable-next-line no-alert
       alert(`Failed to add neighbor: ${error}`);
     }
   };
@@ -95,6 +96,7 @@ export default function BgpServiceConfig({
         setDeleteDialogOpen(false);
         setNeighborToDelete(null);
       } catch (error) {
+        // eslint-disable-next-line no-alert
         alert(`Failed to remove neighbor: ${error}`);
       }
     }

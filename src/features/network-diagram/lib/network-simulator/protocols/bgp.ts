@@ -225,9 +225,7 @@ export class BGPOpenMessage extends BGPMessage {
 
     public setHoldTime(holdTime: number): this {
       if (holdTime !== 0 && (holdTime < 3 || holdTime > 65535)) {
-        throw new Error(
-          'Hold time must be 0 or between 3 and 65535 seconds'
-        );
+        throw new Error('Hold time must be 0 or between 3 and 65535 seconds');
       }
       this.holdTime = holdTime;
       return this;

@@ -38,9 +38,7 @@ describe('BGP protocol', () => {
       const bgpMsg = messages[0] as BGPMessage;
       expect(bgpMsg.type).toBe(BGPMessageType.Keepalive);
       expect(bgpMsg.length).toBe(19); // Minimum BGP header
-      expect(bgpMsg.marker).toBe(
-        BigInt('0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF')
-      );
+      expect(bgpMsg.marker).toBe(BigInt('0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF'));
     });
 
     it('should set correct protocol for BGP (TCP)', () => {

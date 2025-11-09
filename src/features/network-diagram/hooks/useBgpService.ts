@@ -1,7 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { RouterHost } from '../lib/network-simulator/nodes/router';
 import type { Network } from '../lib/network-simulator/network';
-import type { BGPNeighbor, BGPRoute } from '../lib/network-simulator/services/bgp';
+import type {
+  BGPNeighbor,
+  BGPRoute,
+} from '../lib/network-simulator/services/bgp';
 import { IPAddress } from '../lib/network-simulator/address';
 import { BGPState } from '../lib/network-simulator/protocols/bgp';
 

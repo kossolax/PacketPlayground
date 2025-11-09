@@ -254,7 +254,7 @@ export class BGPService
           }
         }
       });
-      routesToRemove.forEach((key) => this.bgpRoutes.delete(key));
+      routesToRemove.forEach((routeKey) => this.bgpRoutes.delete(routeKey));
     }
   }
 
@@ -400,6 +400,7 @@ export class BGPService
   /**
    * Reset neighbor to Idle state
    */
+  // eslint-disable-next-line @typescript-eslint/class-methods-use-this
   private resetNeighbor(neighbor: BGPNeighbor): void {
     // Stop all timers
     if (neighbor.connectRetryTimer) {
@@ -521,7 +522,9 @@ export class BGPService
     neighborIP: IPAddress
   ): NetworkInterface | null {
     // Check all interfaces to find one in the same subnet as neighbor
-    for (const ifaceName of this.host.getInterfaces()) {
+    const interfaces = this.host.getInterfaces();
+    // eslint-disable-next-line no-restricted-syntax
+    for (const ifaceName of interfaces) {
       const iface = this.host.getInterface(ifaceName);
       const ifaceIP = iface.getNetAddress() as IPAddress;
       const ifaceMask = iface.getNetMask() as IPAddress;
@@ -627,7 +630,10 @@ export class BGPService
   /**
    * Process BGP UPDATE message
    */
-  private processUpdate(message: BGPUpdateMessage, neighbor: BGPNeighbor): void {
+  private processUpdate(
+    message: BGPUpdateMessage,
+    neighbor: BGPNeighbor
+  ): void {
     if (neighbor.state !== BGPState.Established) {
       return;
     }
