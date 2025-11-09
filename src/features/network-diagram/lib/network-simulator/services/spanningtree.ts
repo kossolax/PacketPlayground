@@ -337,6 +337,137 @@ export class RPVSTMessage extends RSTPMessage {
 }
 
 /**
+ * MSTP Message - IEEE 802.1s Multiple Spanning Tree Protocol
+ * Version 3 BPDU with region configuration and instance support
+ * Supports up to 16 instances: IST (instance 0) + 15 MSTIs
+ */
+export class MSTPMessage extends RSTPMessage {
+  public override version = 3;
+
+  /**
+   * MSTI (Multiple Spanning Tree Instance) ID
+   * 0 = IST/CIST (Internal/Common and Internal Spanning Tree)
+   * 1-15 = MSTIs (Multiple Spanning Tree Instances)
+   */
+  public mstiId: number = 0;
+
+  /**
+   * MSTP Region Name (max 32 characters)
+   * Used with revisionNumber and configDigest to identify region boundaries
+   */
+  public regionName: string = 'default';
+
+  /**
+   * MSTP Region Revision Number (0-65535)
+   * Incremented when VLAN-to-instance mapping changes
+   */
+  public revisionNumber: number = 0;
+
+  /**
+   * Configuration Digest (MD5 hash of VLAN-to-instance mapping)
+   * Two switches are in same region if regionName, revisionNumber, and configDigest match
+   */
+  public configDigest: string = '';
+
+  public override toString(): string {
+    const roleStr = [
+      'Disabled',
+      'Root',
+      'Designated',
+      'Blocked',
+      'Alternate',
+      'Backup',
+    ][this.flags.portRole];
+    const instanceName = this.mstiId === 0 ? 'IST' : `MSTI${this.mstiId}`;
+    return `MSTP (${instanceName}, role=${roleStr}, region=${this.regionName}, age=${this.messageAge})`;
+  }
+
+  /**
+   * Create MSTP message from RSTP message by adding region and instance configuration
+   */
+  public static fromRSTP(
+    message: RSTPMessage,
+    mstiId: number,
+    regionName: string = 'default',
+    revisionNumber: number = 0,
+    configDigest: string = ''
+  ): MSTPMessage {
+    const mstpMsg = Object.create(MSTPMessage.prototype);
+    Object.assign(mstpMsg, message);
+    mstpMsg.version = 3;
+    mstpMsg.mstiId = mstiId;
+    mstpMsg.regionName = regionName;
+    mstpMsg.revisionNumber = revisionNumber;
+    mstpMsg.configDigest = configDigest;
+    return mstpMsg;
+  }
+
+  /**
+   * Create MSTP Builder extending RSTP Builder
+   */
+  public static override Builder = class extends RSTPMessage.Builder {
+    private mstiId = 0;
+
+    private regionName = 'default';
+
+    private revisionNumber = 0;
+
+    private configDigest = '';
+
+    public setMstiId(mstiId: number): this {
+      if (mstiId < 0 || mstiId > 15) {
+        throw new Error('MSTI ID must be between 0 and 15');
+      }
+      this.mstiId = mstiId;
+      return this;
+    }
+
+    public setRegionName(regionName: string): this {
+      if (regionName.length > 32) {
+        throw new Error('Region name must be max 32 characters');
+      }
+      this.regionName = regionName;
+      return this;
+    }
+
+    public setRevisionNumber(revisionNumber: number): this {
+      if (revisionNumber < 0 || revisionNumber > 65535) {
+        throw new Error('Revision number must be between 0 and 65535');
+      }
+      this.revisionNumber = revisionNumber;
+      return this;
+    }
+
+    public setConfigDigest(configDigest: string): this {
+      this.configDigest = configDigest;
+      return this;
+    }
+
+    public override build(): MSTPMessage {
+      // Build base RSTP message first
+      const rstpMessage = super.build();
+
+      // Convert to MSTP message (preserves prototype correctly)
+      const message = Object.assign(
+        Object.create(MSTPMessage.prototype),
+        rstpMessage
+      ) as MSTPMessage;
+
+      // Override version to 3 for MSTP
+      message.version = 3;
+
+      // Set MSTP-specific fields
+      message.mstiId = this.mstiId;
+      message.regionName = this.regionName;
+      message.revisionNumber = this.revisionNumber;
+      message.configDigest = this.configDigest;
+
+      return message;
+    }
+  };
+}
+
+/**
  * Abstract base class for all Spanning Tree Protocol implementations
  * Provides common interface for STP, PVST, R-PVST, and MSTP
  */
@@ -1869,6 +2000,437 @@ export class RPVSTService
 }
 
 /**
+ * MSTP (Multiple Spanning Tree Protocol) Service - IEEE 802.1s
+ * Maps multiple VLANs to spanning tree instances for load balancing
+ * Supports up to 16 instances: IST/CIST (instance 0) + 15 MSTIs (instances 1-15)
+ * Uses RSTP rapid convergence with region-based topology
+ */
+export class MSTPService
+  extends SpanningTreeService
+  implements DatalinkListener
+{
+  // Map: MSTI ID → Independent RSTP instance for that instance
+  // Instance 0 = IST/CIST (Internal/Common and Internal Spanning Tree)
+  // Instances 1-15 = MSTIs (Multiple Spanning Tree Instances)
+  private instances = new Map<number, RSTPService>();
+
+  // Map: VLAN ID → MSTI ID (instance mapping)
+  // Default: all VLANs mapped to IST (instance 0)
+  private vlanToMsti = new Map<number, number>();
+
+  // MSTP Region Configuration
+  private regionName: string = 'default';
+
+  private revisionNumber: number = 0;
+
+  private configDigest: string = ''; // MD5 hash of VLAN-to-instance mapping
+
+  // Cleanup functions for timers and subscriptions
+  private cleanups: (() => void)[] = [];
+
+  private repeatCleanup: (() => void) | null = null;
+
+  private helloTime = 2; // MSTP hello time (same as RSTP)
+
+  constructor(host: SwitchHost, enabled: boolean = true) {
+    super(host);
+
+    // Listen for interface additions to update instance trees
+    host.addListener((msg) => {
+      if (msg === 'OnInterfaceAdded') {
+        this.initializeInstances();
+      }
+    });
+
+    // Initialize IST before enabling
+    this.initializeInstances();
+
+    // Use the Enable setter to properly register listeners
+    this.Enable = enabled;
+
+    // Like RPVST, we let instances handle their own timers and negotiation
+    // MSTPService doesn't need its own timer
+    // this.repeatCleanup will be null since we don't create a timer
+    this.repeatCleanup = null;
+  }
+
+  // eslint-disable-next-line @typescript-eslint/class-methods-use-this
+  public getProtocolType(): SpanningTreeProtocol {
+    return SpanningTreeProtocol.MSTP;
+  }
+
+  /**
+   * Discover all VLANs from host configuration and interface settings
+   */
+  private discoverVlans(): number[] {
+    const vlans = new Set<number>();
+
+    // 1. From host.knownVlan registry
+    Object.keys(this.host.knownVlan).forEach((id) => {
+      vlans.add(parseInt(id, 10));
+    });
+
+    // 2. From interface configurations
+    this.host.getInterfaces().forEach((name) => {
+      const iface = this.host.getInterface(name);
+      if ('Vlan' in iface) {
+        const dot1qIface = iface as unknown as {
+          Vlan: number[];
+          NativeVlan: number;
+        };
+        dot1qIface.Vlan.forEach((vlanId) => vlans.add(vlanId));
+        if (dot1qIface.NativeVlan) vlans.add(dot1qIface.NativeVlan);
+      }
+    });
+
+    return Array.from(vlans);
+  }
+
+  /**
+   * Initialize or update MSTP instances and VLAN mappings
+   * Default: all VLANs mapped to IST (instance 0)
+   *
+   * Like RPVST, instances are created with enabled=true so they have timers
+   * and can properly update their state. MSTPService will also send its own
+   * version 3 BPDUs.
+   */
+  private initializeInstances(): void {
+    const vlans = this.discoverVlans();
+
+    // Initialize IST (instance 0) if not exists
+    if (!this.instances.has(0)) {
+      // Create with enabled=true like RPVST does
+      // This gives instances their own timers for state updates
+      const istInstance = new RSTPService(this.host, true);
+      this.instances.set(0, istInstance);
+    }
+
+    // Map all discovered VLANs to IST by default
+    vlans.forEach((vlanId) => {
+      if (!this.vlanToMsti.has(vlanId)) {
+        this.vlanToMsti.set(vlanId, 0); // Map to IST
+      }
+    });
+
+    // Compute configuration digest (simplified: empty for default config)
+    // In full implementation, this would be MD5 hash of VLAN-to-instance mapping
+    this.updateConfigDigest();
+  }
+
+  /**
+   * Update configuration digest based on VLAN-to-instance mapping
+   * Simplified implementation: empty string for default (all VLANs→IST)
+   */
+  private updateConfigDigest(): void {
+    // Check if all VLANs are mapped to IST (default configuration)
+    const allMappedToIST = Array.from(this.vlanToMsti.values()).every(
+      (mstiId) => mstiId === 0
+    );
+
+    if (allMappedToIST) {
+      this.configDigest = ''; // Default configuration
+    } else {
+      // Generate digest from mapping (simplified: just a hash of the mapping)
+      const mappingStr = Array.from(this.vlanToMsti.entries())
+        .sort(([a], [b]) => a - b)
+        .map(([vlan, msti]) => `${vlan}:${msti}`)
+        .join(',');
+      // In real implementation, use MD5 hash
+      // For now, use simple string as digest
+      this.configDigest = mappingStr;
+    }
+  }
+
+  /**
+   * Get MSTI ID for a given VLAN
+   */
+  private getMstiForVlan(vlanId: number): number {
+    return this.vlanToMsti.get(vlanId) ?? 0; // Default to IST
+  }
+
+  /**
+   * Get VLAN ID for a given interface and message
+   */
+  private static getVlanId(message: DatalinkMessage, iface: Interface): number {
+    // Check if message is VLAN-tagged
+    if ('vlanId' in message && typeof message.vlanId === 'number') {
+      return message.vlanId;
+    }
+
+    // Extract from interface configuration
+    if ('Vlan' in iface && 'NativeVlan' in iface) {
+      const dot1qIface = iface as unknown as {
+        Vlan: number[];
+        NativeVlan: number;
+        VlanMode: number;
+      };
+
+      // Access mode: use first VLAN
+      if (dot1qIface.VlanMode === 0) {
+        // VlanMode.Access = 0
+        return dot1qIface.Vlan[0] ?? dot1qIface.NativeVlan;
+      }
+
+      // Trunk mode: use native VLAN for untagged
+      return dot1qIface.NativeVlan;
+    }
+
+    return 0; // Default VLAN
+  }
+
+  public State(iface: Interface, vlanId?: number): SpanningTreeState {
+    if (!this.enabled) return SpanningTreeState.Disabled;
+
+    // Determine VLAN
+    let vlan = vlanId;
+    if (vlan === undefined) {
+      const vlans = this.discoverVlans();
+      vlan = vlans[0] ?? 0;
+    }
+
+    // Get MSTI for this VLAN
+    const mstiId = this.getMstiForVlan(vlan);
+    const instance = this.instances.get(mstiId);
+
+    return instance?.State(iface) ?? SpanningTreeState.Disabled;
+  }
+
+  public Role(iface: Interface, vlanId?: number): SpanningTreePortRole {
+    if (!this.enabled) return SpanningTreePortRole.Disabled;
+
+    let vlan = vlanId;
+    if (vlan === undefined) {
+      const vlans = this.discoverVlans();
+      vlan = vlans[0] ?? 0;
+    }
+
+    const mstiId = this.getMstiForVlan(vlan);
+    const instance = this.instances.get(mstiId);
+
+    return instance?.Role(iface) ?? SpanningTreePortRole.Disabled;
+  }
+
+  public Cost(iface: Interface, vlanId?: number): number {
+    if (!this.enabled) return Number.MAX_VALUE;
+
+    let vlan = vlanId;
+    if (vlan === undefined) {
+      const vlans = this.discoverVlans();
+      vlan = vlans[0] ?? 0;
+    }
+
+    const mstiId = this.getMstiForVlan(vlan);
+    const instance = this.instances.get(mstiId);
+
+    return instance?.Cost(iface) ?? Number.MAX_VALUE;
+  }
+
+  get Root(): MacAddress {
+    // For MSTP, "Root" concept is per-instance
+    // Return root of IST (instance 0) for backward compatibility
+    const ist = this.instances.get(0);
+    return ist?.Root ?? new MacAddress('FF:FF:FF:FF:FF:FF');
+  }
+
+  get BridgeId(): MacAddress {
+    // Bridge ID is shared across all instances
+    const ist = this.instances.get(0);
+    return ist?.BridgeId ?? new MacAddress('FF:FF:FF:FF:FF:FF');
+  }
+
+  get IsRoot(): boolean {
+    // Switch is "root" if it's root for at least one instance
+    return Array.from(this.instances.values()).some((inst) => inst.IsRoot);
+  }
+
+  public negociate(): void {
+    if (!this.enabled) return;
+
+    // Like RPVST, delegate to each instance to negotiate independently
+    // Instances will send their own BPDUs (version 2 RSTP)
+    // For full MSTP compliance, we would need instances to send version 3,
+    // but for now this allows basic convergence to work
+    this.instances.forEach((instance) => {
+      instance.negociate();
+    });
+  }
+
+  public receiveTrame(message: DatalinkMessage, from: Interface): ActionHandle {
+    if (!this.enabled) return ActionHandle.Continue;
+
+    // Check if this is an MSTP BPDU
+    if (message instanceof MSTPMessage) {
+      const { mstiId } = message;
+
+      // Validate MSTI ID range
+      if (mstiId < 0 || mstiId > 15) {
+        return ActionHandle.Stop;
+      }
+
+      // Check region compatibility
+      const sameRegion =
+        message.regionName === this.regionName &&
+        message.revisionNumber === this.revisionNumber &&
+        message.configDigest === this.configDigest;
+
+      if (!sameRegion) {
+        // Different region - treat as boundary port
+        // For now, process with IST only
+        const ist = this.instances.get(0);
+        return ist?.receiveTrame(message, from) ?? ActionHandle.Continue;
+      }
+
+      // Same region - process BPDU for the specified instance
+      let instance = this.instances.get(mstiId);
+
+      // Create instance if it doesn't exist (received BPDU for new MSTI)
+      if (!instance) {
+        // Create with enabled=true like RPVST does
+        instance = new RSTPService(this.host, true);
+        this.instances.set(mstiId, instance);
+      }
+
+      // Delegate to appropriate MSTI RSTP tree
+      return instance.receiveTrame(message, from);
+    }
+
+    // Check if this is an RSTP BPDU (treat as IST from external region)
+    if (message instanceof RSTPMessage) {
+      const ist = this.instances.get(0);
+      return ist?.receiveTrame(message, from) ?? ActionHandle.Continue;
+    }
+
+    // Check if this is a standard STP BPDU (treat as IST)
+    if (message instanceof SpanningTreeMessage) {
+      const ist = this.instances.get(0);
+      return ist?.receiveTrame(message, from) ?? ActionHandle.Continue;
+    }
+
+    // Data frame - check MSTP state for the frame's VLAN
+    const vlanId = MSTPService.getVlanId(message, from);
+    const mstiId = this.getMstiForVlan(vlanId);
+    const instance = this.instances.get(mstiId);
+
+    if (instance) {
+      const state = instance.State(from);
+      if (state === SpanningTreeState.Blocking) {
+        return ActionHandle.Stop;
+      }
+    }
+
+    return ActionHandle.Continue;
+  }
+
+  override set Enable(enable: boolean) {
+    // Call parent to handle listener registration/unregistration
+    super.Enable = enable;
+
+    // Initialize instances when enabled
+    if (enable) {
+      this.initializeInstances();
+    } else {
+      // Disable all instances
+      this.instances.forEach((instance) => {
+        // eslint-disable-next-line no-param-reassign
+        instance.Enable = false;
+      });
+    }
+  }
+
+  override get Enable(): boolean {
+    return this.enabled;
+  }
+
+  public destroy(): void {
+    // Cancel MSTPService periodic negotiation timer
+    if (this.repeatCleanup) {
+      this.repeatCleanup();
+      this.repeatCleanup = null;
+    }
+
+    // Destroy all MSTI instances (they don't have timers, so this just cleans up state)
+    this.instances.forEach((instance) => instance.destroy());
+    this.instances.clear();
+
+    // Cancel all cleanup timers
+    this.cleanups.forEach((cleanup) => cleanup());
+    this.cleanups = [];
+  }
+
+  /**
+   * Advanced configuration methods (for future UI integration)
+   */
+
+  /**
+   * Set VLAN-to-MSTI mapping
+   * @param vlanId VLAN ID to map
+   * @param mstiId MSTI ID (0-15)
+   */
+  public setVlanMapping(vlanId: number, mstiId: number): void {
+    if (mstiId < 0 || mstiId > 15) {
+      throw new Error('MSTI ID must be between 0 and 15');
+    }
+
+    // Update mapping
+    this.vlanToMsti.set(vlanId, mstiId);
+
+    // Create instance if it doesn't exist
+    if (!this.instances.has(mstiId)) {
+      // Create with enabled=false to avoid timer and listener registration
+      const newInstance = new RSTPService(this.host, false);
+      // Force enable for state processing
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any, no-param-reassign
+      (newInstance as any).enabled = true;
+      // Manually initialize roles since constructor was called with enabled=false
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (newInstance as any).setDefaultRoot();
+      this.instances.set(mstiId, newInstance);
+    }
+
+    // Update configuration digest
+    this.updateConfigDigest();
+  }
+
+  /**
+   * Set MSTP region configuration
+   */
+  public setRegionConfig(regionName: string, revisionNumber: number = 0): void {
+    if (regionName.length > 32) {
+      throw new Error('Region name must be max 32 characters');
+    }
+    if (revisionNumber < 0 || revisionNumber > 65535) {
+      throw new Error('Revision number must be between 0 and 65535');
+    }
+
+    this.regionName = regionName;
+    this.revisionNumber = revisionNumber;
+    this.updateConfigDigest();
+  }
+
+  /**
+   * Get current VLAN-to-MSTI mapping
+   */
+  public getVlanMapping(): Map<number, number> {
+    return new Map(this.vlanToMsti);
+  }
+
+  /**
+   * Get region configuration
+   */
+  public getRegionConfig(): {
+    regionName: string;
+    revisionNumber: number;
+    configDigest: string;
+  } {
+    return {
+      regionName: this.regionName,
+      revisionNumber: this.revisionNumber,
+      configDigest: this.configDigest,
+    };
+  }
+}
+
+/**
  * Factory function to create the appropriate spanning tree service
  * based on the requested protocol type
  */
@@ -1893,8 +2455,9 @@ export function createSpanningTreeService(
       // R-PVST: Rapid Per-VLAN Spanning Tree (802.1w + per-VLAN)
       return new RPVSTService(host, true);
     case SpanningTreeProtocol.MSTP:
-      // TODO: Implement MSTP (802.1s)
-      throw new Error('MSTP protocol not yet implemented');
+      // MSTP: Multiple Spanning Tree Protocol (802.1s)
+      // Maps multiple VLANs to instances (IST + MSTIs) with rapid convergence
+      return new MSTPService(host, true);
     default:
       return new STPService(host, false);
   }

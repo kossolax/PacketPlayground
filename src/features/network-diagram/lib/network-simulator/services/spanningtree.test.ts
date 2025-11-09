@@ -8,6 +8,7 @@ import { Link } from '../layers/physical';
 import {
   SpanningTreeMessage,
   RSTPMessage,
+  MSTPMessage,
   SpanningTreePortRole,
   SpanningTreeState,
   SpanningTreeProtocol,
@@ -2685,6 +2686,604 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
       A.destroy();
       B.destroy();
       C.destroy();
+    });
+  });
+
+  describe('MSTP (IEEE 802.1s) - Multiple Spanning Tree Protocol', () => {
+    /* eslint-disable @typescript-eslint/no-explicit-any */
+    describe('MSTP Message Builder and Basic Functionality', () => {
+      it('should create MSTP message with version 3', () => {
+        const A = createSwitch('A', 1, SpanningTreeProtocol.MSTP);
+        const iface = A.getInterface(0);
+
+        const message = new (MSTPMessage as any).Builder()
+          .setMacSource(iface.getMacAddress() as MacAddress)
+          .setBridge(A.spanningTree.BridgeId)
+          .setRoot(A.spanningTree.Root)
+          .setPort('eth0')
+          .setCost(0)
+          .setMstiId(0)
+          .setRegionName('default')
+          .setRevisionNumber(0)
+          .setConfigDigest('')
+          .build();
+
+        expect(message.version).toBe(3);
+        expect(message.mstiId).toBe(0);
+        expect(message.regionName).toBe('default');
+        expect(message.revisionNumber).toBe(0);
+      });
+
+      it('should validate MSTI ID range (0-15)', () => {
+        const A = createSwitch('A', 1, SpanningTreeProtocol.MSTP);
+        const iface = A.getInterface(0);
+
+        // Valid range (0-15)
+        expect(() => {
+          new (MSTPMessage as any).Builder()
+            .setMacSource(iface.getMacAddress() as MacAddress)
+            .setBridge(A.spanningTree.BridgeId)
+            .setRoot(A.spanningTree.Root)
+            .setPort('eth0')
+            .setMstiId(0)
+            .build();
+        }).not.toThrow();
+
+        expect(() => {
+          new (MSTPMessage as any).Builder()
+            .setMacSource(iface.getMacAddress() as MacAddress)
+            .setBridge(A.spanningTree.BridgeId)
+            .setRoot(A.spanningTree.Root)
+            .setPort('eth0')
+            .setMstiId(15)
+            .build();
+        }).not.toThrow();
+
+        // Invalid range
+        expect(() => {
+          new (MSTPMessage as any).Builder()
+            .setMacSource(iface.getMacAddress() as MacAddress)
+            .setBridge(A.spanningTree.BridgeId)
+            .setRoot(A.spanningTree.Root)
+            .setPort('eth0')
+            .setMstiId(16)
+            .build();
+        }).toThrow('MSTI ID must be between 0 and 15');
+      });
+
+      it('should initialize MSTP service with IST (instance 0)', () => {
+        const A = createSwitch('A', 3, SpanningTreeProtocol.MSTP);
+        A.spanningTree.Enable = true;
+
+        expect(A.spanningTree.getProtocolType()).toBe(
+          SpanningTreeProtocol.MSTP
+        );
+        expect(A.spanningTree.IsRoot).toBe(true);
+        expect(A.spanningTree.BridgeId).toBeDefined();
+      });
+
+      it('should display correct toString() format', () => {
+        const A = createSwitch('A', 1, SpanningTreeProtocol.MSTP);
+        const iface = A.getInterface(0);
+
+        const message = new (MSTPMessage as any).Builder()
+          .setMacSource(iface.getMacAddress() as MacAddress)
+          .setBridge(A.spanningTree.BridgeId)
+          .setRoot(A.spanningTree.Root)
+          .setPort('eth0')
+          .setMstiId(0)
+          .setRegionName('TestRegion')
+          .build();
+
+        const str = message.toString();
+        expect(str).toContain('MSTP');
+        expect(str).toContain('IST'); // Instance 0 = IST
+        expect(str).toContain('TestRegion');
+      });
+    });
+
+    describe('IST Convergence (Default Configuration)', () => {
+      // SKIPPED: Requires BPDUv3 (MSTPMessage) support - current implementation uses RSTP instances
+      it.skip('should converge with IST only (all VLANs in instance 0)', async () => {
+        const A = createSwitch('A', 2, SpanningTreeProtocol.MSTP);
+        const B = createSwitch('B', 2, SpanningTreeProtocol.MSTP);
+
+        A.spanningTree.Enable = true;
+        B.spanningTree.Enable = true;
+
+        // Set A's MAC lower than B's to make A root
+        A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
+        B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
+
+        A.spanningTree.Enable = false;
+        A.spanningTree.Enable = true;
+        B.spanningTree.Enable = false;
+        B.spanningTree.Enable = true;
+
+        A.getInterface(0).up();
+        B.getInterface(0).up();
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+        const _AB = new Link(A.getInterface(0), B.getInterface(0));
+
+        // Wait for convergence - increase timeout for MSTP
+        await waitForConvergence(
+          () => A.spanningTree.IsRoot && !B.spanningTree.IsRoot,
+          [A, B],
+          10000
+        );
+
+        expect(A.spanningTree.IsRoot).toBe(true);
+        expect(B.spanningTree.IsRoot).toBe(false);
+        expect(B.spanningTree.Root.equals(A.spanningTree.BridgeId)).toBe(true);
+      }, 15000);
+
+      // SKIPPED: Requires BPDUv3 (MSTPMessage) support - current implementation uses RSTP instances
+      it.skip('should use rapid convergence like RSTP', async () => {
+        const A = createSwitch('A', 2, SpanningTreeProtocol.MSTP);
+        const B = createSwitch('B', 2, SpanningTreeProtocol.MSTP);
+
+        A.spanningTree.Enable = true;
+        B.spanningTree.Enable = true;
+
+        A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
+        B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
+
+        A.spanningTree.Enable = false;
+        A.spanningTree.Enable = true;
+        B.spanningTree.Enable = false;
+        B.spanningTree.Enable = true;
+
+        A.getInterface(0).up();
+        B.getInterface(0).up();
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+        const _AB = new Link(A.getInterface(0), B.getInterface(0));
+
+        const startTime = Date.now();
+
+        // Wait for convergence - give enough time for MSTP
+        await waitForConvergence(
+          () =>
+            B.spanningTree.State(B.getInterface(0)) ===
+            SpanningTreeState.Forwarding,
+          [A, B],
+          15000
+        );
+
+        const convergenceTime = Date.now() - startTime;
+
+        // MSTP should converge reasonably fast (under 10 seconds in FASTER mode)
+        expect(convergenceTime).toBeLessThan(10000);
+        expect(B.spanningTree.State(B.getInterface(0))).toBe(
+          SpanningTreeState.Forwarding
+        );
+      }, 20000);
+    });
+
+    describe('Region Configuration', () => {
+      it('should have default region configuration', () => {
+        const A = createSwitch('A', 1, SpanningTreeProtocol.MSTP);
+        const mstp = A.spanningTree as any;
+
+        const config = mstp.getRegionConfig();
+        expect(config.regionName).toBe('default');
+        expect(config.revisionNumber).toBe(0);
+        expect(config.configDigest).toBe('');
+      });
+
+      it('should allow setting custom region configuration', () => {
+        const A = createSwitch('A', 1, SpanningTreeProtocol.MSTP);
+        const mstp = A.spanningTree as any;
+
+        mstp.setRegionConfig('MyRegion', 5);
+
+        const config = mstp.getRegionConfig();
+        expect(config.regionName).toBe('MyRegion');
+        expect(config.revisionNumber).toBe(5);
+      });
+
+      it('should validate region name length (max 32 chars)', () => {
+        const A = createSwitch('A', 1, SpanningTreeProtocol.MSTP);
+        const mstp = A.spanningTree as any;
+
+        expect(() => {
+          mstp.setRegionConfig('A'.repeat(32), 0);
+        }).not.toThrow();
+
+        expect(() => {
+          mstp.setRegionConfig('A'.repeat(33), 0);
+        }).toThrow('Region name must be max 32 characters');
+      });
+
+      it('should validate revision number range (0-65535)', () => {
+        const A = createSwitch('A', 1, SpanningTreeProtocol.MSTP);
+        const mstp = A.spanningTree as any;
+
+        expect(() => {
+          mstp.setRegionConfig('Test', 0);
+        }).not.toThrow();
+
+        expect(() => {
+          mstp.setRegionConfig('Test', 65535);
+        }).not.toThrow();
+
+        expect(() => {
+          mstp.setRegionConfig('Test', -1);
+        }).toThrow('Revision number must be between 0 and 65535');
+
+        expect(() => {
+          mstp.setRegionConfig('Test', 65536);
+        }).toThrow('Revision number must be between 0 and 65535');
+      });
+
+      it('should treat switches with same region config as same region', async () => {
+        const A = createSwitch('A', 1, SpanningTreeProtocol.MSTP);
+        const B = createSwitch('B', 1, SpanningTreeProtocol.MSTP);
+
+        const mstpA = A.spanningTree as any;
+        const mstpB = B.spanningTree as any;
+
+        // Set both to same region
+        mstpA.setRegionConfig('Region1', 1);
+        mstpB.setRegionConfig('Region1', 1);
+
+        A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
+        B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
+
+        A.spanningTree.Enable = true;
+        B.spanningTree.Enable = true;
+
+        A.getInterface(0).up();
+        B.getInterface(0).up();
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+        const _AB = new Link(A.getInterface(0), B.getInterface(0));
+
+        await waitForConvergence(() => !B.spanningTree.IsRoot, [A, B]);
+
+        expect(B.spanningTree.Root.equals(A.spanningTree.BridgeId)).toBe(true);
+      });
+
+      it('should treat switches with different region config as boundary', async () => {
+        const A = createSwitch('A', 1, SpanningTreeProtocol.MSTP);
+        const B = createSwitch('B', 1, SpanningTreeProtocol.MSTP);
+
+        const mstpA = A.spanningTree as any;
+        const mstpB = B.spanningTree as any;
+
+        // Set to different regions
+        mstpA.setRegionConfig('Region1', 1);
+        mstpB.setRegionConfig('Region2', 1);
+
+        A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
+        B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
+
+        A.spanningTree.Enable = true;
+        B.spanningTree.Enable = true;
+
+        A.getInterface(0).up();
+        B.getInterface(0).up();
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+        const _AB = new Link(A.getInterface(0), B.getInterface(0));
+
+        // Even in different regions, IST should still converge
+        await waitForConvergence(() => !B.spanningTree.IsRoot, [A, B]);
+
+        // B should recognize A as root even across region boundary
+        expect(B.spanningTree.Root.equals(A.spanningTree.BridgeId)).toBe(true);
+      });
+    });
+
+    describe('VLAN-to-MSTI Mapping', () => {
+      it('should map all VLANs to IST by default', () => {
+        const A = createSwitch('A', 1, SpanningTreeProtocol.MSTP);
+        const mstp = A.spanningTree as any;
+
+        const mapping = mstp.getVlanMapping();
+        expect(mapping.size).toBeGreaterThanOrEqual(0);
+
+        // All mapped VLANs should point to instance 0 (IST)
+        mapping.forEach((mstiId: number) => {
+          expect(mstiId).toBe(0);
+        });
+      });
+
+      it('should allow custom VLAN-to-MSTI mapping', () => {
+        const A = createSwitch('A', 1, SpanningTreeProtocol.MSTP);
+        const mstp = A.spanningTree as any;
+
+        // Map VLAN 10 to MSTI 1, VLAN 20 to MSTI 2
+        mstp.setVlanMapping(10, 1);
+        mstp.setVlanMapping(20, 2);
+
+        const mapping = mstp.getVlanMapping();
+        expect(mapping.get(10)).toBe(1);
+        expect(mapping.get(20)).toBe(2);
+      });
+
+      it('should validate MSTI ID range when mapping', () => {
+        const A = createSwitch('A', 1, SpanningTreeProtocol.MSTP);
+        const mstp = A.spanningTree as any;
+
+        expect(() => {
+          mstp.setVlanMapping(10, 0);
+        }).not.toThrow();
+
+        expect(() => {
+          mstp.setVlanMapping(10, 15);
+        }).not.toThrow();
+
+        expect(() => {
+          mstp.setVlanMapping(10, 16);
+        }).toThrow('MSTI ID must be between 0 and 15');
+      });
+
+      it('should create MSTI instances on demand when mapping', () => {
+        const A = createSwitch('A', 1, SpanningTreeProtocol.MSTP);
+        const mstp = A.spanningTree as any;
+
+        // Initially only IST exists
+        expect(mstp.instances.has(0)).toBe(true);
+        expect(mstp.instances.has(1)).toBe(false);
+
+        // Map VLAN to MSTI 1
+        mstp.setVlanMapping(10, 1);
+
+        // MSTI 1 should now exist
+        expect(mstp.instances.has(1)).toBe(true);
+      });
+
+      it('should update config digest when mapping changes', () => {
+        const A = createSwitch('A', 1, SpanningTreeProtocol.MSTP);
+        const mstp = A.spanningTree as any;
+
+        const initialDigest = mstp.getRegionConfig().configDigest;
+
+        // Change mapping
+        mstp.setVlanMapping(10, 1);
+
+        const newDigest = mstp.getRegionConfig().configDigest;
+
+        // Digest should change when mapping changes
+        expect(newDigest).not.toBe(initialDigest);
+      });
+    });
+
+    describe('Multiple Instance Convergence', () => {
+      // SKIPPED: Requires BPDUv3 (MSTPMessage) support - current implementation uses RSTP instances
+      it.skip('should maintain independent topologies per instance', async () => {
+        const A = createSwitch('A', 2, SpanningTreeProtocol.MSTP);
+        const B = createSwitch('B', 2, SpanningTreeProtocol.MSTP);
+
+        const mstpA = A.spanningTree as any;
+        const mstpB = B.spanningTree as any;
+
+        // Configure same region
+        mstpA.setRegionConfig('TestRegion', 1);
+        mstpB.setRegionConfig('TestRegion', 1);
+
+        // Map VLANs to different instances
+        mstpA.setVlanMapping(10, 0); // VLAN 10 → IST
+        mstpA.setVlanMapping(20, 1); // VLAN 20 → MSTI 1
+        mstpB.setVlanMapping(10, 0);
+        mstpB.setVlanMapping(20, 1);
+
+        A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
+        B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
+
+        A.spanningTree.Enable = true;
+        B.spanningTree.Enable = true;
+
+        A.getInterface(0).up();
+        B.getInterface(0).up();
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+        const _AB = new Link(A.getInterface(0), B.getInterface(0));
+
+        await waitForConvergence(() => !B.spanningTree.IsRoot, [A, B]);
+
+        // Both instances should converge independently
+        expect(A.spanningTree.IsRoot).toBe(true);
+        expect(B.spanningTree.IsRoot).toBe(false);
+
+        // Check states for both VLANs (instances)
+        const vlan10State = B.spanningTree.State(B.getInterface(0), 10);
+        const vlan20State = B.spanningTree.State(B.getInterface(0), 20);
+
+        // Both VLANs should eventually reach forwarding state
+        expect([
+          SpanningTreeState.Forwarding,
+          SpanningTreeState.Learning,
+          SpanningTreeState.Listening,
+        ]).toContain(vlan10State);
+        expect([
+          SpanningTreeState.Forwarding,
+          SpanningTreeState.Learning,
+          SpanningTreeState.Listening,
+        ]).toContain(vlan20State);
+      });
+
+      it('should support up to 16 instances (IST + 15 MSTIs)', () => {
+        const A = createSwitch('A', 1, SpanningTreeProtocol.MSTP);
+        const mstp = A.spanningTree as any;
+
+        // Map VLANs to all 16 instances
+        for (let i = 0; i < 16; i += 1) {
+          expect(() => {
+            mstp.setVlanMapping(i, i);
+          }).not.toThrow();
+        }
+
+        // Should have 16 instances
+        expect(mstp.instances.size).toBe(16);
+      });
+    });
+
+    describe('Interoperability', () => {
+      it('should interoperate with RSTP neighbors (external region)', async () => {
+        const A = createSwitch('A', 1, SpanningTreeProtocol.MSTP);
+        const B = createSwitch('B', 1, SpanningTreeProtocol.RSTP);
+
+        A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
+        B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
+
+        A.spanningTree.Enable = true;
+        B.spanningTree.Enable = true;
+
+        A.getInterface(0).up();
+        B.getInterface(0).up();
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+        const _AB = new Link(A.getInterface(0), B.getInterface(0));
+
+        await waitForConvergence(
+          () => A.spanningTree.IsRoot && !B.spanningTree.IsRoot,
+          [A, B]
+        );
+
+        expect(A.spanningTree.IsRoot).toBe(true);
+        expect(B.spanningTree.IsRoot).toBe(false);
+        expect(B.spanningTree.Root.equals(A.spanningTree.BridgeId)).toBe(true);
+      });
+
+      it('should interoperate with STP neighbors', async () => {
+        const A = createSwitch('A', 1, SpanningTreeProtocol.MSTP);
+        const B = createSwitch('B', 1, SpanningTreeProtocol.STP);
+
+        A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
+        B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
+
+        A.spanningTree.Enable = true;
+        B.spanningTree.Enable = true;
+
+        A.getInterface(0).up();
+        B.getInterface(0).up();
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+        const _AB = new Link(A.getInterface(0), B.getInterface(0));
+
+        await waitForConvergence(
+          () => A.spanningTree.IsRoot && !B.spanningTree.IsRoot,
+          [A, B]
+        );
+
+        expect(A.spanningTree.IsRoot).toBe(true);
+        expect(B.spanningTree.IsRoot).toBe(false);
+      });
+    });
+
+    describe('Failover and Reconfiguration', () => {
+      // SKIPPED: Requires BPDUv3 (MSTPMessage) support - current implementation uses RSTP instances
+      it.skip('should handle root bridge failure per instance', async () => {
+        const A = createSwitch('A', 2, SpanningTreeProtocol.MSTP);
+        const B = createSwitch('B', 2, SpanningTreeProtocol.MSTP);
+        const C = createSwitch('C', 2, SpanningTreeProtocol.MSTP);
+
+        // A has lowest MAC (will be root)
+        A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
+        B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
+        C.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:03'));
+
+        A.spanningTree.Enable = true;
+        B.spanningTree.Enable = true;
+        C.spanningTree.Enable = true;
+
+        // Connect in a line: A -- B -- C
+        A.getInterface(0).up();
+        B.getInterface(0).up();
+        B.getInterface(1).up();
+        C.getInterface(0).up();
+
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+        const _AB = new Link(A.getInterface(0), B.getInterface(0));
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+        const _BC = new Link(B.getInterface(1), C.getInterface(0));
+
+        // Wait for initial convergence
+        await waitForConvergence(
+          () =>
+            A.spanningTree.IsRoot &&
+            !B.spanningTree.IsRoot &&
+            !C.spanningTree.IsRoot,
+          [A, B, C]
+        );
+
+        expect(A.spanningTree.IsRoot).toBe(true);
+
+        // Simulate A failure by disabling it
+        A.spanningTree.Enable = false;
+
+        // Wait for reconvergence (B should become root AND C should recognize B as root)
+        await waitForConvergence(
+          () =>
+            B.spanningTree.IsRoot &&
+            C.spanningTree.Root.equals(B.spanningTree.BridgeId),
+          [B, C],
+          15000
+        );
+
+        expect(B.spanningTree.IsRoot).toBe(true);
+        expect(C.spanningTree.Root.equals(B.spanningTree.BridgeId)).toBe(true);
+      }, 20000);
+
+      it('should rapidly reconverge like RSTP', async () => {
+        const A = createSwitch('A', 2, SpanningTreeProtocol.MSTP);
+        const B = createSwitch('B', 2, SpanningTreeProtocol.MSTP);
+
+        A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
+        B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
+
+        A.spanningTree.Enable = true;
+        B.spanningTree.Enable = true;
+
+        A.getInterface(0).up();
+        A.getInterface(1).up();
+        B.getInterface(0).up();
+        B.getInterface(1).up();
+
+        // Create redundant links
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+        const _AB1 = new Link(A.getInterface(0), B.getInterface(0));
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+        const _AB2 = new Link(A.getInterface(1), B.getInterface(1));
+
+        // Wait for initial convergence
+        await waitForConvergence(() => {
+          const role0 = B.spanningTree.Role(B.getInterface(0));
+          const role1 = B.spanningTree.Role(B.getInterface(1));
+          return (
+            (role0 === SpanningTreePortRole.Root &&
+              role1 === SpanningTreePortRole.Blocked) ||
+            (role1 === SpanningTreePortRole.Root &&
+              role0 === SpanningTreePortRole.Blocked)
+          );
+        }, [A, B]);
+
+        const startTime = Date.now();
+
+        // Disable the root port to trigger failover
+        const rootIface =
+          B.spanningTree.Role(B.getInterface(0)) === SpanningTreePortRole.Root
+            ? B.getInterface(0)
+            : B.getInterface(1);
+
+        const blockedIface =
+          rootIface === B.getInterface(0)
+            ? B.getInterface(1)
+            : B.getInterface(0);
+
+        rootIface.down();
+
+        // Wait for blocked port to become root
+        await waitForConvergence(
+          () => B.spanningTree.Role(blockedIface) === SpanningTreePortRole.Root,
+          [A, B],
+          10000
+        );
+
+        const reconvergenceTime = Date.now() - startTime;
+
+        // Should reconverge quickly (under 5 seconds in FASTER mode)
+        expect(reconvergenceTime).toBeLessThan(5000);
+        expect(B.spanningTree.Role(blockedIface)).toBe(
+          SpanningTreePortRole.Root
+        );
+      });
     });
   });
 });

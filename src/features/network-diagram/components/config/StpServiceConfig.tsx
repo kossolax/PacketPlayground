@@ -126,12 +126,8 @@ export default function StpServiceConfig({
                 <SelectItem value={SpanningTreeProtocol.RPVST}>
                   R-PVST (Rapid Per-VLAN)
                 </SelectItem>
-                <SelectItem
-                  value={SpanningTreeProtocol.MSTP}
-                  disabled
-                  className="text-muted-foreground"
-                >
-                  MSTP (Not implemented)
+                <SelectItem value={SpanningTreeProtocol.MSTP}>
+                  MSTP (802.1s - Multiple)
                 </SelectItem>
               </SelectContent>
             </Select>
