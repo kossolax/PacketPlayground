@@ -3,6 +3,7 @@ import type { RouterHost } from '../../nodes/router';
 import type { SwitchHost } from '../../nodes/switch';
 import { InterfaceCommand } from './interface';
 import { TerminalCommand } from '../command-base';
+import { RouterRipCommand } from './rip';
 
 export { InterfaceCommand };
 
@@ -150,6 +151,56 @@ class VlanConfigCommand extends TerminalCommand {
   }
 }
 
+class RouterCommand extends TerminalCommand {
+  constructor(parent: TerminalCommand) {
+    super(parent.Terminal, 'router');
+    this.parent = parent;
+
+    // Register router subcommands conditionally based on device type
+    const node = this.terminal.Node;
+    if ('services' in node && 'rip' in (node as RouterHost).services) {
+      this.registerCommand(new RouterRipCommand(this));
+    }
+  }
+
+  public override exec(
+    command: string,
+    args: string[],
+    negated: boolean
+  ): void {
+    if (command === this.name) {
+      // If no subcommand, show available commands
+      if (args.length === 0) {
+        throw new Error('% Incomplete command');
+      }
+      // Let subcommands handle the rest
+      super.exec(args[0], args.slice(1), negated);
+    } else {
+      super.exec(command, args, negated);
+    }
+  }
+
+  public override autocomplete(
+    command: string,
+    args: string[],
+    negated: boolean
+  ): string[] {
+    if (command === this.name && args.length === 1) {
+      const suggestions: string[] = [];
+
+      // Add 'rip' if RIP is available
+      const node = this.terminal.Node;
+      if ('services' in node && 'rip' in (node as RouterHost).services) {
+        suggestions.push('rip');
+      }
+
+      return suggestions.filter((s) => s.startsWith(args[0]));
+    }
+
+    return super.autocomplete(command, args, negated);
+  }
+}
+
 // Main ConfigCommand class
 
 export class ConfigCommand extends TerminalCommand {
@@ -163,6 +214,8 @@ export class ConfigCommand extends TerminalCommand {
       this.registerCommand(new IPConfigCommand(this));
     if ('knownVlan' in this.terminal.Node)
       this.registerCommand(new VlanConfigCommand(this));
+    if ('services' in this.terminal.Node && 'rip' in (this.terminal.Node as RouterHost).services)
+      this.registerCommand(new RouterCommand(this));
 
     this.registerCommand(new InterfaceCommand(this));
   }
