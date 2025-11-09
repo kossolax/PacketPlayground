@@ -84,7 +84,8 @@ export class RIPMessage extends IPv4Message {
   }
 
   public override toString(): string {
-    const commandName = this.command === RIPCommand.Request ? 'Request' : 'Response';
+    const commandName =
+      this.command === RIPCommand.Request ? 'Request' : 'Response';
     const routeCount = this.routes.length;
     return `RIPv${this.version}\n${commandName} (${routeCount} routes)`;
   }
@@ -145,9 +146,7 @@ export class RIPMessage extends IPv4Message {
       const chunks: RIPRouteEntry[][] = [];
 
       for (let i = 0; i < this.routes.length; i += RIP_MAX_ROUTES_PER_MESSAGE) {
-        chunks.push(
-          this.routes.slice(i, i + RIP_MAX_ROUTES_PER_MESSAGE)
-        );
+        chunks.push(this.routes.slice(i, i + RIP_MAX_ROUTES_PER_MESSAGE));
       }
 
       // If no routes (e.g., Request), still create one message
@@ -156,7 +155,11 @@ export class RIPMessage extends IPv4Message {
       }
 
       chunks.forEach((chunk) => {
-        const message = new RIPMessage(this.payload, this.netSrc!, this.netDst!);
+        const message = new RIPMessage(
+          this.payload,
+          this.netSrc!,
+          this.netDst!
+        );
 
         // Set RIP-specific fields
         message.version = this.version;

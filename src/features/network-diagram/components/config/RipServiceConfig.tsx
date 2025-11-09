@@ -164,7 +164,8 @@ export default function RipServiceConfig({
                     <div className="space-y-2">
                       <Label>Default Metric</Label>
                       <p className="text-muted-foreground text-xs">
-                        {config.defaultMetric} (hop count for redistributed routes)
+                        {config.defaultMetric} (hop count for redistributed
+                        routes)
                       </p>
                     </div>
                   </div>
@@ -235,7 +236,8 @@ export default function RipServiceConfig({
                     {interfaces.map((ifaceName) => {
                       const iface = node.getInterface(ifaceName);
                       const ripEnabled = isEnabledOnInterface(ifaceName);
-                      const ipAddress = iface.getNetAddress()?.toString() || 'N/A';
+                      const ipAddress =
+                        iface.getNetAddress()?.toString() || 'N/A';
                       const mask = iface.getNetMask()?.CIDR || 0;
 
                       return (
@@ -353,10 +355,7 @@ export default function RipServiceConfig({
                   </div>
                   <div>
                     <span className="font-medium">Invalid Routes:</span>{' '}
-                    {
-                      allRoutes.filter((r) => r.metric >= metricInfinity)
-                        .length
-                    }
+                    {allRoutes.filter((r) => r.metric >= metricInfinity).length}
                   </div>
                   <div>
                     <span className="font-medium">Enabled Interfaces:</span>{' '}

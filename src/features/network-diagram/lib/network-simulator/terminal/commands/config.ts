@@ -214,7 +214,10 @@ export class ConfigCommand extends TerminalCommand {
       this.registerCommand(new IPConfigCommand(this));
     if ('knownVlan' in this.terminal.Node)
       this.registerCommand(new VlanConfigCommand(this));
-    if ('services' in this.terminal.Node && 'rip' in (this.terminal.Node as RouterHost).services)
+    if (
+      'services' in this.terminal.Node &&
+      'rip' in (this.terminal.Node as RouterHost).services
+    )
       this.registerCommand(new RouterCommand(this));
 
     this.registerCommand(new InterfaceCommand(this));

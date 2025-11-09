@@ -202,9 +202,8 @@ export class ShowIpRipCommand extends TerminalCommand {
           );
 
           routes.forEach((route) => {
-            const network = `${route.network.toString()}/${route.mask.CIDR}`.padEnd(
-              16
-            );
+            const network =
+              `${route.network.toString()}/${route.mask.CIDR}`.padEnd(16);
             const metric =
               route.metric === RIP_METRIC_INFINITY
                 ? 'inf'.padStart(6)
@@ -234,9 +233,8 @@ export class ShowIpRipCommand extends TerminalCommand {
           );
 
           routes.forEach((route) => {
-            const network = `${route.network.toString()}/${route.mask.CIDR}`.padEnd(
-              16
-            );
+            const network =
+              `${route.network.toString()}/${route.mask.CIDR}`.padEnd(16);
             const nextHop = route.nextHop.toString().padEnd(15);
             const metric =
               route.metric === RIP_METRIC_INFINITY
@@ -321,12 +319,10 @@ export class ShowIpProtocolsCommand extends TerminalCommand {
             const mask = iface.getNetMask();
             if (netAddr && mask) {
               // Calculate network address by ANDing IP with mask
-              const networkAddr = new IPAddress(
-                netAddr.and(mask).toString()
+              const networkAddr = (netAddr as IPAddress).getNetworkIP(
+                mask as IPAddress
               );
-              this.terminal.write(
-                `    ${networkAddr.toString()}/${mask.CIDR}`
-              );
+              this.terminal.write(`    ${networkAddr.toString()}/${mask.CIDR}`);
             }
           });
         }

@@ -275,7 +275,10 @@ export class RIPService
    * @param iface Interface to send update on
    * @param triggered Whether this is a triggered update
    */
-  private sendUpdate(iface: NetworkInterface, triggered: boolean = false): void {
+  private sendUpdate(
+    iface: NetworkInterface,
+    triggered: boolean = false
+  ): void {
     if (!this.enabled || !this.isEnabledOnInterface(iface)) return;
 
     const routes: RIPRouteEntry[] = [];
@@ -283,10 +286,9 @@ export class RIPService
     // Add directly connected networks
     this.host.getInterfaces().forEach((ifaceName) => {
       const connectedIface = this.host.getInterface(ifaceName);
-      const network = connectedIface
-        .getNetAddress()
-        .GetNetworkAddress(connectedIface.getNetMask());
-      const mask = connectedIface.getNetMask();
+      const netAddr = connectedIface.getNetAddress() as IPAddress;
+      const mask = connectedIface.getNetMask() as IPAddress;
+      const network = netAddr.getNetworkIP(mask);
 
       // RFC 2453: Split horizon - don't advertise routes back out the interface they came from
       if (this.splitHorizon && connectedIface === iface) {
@@ -395,7 +397,10 @@ export class RIPService
         (currentTime - route.lastUpdate) / Scheduler.getInstance().getDelay(1);
 
       // RFC 2453: Invalid timer - mark route as unreachable after invalidAfter seconds
-      if (timeSinceUpdate > this.invalidAfter && route.metric < RIP_METRIC_INFINITY) {
+      if (
+        timeSinceUpdate > this.invalidAfter &&
+        route.metric < RIP_METRIC_INFINITY
+      ) {
         route.metric = RIP_METRIC_INFINITY;
         route.changed = true;
         hasChanges = true;
@@ -472,7 +477,7 @@ export class RIPService
   /**
    * RFC 2453: Process RIP request message
    */
-  private processRequest(message: RIPMessage, from: NetworkInterface): void {
+  private processRequest(_message: RIPMessage, from: NetworkInterface): void {
     // RFC 2453: Send full routing table in response to request
     this.sendUpdate(from, false);
   }
@@ -487,7 +492,10 @@ export class RIPService
 
     message.routes.forEach((routeEntry) => {
       // Skip invalid routes
-      if (routeEntry.metric >= RIP_METRIC_INFINITY && routeEntry.metric !== RIP_METRIC_INFINITY) {
+      if (
+        routeEntry.metric >= RIP_METRIC_INFINITY &&
+        routeEntry.metric !== RIP_METRIC_INFINITY
+      ) {
         return;
       }
 
@@ -548,7 +556,11 @@ export class RIPService
               }
             } else if (existingRoute.metric >= RIP_METRIC_INFINITY) {
               try {
-                this.host.addRoute(routeEntry.network, routeEntry.mask, senderIP);
+                this.host.addRoute(
+                  routeEntry.network,
+                  routeEntry.mask,
+                  senderIP
+                );
               } catch {
                 // Route might already exist
               }
