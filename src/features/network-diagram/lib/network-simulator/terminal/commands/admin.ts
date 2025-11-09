@@ -12,6 +12,7 @@ import {
 } from './show';
 import { ShowIpRipCommand, ShowIpProtocolsCommand } from './rip';
 import { ShowIPOSPFCommand } from './ospf';
+import { ShowIpBgpCommand } from './bgp';
 import { TerminalCommand } from '../command-base';
 import type { RouterHost } from '../../nodes/router';
 
@@ -32,6 +33,21 @@ class ShowIpCommand extends TerminalCommand {
   constructor(parent: TerminalCommand) {
     super(parent.Terminal, 'ip');
     this.parent = parent;
+
+    // Register show ip subcommands
+    const node = this.terminal.Node;
+    if ('services' in node && 'rip' in (node as RouterHost).services) {
+      this.registerCommand(new ShowIpRipCommand(this));
+      this.registerCommand(new ShowIpProtocolsCommand(this));
+    }
+    // Register OSPF show commands
+    if ('services' in node && 'ospf' in (node as RouterHost).services) {
+      this.registerCommand(new ShowIPOSPFCommand(this));
+    }
+    // Register BGP show commands
+    if ('services' in node && 'bgp' in (node as RouterHost).services) {
+      this.registerCommand(new ShowIpBgpCommand(this));
+    }
 
     this.ipInterfaceBriefCmd = new ShowIpInterfaceBriefCommand(this);
     this.ipRouteCmd = new ShowIpRouteCommand(this);
@@ -101,6 +117,11 @@ class ShowVlanCommand extends TerminalCommand {
   constructor(parent: TerminalCommand) {
     super(parent.Terminal, 'vlan');
     this.parent = parent;
+
+        // Add 'bgp' if BGP is available
+        if ('services' in node && 'bgp' in (node as RouterHost).services) {
+          suggestions.push('bgp');
+        }
 
     this.vlanBriefCmd = new ShowVlanBriefCommand(this);
     this.registerCommand(this.vlanBriefCmd);
@@ -205,6 +226,12 @@ class ShowCommand extends TerminalCommand {
     if ('spanningTree' in node) {
       this.registerCommand(new ShowSpanningTreeCommand(this));
     }
+    if ('services' in node && 'ospf' in (node as RouterHost).services) {
+      this.registerCommand(new ShowIPCommand(this));
+    }
+    if ('services' in node && 'bgp' in (node as RouterHost).services) {
+      this.registerCommand(new ShowIPCommand(this));
+    }
   }
 
   public override exec(
@@ -236,8 +263,8 @@ class ShowCommand extends TerminalCommand {
 
         const node = this.terminal.Node;
 
-        // Add IP commands
-        if ('RoutingTable' in node) {
+        // Add 'ip' if RIP, OSPF or BGP is available
+        if ('services' in node && 'rip' in (node as RouterHost).services) {
           suggestions.push('ip');
         }
 
@@ -245,6 +272,9 @@ class ShowCommand extends TerminalCommand {
         if ('knownVlan' in node) {
           suggestions.push('vlan');
           suggestions.push('mac');
+        }
+        if ('services' in node && 'bgp' in (node as RouterHost).services) {
+          suggestions.push('ip');
         }
 
         // General commands

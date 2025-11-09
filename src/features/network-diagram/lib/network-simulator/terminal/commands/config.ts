@@ -6,6 +6,7 @@ import { RouterOSPFCommand } from './ospf';
 import { TerminalCommand } from '../command-base';
 import { SpanningTreeConfigCommand } from './stp';
 import { RouterRipCommand } from './rip';
+import { RouterBgpCommand } from './bgp';
 
 export { InterfaceCommand };
 
@@ -166,6 +167,9 @@ class RouterCommand extends TerminalCommand {
     if ('services' in node && 'ospf' in (node as RouterHost).services) {
       this.registerCommand(new RouterOSPFCommand(this));
     }
+    if ('services' in node && 'bgp' in (node as RouterHost).services) {
+      this.registerCommand(new RouterBgpCommand(this));
+    }
   }
 
   public override exec(
@@ -202,6 +206,11 @@ class RouterCommand extends TerminalCommand {
       // Add 'ospf' if OSPF is available
       if ('services' in node && 'ospf' in (node as RouterHost).services) {
         suggestions.push('ospf');
+      }
+
+      // Add 'bgp' if BGP is available
+      if ('services' in node && 'bgp' in (node as RouterHost).services) {
+        suggestions.push('bgp');
       }
 
       return suggestions.filter((s) => s.startsWith(args[0]));
