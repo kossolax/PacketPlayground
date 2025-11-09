@@ -167,6 +167,10 @@ export class RIPService
   /**
    * Enable/disable the RIP service
    */
+  public override get Enable(): boolean {
+    return this.enabled;
+  }
+
   public override set Enable(enable: boolean) {
     super.Enable = enable;
 
