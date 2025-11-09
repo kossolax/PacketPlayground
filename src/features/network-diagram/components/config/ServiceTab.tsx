@@ -16,6 +16,7 @@ import StpServiceConfig from './StpServiceConfig';
 import FhrpServiceConfig from './FhrpServiceConfig';
 import RipServiceConfig from './RipServiceConfig';
 import OspfServiceConfig from './OspfServiceConfig';
+import BgpServiceConfig from './BgpServiceConfig';
 
 interface ServiceTabProps {
   node: ServerHost | SwitchHost | RouterHost;
@@ -66,6 +67,12 @@ export default function ServiceTab({ node, network }: ServiceTabProps) {
             >
               OSPF
             </TabsTrigger>
+            <TabsTrigger
+              className="w-40 shrink-0 grow-0 justify-start"
+              value="bgp"
+            >
+              BGP
+            </TabsTrigger>
           </>
         )}
         {isServer && (
@@ -108,6 +115,9 @@ export default function ServiceTab({ node, network }: ServiceTabProps) {
             </TabsContent>
             <TabsContent value="ospf">
               <OspfServiceConfig node={node as RouterHost} network={network} />
+            </TabsContent>
+            <TabsContent value="bgp">
+              <BgpServiceConfig node={node as RouterHost} network={network} />
             </TabsContent>
           </>
         )}
