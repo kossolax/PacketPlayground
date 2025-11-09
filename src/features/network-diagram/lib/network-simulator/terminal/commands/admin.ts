@@ -10,6 +10,8 @@ import {
   ShowIpRouteCommand,
   ShowInterfacesCommand,
 } from './show';
+import { ShowIpRipCommand, ShowIpProtocolsCommand } from './rip';
+import { ShowIPOSPFCommand } from './ospf';
 import { TerminalCommand } from '../command-base';
 import type { RouterHost } from '../../nodes/router';
 
@@ -152,7 +154,6 @@ class ShowMacCommand extends TerminalCommand {
     return super.autocomplete(command, args, negated);
   }
 }
-
 // ShowCommand - parent for all 'show' commands
 class ShowCommand extends TerminalCommand {
   constructor(parent: TerminalCommand) {
