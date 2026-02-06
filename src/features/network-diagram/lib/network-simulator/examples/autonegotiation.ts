@@ -1,6 +1,7 @@
 import { Network } from '../network';
 import { ServerHost } from '../nodes/server';
 import { SwitchHost } from '../nodes/switch';
+import { SpanningTreeProtocol } from '../services/spanningtree';
 import { Link } from '../layers/physical';
 import { IPAddress, MacAddress } from '../address';
 import { EthernetInterface } from '../layers/datalink';
@@ -58,7 +59,11 @@ export default function createAutoNegotiationDemo(): Network {
   pc.getInterface(0).setMacAddress(new MacAddress('AA:BB:CC:DD:EE:10'));
 
   // Create Switch with Gigabit capability (10-1000 Mbps) - default
-  const switchDevice = new SwitchHost('Switch-GigEth', 2, true);
+  const switchDevice = new SwitchHost(
+    'Switch-GigEth',
+    2,
+    SpanningTreeProtocol.STP
+  );
   switchDevice.guid = 'switch-autoneg-demo';
   switchDevice.x = 400;
   switchDevice.y = 200;

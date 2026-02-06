@@ -3,6 +3,7 @@ import { Link } from '../layers/physical';
 import { Network } from '../network';
 import { ComputerHost, ServerHost } from '../nodes/server';
 import { SwitchHost } from '../nodes/switch';
+import { SpanningTreeProtocol } from '../services/spanningtree';
 import { DhcpPool } from '../services/dhcp';
 
 /**
@@ -38,7 +39,7 @@ export default function createDHCPSetupExample(): Network {
   server.services.dhcp.Enable = true;
 
   // Create Switch
-  const switchDevice = new SwitchHost('Switch-1', 4, true);
+  const switchDevice = new SwitchHost('Switch-1', 4, SpanningTreeProtocol.STP);
   switchDevice.guid = 'switch-example';
   switchDevice.x = 300;
   switchDevice.y = 200;

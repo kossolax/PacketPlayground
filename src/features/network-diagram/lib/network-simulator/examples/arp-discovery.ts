@@ -3,6 +3,7 @@ import { Link } from '../layers/physical';
 import { Network } from '../network';
 import { ComputerHost, ServerHost } from '../nodes/server';
 import { SwitchHost } from '../nodes/switch';
+import { SpanningTreeProtocol } from '../services/spanningtree';
 
 /**
  * Creates an ARP (Address Resolution Protocol) demonstration topology.
@@ -19,7 +20,7 @@ export default function createARPDiscoveryExample(): Network {
   const network = new Network();
 
   // Create Switch
-  const switchDevice = new SwitchHost('Switch-1', 4, true);
+  const switchDevice = new SwitchHost('Switch-1', 4, SpanningTreeProtocol.STP);
   switchDevice.guid = 'switch-arp-example';
   switchDevice.x = 300;
   switchDevice.y = 200;
