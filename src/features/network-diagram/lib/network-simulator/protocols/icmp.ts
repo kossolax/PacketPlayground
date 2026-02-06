@@ -1,3 +1,5 @@
+// RFC 792 - Internet Control Message Protocol
+// https://www.rfc-editor.org/rfc/rfc792
 import { map, Observable, race, Subject, tap } from 'rxjs';
 
 import { Scheduler } from '@/features/network-diagram/lib/scheduler';

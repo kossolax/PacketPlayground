@@ -1,3 +1,5 @@
+// RFC 2131 - Dynamic Host Configuration Protocol
+// https://www.rfc-editor.org/rfc/rfc2131
 import { Scheduler } from '@/features/network-diagram/lib/scheduler';
 import {
   type HardwareAddress,
@@ -12,7 +14,6 @@ import { ActionHandle, type NetworkListener } from '../protocols/base';
 import type { NetworkHost } from '../nodes/generic';
 import type { SwitchHost } from '../nodes/switch';
 
-// https://www.rfc-editor.org/rfc/rfc2131
 export abstract class NetworkServices<T extends NetworkHost | SwitchHost> {
   protected enabled: boolean = false;
 

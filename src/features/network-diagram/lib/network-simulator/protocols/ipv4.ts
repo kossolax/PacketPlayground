@@ -1,3 +1,5 @@
+// RFC 791 - Internet Protocol
+// https://www.rfc-editor.org/rfc/rfc791
 import { Scheduler } from '@/features/network-diagram/lib/scheduler';
 import { IPAddress } from '../address';
 import type { NetworkInterface } from '../layers/network';

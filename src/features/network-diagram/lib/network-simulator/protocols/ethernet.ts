@@ -1,3 +1,5 @@
+// IEEE 802.3 - Ethernet
+// IEEE 802.1Q - Virtual Bridged Local Area Networks (VLAN Tagging)
 import type { HardwareAddress, MacAddress } from '../address';
 import type {
   Dot1QInterface,

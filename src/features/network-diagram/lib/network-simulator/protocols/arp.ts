@@ -1,3 +1,5 @@
+// RFC 826 - An Ethernet Address Resolution Protocol
+// https://www.rfc-editor.org/rfc/rfc826
 import { Scheduler } from '@/features/network-diagram/lib/scheduler';
 import { HardwareAddress, MacAddress, type NetworkAddress } from '../address';
 import type { HardwareInterface } from '../layers/datalink';

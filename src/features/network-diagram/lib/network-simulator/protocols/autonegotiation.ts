@@ -1,8 +1,8 @@
+// IEEE 802.3 - Auto-Negotiation (Clause 28 / Clause 73)
 import type { HardwareInterface, Interface } from '../layers/datalink';
 import { PhysicalMessage, type Payload } from '../message';
 import { ActionHandle, type PhysicalListener } from './base';
 
-//
 enum SelectorField {
   Ethernet, // 802.3
   IsLan, // 802.9

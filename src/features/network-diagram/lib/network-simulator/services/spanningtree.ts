@@ -1,3 +1,4 @@
+// IEEE 802.1D - Spanning Tree Protocol
 import { Scheduler } from '@/features/network-diagram/lib/scheduler';
 import { type HardwareAddress, MacAddress } from '../address';
 import { type HardwareInterface, type Interface } from '../layers/datalink';
