@@ -3,6 +3,8 @@ import type { SwitchHost } from '../lib/network-simulator/nodes/switch';
 import {
   SpanningTreeState,
   SpanningTreeProtocol,
+  SpanningTreePortRole,
+  PVSTService,
 } from '../lib/network-simulator/services/spanningtree';
 
 export interface StpPortInfo {
@@ -12,9 +14,29 @@ export interface StpPortInfo {
   cost: number;
 }
 
+function roleToString(role: SpanningTreePortRole): string {
+  switch (role) {
+    case SpanningTreePortRole.Disabled:
+      return 'Disabled';
+    case SpanningTreePortRole.Root:
+      return 'Root';
+    case SpanningTreePortRole.Designated:
+      return 'Designated';
+    case SpanningTreePortRole.Blocked:
+      return 'Blocked';
+    case SpanningTreePortRole.Alternate:
+      return 'Alternate';
+    case SpanningTreePortRole.Backup:
+      return 'Backup';
+    default:
+      return 'Unknown';
+  }
+}
+
 export default function useStpService(node: SwitchHost) {
   const [enabled, setEnabled] = useState(node.spanningTree.Enable);
   const [protocol, setProtocolState] = useState(node.getStpProtocol());
+  const [selectedVlan, setSelectedVlan] = useState<number | null>(null);
 
   // Sync with backend when enabled changes
   useEffect(() => {
@@ -27,81 +49,94 @@ export default function useStpService(node: SwitchHost) {
     node.setStpProtocol(protocol);
   }, [protocol, node]);
 
-  // Get bridge ID (MAC address)
-  // Bridge ID is the lowest MAC address of all interfaces
-  const getBridgeId = (): string => {
-    const interfaces = node.getInterfaces();
-    if (interfaces.length === 0) return 'Unknown';
-
-    // Get the first interface's MAC as default
-    const firstIface = node.getInterface(interfaces[0]);
-    return firstIface.getMacAddress()?.toString() || 'Unknown';
+  const getBridgeId = (vlanId?: number): string => {
+    if (protocol === SpanningTreeProtocol.PVST && vlanId !== undefined) {
+      const pvst = node.spanningTree as PVSTService;
+      const tree = pvst.getVlanTree(vlanId);
+      return tree?.BridgeId.toString() || 'Unknown';
+    }
+    return node.spanningTree.BridgeId.toString();
   };
 
-  // Get root bridge ID
-  const getRootId = (): string => node.spanningTree.Root.toString();
+  const getRootId = (vlanId?: number): string => {
+    if (protocol === SpanningTreeProtocol.PVST && vlanId !== undefined) {
+      const pvst = node.spanningTree as PVSTService;
+      const tree = pvst.getVlanTree(vlanId);
+      return tree?.Root.toString() || 'Unknown';
+    }
+    return node.spanningTree.Root.toString();
+  };
 
-  // Check if this switch is the root bridge
-  const getIsRoot = (): boolean => node.spanningTree.IsRoot;
+  const getIsRoot = (vlanId?: number): boolean => {
+    if (protocol === SpanningTreeProtocol.PVST && vlanId !== undefined) {
+      const pvst = node.spanningTree as PVSTService;
+      const tree = pvst.getVlanTree(vlanId);
+      return tree?.IsRoot ?? false;
+    }
+    return node.spanningTree.IsRoot;
+  };
 
-  // Set the spanning tree protocol type
   const setProtocol = (newProtocol: SpanningTreeProtocol): void => {
     setProtocolState(newProtocol);
+    setSelectedVlan(null);
   };
 
-  // Get priority (default STP priority is 32768)
-  const getPriority = (): number => 32768;
+  const getPriority = (vlanId?: number): number => {
+    if (protocol === SpanningTreeProtocol.PVST && vlanId !== undefined) {
+      const pvst = node.spanningTree as PVSTService;
+      const tree = pvst.getVlanTree(vlanId);
+      return tree?.Priority ?? 32768;
+    }
+    return node.spanningTree.Priority;
+  };
 
-  // Get all ports with their STP information
-  const getPortsInfo = (): StpPortInfo[] =>
+  const setPriority = (value: number, vlanId?: number): void => {
+    if (protocol === SpanningTreeProtocol.PVST && vlanId !== undefined) {
+      const pvst = node.spanningTree as PVSTService;
+      const tree = pvst.getVlanTree(vlanId);
+      if (tree) tree.Priority = value;
+    } else {
+      // eslint-disable-next-line no-param-reassign
+      node.spanningTree.Priority = value;
+    }
+  };
+
+  const getVlanIds = (): number[] => node.spanningTree.getVlanIds();
+
+  const getPortsInfo = (vlanId?: number): StpPortInfo[] =>
     node.getInterfaces().map((ifaceName) => {
       const iface = node.getInterface(ifaceName);
-      const state = node.spanningTree.State(iface);
-      const role = node.spanningTree.Role(iface);
-      const cost = node.spanningTree.Cost(iface);
-
-      // Convert role enum to string
-      let roleStr = 'Unknown';
-      switch (role) {
-        case 0:
-          roleStr = 'Disabled';
-          break;
-        case 1:
-          roleStr = 'Root';
-          break;
-        case 2:
-          roleStr = 'Designated';
-          break;
-        case 3:
-          roleStr = 'Blocked';
-          break;
-        case 4:
-          roleStr = 'Alternate';
-          break;
-        case 5:
-          roleStr = 'Backup';
-          break;
-        default:
-          roleStr = 'Unknown';
-      }
+      const state = node.spanningTree.State(iface, vlanId);
+      const role = node.spanningTree.Role(iface, vlanId);
+      const cost = node.spanningTree.Cost(iface, vlanId);
 
       return {
         name: ifaceName,
         state,
-        role: roleStr,
+        role: roleToString(role),
         cost,
       };
     });
+
+  const setPortCost = (ifaceName: string, value: number): void => {
+    const iface = node.getInterface(ifaceName);
+    node.spanningTree.setPortCost(iface, value);
+  };
 
   return {
     enabled,
     setEnabled,
     protocol,
     setProtocol,
+    selectedVlan,
+    setSelectedVlan,
     getBridgeId,
     getRootId,
     getIsRoot,
     getPriority,
+    setPriority,
+    getVlanIds,
     getPortsInfo,
+    setPortCost,
   };
 }

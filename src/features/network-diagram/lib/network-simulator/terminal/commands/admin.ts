@@ -1,5 +1,6 @@
 import { PingCommand } from './basic';
 import { ConfigCommand } from './config';
+import { ShowCommand } from './show';
 import { TerminalCommand } from '../command-base';
 
 export { PingCommand };
@@ -11,6 +12,7 @@ export class AdminCommand extends TerminalCommand {
 
     this.registerCommand(new PingCommand(this));
     this.registerCommand(new ConfigCommand(this));
+    this.registerCommand(new ShowCommand(this));
   }
 
   public override exec(

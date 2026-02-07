@@ -2,6 +2,7 @@ import { IPAddress } from '../../address';
 import type { RouterHost } from '../../nodes/router';
 import type { SwitchHost } from '../../nodes/switch';
 import { InterfaceCommand } from './interface';
+import { SpanningTreeConfigCommand } from './spanning-tree';
 import { TerminalCommand } from '../command-base';
 
 export { InterfaceCommand };
@@ -161,8 +162,10 @@ export class ConfigCommand extends TerminalCommand {
 
     if ('RoutingTable' in this.terminal.Node)
       this.registerCommand(new IPConfigCommand(this));
-    if ('knownVlan' in this.terminal.Node)
+    if ('knownVlan' in this.terminal.Node) {
       this.registerCommand(new VlanConfigCommand(this));
+      this.registerCommand(new SpanningTreeConfigCommand(this));
+    }
 
     this.registerCommand(new InterfaceCommand(this));
   }

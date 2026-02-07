@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -57,18 +58,28 @@ function getStateName(state: SpanningTreeState): string {
   }
 }
 
+const VALID_PRIORITIES = Array.from({ length: 16 }, (_, i) => i * 4096);
+
 export default function StpServiceConfig({ node }: StpServiceConfigProps) {
   const {
     enabled,
     setEnabled,
     protocol,
     setProtocol,
+    selectedVlan,
+    setSelectedVlan,
     getBridgeId,
     getRootId,
     getIsRoot,
     getPriority,
+    setPriority,
+    getVlanIds,
     getPortsInfo,
+    setPortCost,
   } = useStpService(node);
+
+  const isPvst = protocol === SpanningTreeProtocol.PVST;
+  const activeVlan = isPvst ? (selectedVlan ?? undefined) : undefined;
 
   return (
     <div className="space-y-6">
@@ -135,6 +146,31 @@ export default function StpServiceConfig({ node }: StpServiceConfigProps) {
         </CardContent>
       </Card>
 
+      {enabled && isPvst && (
+        <Card>
+          <CardHeader>
+            <CardTitle>VLAN Selection</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Select
+              value={selectedVlan !== null ? String(selectedVlan) : ''}
+              onValueChange={(value) => setSelectedVlan(parseInt(value, 10))}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select a VLAN to view" />
+              </SelectTrigger>
+              <SelectContent>
+                {getVlanIds().map((vlanId) => (
+                  <SelectItem key={vlanId} value={String(vlanId)}>
+                    VLAN {vlanId}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </CardContent>
+        </Card>
+      )}
+
       {enabled && (
         <>
           <Card>
@@ -147,13 +183,32 @@ export default function StpServiceConfig({ node }: StpServiceConfigProps) {
                   <Label className="text-muted-foreground text-xs">
                     Bridge ID
                   </Label>
-                  <p className="font-mono text-sm">{getBridgeId()}</p>
+                  <p className="font-mono text-sm">{getBridgeId(activeVlan)}</p>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-muted-foreground text-xs">
+                  <Label
+                    htmlFor="stp-priority"
+                    className="text-muted-foreground text-xs"
+                  >
                     Priority
                   </Label>
-                  <p className="font-mono text-sm">{getPriority()}</p>
+                  <Select
+                    value={String(getPriority(activeVlan))}
+                    onValueChange={(value) =>
+                      setPriority(parseInt(value, 10), activeVlan)
+                    }
+                  >
+                    <SelectTrigger id="stp-priority" className="h-8">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {VALID_PRIORITIES.map((p) => (
+                        <SelectItem key={p} value={String(p)}>
+                          {p}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -161,14 +216,14 @@ export default function StpServiceConfig({ node }: StpServiceConfigProps) {
                   <Label className="text-muted-foreground text-xs">
                     Root Bridge ID
                   </Label>
-                  <p className="font-mono text-sm">{getRootId()}</p>
+                  <p className="font-mono text-sm">{getRootId(activeVlan)}</p>
                 </div>
                 <div className="space-y-1">
                   <Label className="text-muted-foreground text-xs">
                     Root Bridge
                   </Label>
                   <div>
-                    {getIsRoot() ? (
+                    {getIsRoot(activeVlan) ? (
                       <Badge variant="default" className="bg-green-500">
                         This switch
                       </Badge>
@@ -187,31 +242,42 @@ export default function StpServiceConfig({ node }: StpServiceConfigProps) {
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                <div className="grid grid-cols-4 gap-2 pb-2 border-b text-muted-foreground text-xs font-medium">
+                <div className="grid grid-cols-4 gap-2 border-b pb-2 text-xs font-medium text-muted-foreground">
                   <div>Interface</div>
                   <div>State</div>
                   <div>Role</div>
                   <div className="text-right">Cost</div>
                 </div>
-                {getPortsInfo().map((port) => (
+                {getPortsInfo(activeVlan).map((port) => (
                   <div
                     key={port.name}
-                    className="grid grid-cols-4 gap-2 py-2 border-b last:border-0 text-sm"
+                    className="grid grid-cols-4 items-center gap-2 border-b py-2 text-sm last:border-0"
                   >
-                    <div className="font-mono truncate" title={port.name}>
+                    <div className="truncate font-mono" title={port.name}>
                       {port.name}
                     </div>
                     <div>
                       <Badge
                         variant="outline"
-                        className={`${getStateColor(port.state)} text-white border-0`}
+                        className={`${getStateColor(port.state)} border-0 text-white`}
                       >
                         {getStateName(port.state)}
                       </Badge>
                     </div>
                     <div className="text-muted-foreground">{port.role}</div>
-                    <div className="text-right font-mono text-muted-foreground">
-                      {port.cost === Number.MAX_VALUE ? '∞' : port.cost}
+                    <div className="text-right">
+                      <Input
+                        type="number"
+                        className="h-7 w-20 text-right font-mono text-xs ml-auto"
+                        value={port.cost === Number.MAX_VALUE ? '' : port.cost}
+                        placeholder="auto"
+                        min={0}
+                        max={200000000}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value, 10);
+                          setPortCost(port.name, Number.isNaN(val) ? 0 : val);
+                        }}
+                      />
                     </div>
                   </div>
                 ))}

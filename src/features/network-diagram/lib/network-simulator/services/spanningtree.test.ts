@@ -6,14 +6,17 @@ import {
 import { Link } from '../layers/physical';
 import {
   SpanningTreeMessage,
+  PVSTMessage,
   SpanningTreePortRole,
   SpanningTreeState,
   SpanningTreeProtocol,
+  createSpanningTreeService,
 } from './spanningtree';
 import { MacAddress } from '../address';
 import { SwitchHost } from '../nodes/switch';
 import { ActionHandle, type DatalinkListener } from '../protocols/base';
-import type { DatalinkMessage } from '../message';
+import { DatalinkMessage } from '../message';
+import { EthernetMessage } from '../protocols/ethernet';
 import type { HardwareInterface } from '../layers/datalink';
 
 // Test listener helper
@@ -1476,6 +1479,127 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
       A.destroy();
     });
 
+    it('should return Continue for non-STP frames on non-Blocking port', async () => {
+      const A = new SwitchHost('A', 1);
+      const B = new SwitchHost('B', 1);
+
+      A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
+      B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
+
+      A.spanningTree.Enable = true;
+      B.spanningTree.Enable = true;
+
+      A.getInterface(0).up();
+      B.getInterface(0).up();
+
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+      const _AB = new Link(A.getInterface(0), B.getInterface(0));
+
+      // Wait for Forwarding state
+      await waitForConvergence(
+        () =>
+          A.spanningTree.IsRoot &&
+          A.spanningTree.State(A.getInterface(0)) ===
+            SpanningTreeState.Forwarding,
+        [A, B],
+        10000
+      );
+
+      // Send a non-STP frame on a Forwarding port
+      const dataFrame = new EthernetMessage.Builder()
+        .setMacSource(new MacAddress('AA:BB:CC:DD:EE:01'))
+        .setMacDestination(new MacAddress('AA:BB:CC:DD:EE:02'))
+        .build();
+
+      const result = A.spanningTree.receiveTrame(dataFrame, A.getInterface(0));
+      expect(result).toBe(ActionHandle.Continue);
+
+      A.destroy();
+      B.destroy();
+    });
+
+    it('should return Stop for non-STP frames on Blocking port', async () => {
+      const A = new SwitchHost('A', 2);
+      const B = new SwitchHost('B', 2);
+      const C = new SwitchHost('C', 2);
+
+      A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
+      B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
+      C.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:03'));
+
+      // eslint-disable-next-line no-restricted-syntax
+      for (const sw of [A, B, C]) {
+        sw.spanningTree.Enable = true;
+        sw.getInterface(0).up();
+        sw.getInterface(1).up();
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+      const _AB = new Link(A.getInterface(0), B.getInterface(0));
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+      const _BC = new Link(B.getInterface(1), C.getInterface(0));
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+      const _CA = new Link(C.getInterface(1), A.getInterface(1));
+
+      await waitForConvergence(
+        () => {
+          if (!A.spanningTree.IsRoot) return false;
+          let blocked = false;
+          [B, C].forEach((sw) => {
+            sw.getInterfaces().forEach((ifaceName) => {
+              const iface = sw.getInterface(ifaceName);
+              const role = sw.spanningTree.Role(iface);
+              if (
+                role === SpanningTreePortRole.Blocked ||
+                role === SpanningTreePortRole.Alternate ||
+                role === SpanningTreePortRole.Backup
+              ) {
+                blocked = true;
+              }
+            });
+          });
+          return blocked;
+        },
+        [A, B, C],
+        10000
+      );
+
+      // Find the blocked port
+      let blockedPort: HardwareInterface | null = null;
+      let blockedSwitch: SwitchHost | null = null;
+
+      [B, C].forEach((sw) => {
+        sw.getInterfaces().forEach((ifaceName) => {
+          const iface = sw.getInterface(ifaceName);
+          const role = sw.spanningTree.Role(iface);
+          if (
+            role === SpanningTreePortRole.Blocked ||
+            role === SpanningTreePortRole.Alternate ||
+            role === SpanningTreePortRole.Backup
+          ) {
+            blockedPort = iface;
+            blockedSwitch = sw;
+          }
+        });
+      });
+
+      expect(blockedPort).not.toBeNull();
+
+      // Send a non-STP frame on the blocked port — should be stopped
+      const dataFrame = new EthernetMessage.Builder()
+        .setMacSource(new MacAddress('AA:BB:CC:DD:EE:01'))
+        .setMacDestination(new MacAddress('AA:BB:CC:DD:EE:02'))
+        .build();
+
+      const result = blockedSwitch!.spanningTree.receiveTrame(
+        dataFrame,
+        blockedPort!
+      );
+      expect(result).toBe(ActionHandle.Stop);
+
+      [A, B, C].forEach((sw) => sw.destroy());
+    });
+
     it('should forward frames on Forwarding port', async () => {
       const A = new SwitchHost('A', 1);
       const B = new SwitchHost('B', 1);
@@ -1717,6 +1841,626 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
       expect(state10).toBeDefined();
       expect(state20).toBeDefined();
       expect(state30).toBeDefined();
+
+      A.destroy();
+    });
+
+    it('should preserve all BPDU fields in PVSTMessage.fromSTP()', () => {
+      const srcMac = new MacAddress('AA:BB:CC:DD:EE:FF');
+      const bridgeMac = new MacAddress('00:00:00:00:00:02');
+      const rootMac = new MacAddress('00:00:00:00:00:01');
+
+      const stp = new SpanningTreeMessage.Builder()
+        .setMacSource(srcMac)
+        .setBridge(bridgeMac)
+        .setRoot(rootMac)
+        .setPort('GigabitEthernet0/1')
+        .setCost(42)
+        .setMessageAge(5)
+        .build();
+
+      const pvst = PVSTMessage.fromSTP(stp, 10);
+
+      // Must be PVSTMessage (and SpanningTreeMessage via inheritance)
+      expect(pvst).toBeInstanceOf(PVSTMessage);
+      expect(pvst).toBeInstanceOf(SpanningTreeMessage);
+
+      // PVST-specific fields
+      expect(pvst.vlanId).toBe(10);
+      expect(pvst.macDst.equals(new MacAddress('01:00:0C:CC:CC:CD'))).toBe(
+        true
+      );
+
+      // All standard BPDU fields must be preserved
+      expect(pvst.macSrc.equals(srcMac)).toBe(true);
+      expect(pvst.bridgeId.mac.equals(bridgeMac)).toBe(true);
+      expect(pvst.rootId.mac.equals(rootMac)).toBe(true);
+      expect(pvst.rootPathCost).toBe(42);
+      expect(pvst.messageAge).toBe(5);
+      expect(pvst.portId.globalId).toBe(stp.portId.globalId);
+      expect(pvst.maxAge).toBe(stp.maxAge);
+      expect(pvst.helloTime).toBe(stp.helloTime);
+      expect(pvst.forwardDelay).toBe(stp.forwardDelay);
+    });
+
+    it('should drop PVSTMessage for unknown VLAN', () => {
+      const A = new SwitchHost('A', 1, SpanningTreeProtocol.PVST);
+      A.knownVlan[10] = 'VLAN 10';
+      A.spanningTree.Enable = true;
+      A.getInterface(0).up();
+
+      // Create a PVSTMessage for VLAN 99 (not configured)
+      const stp = new SpanningTreeMessage.Builder()
+        .setMacSource(new MacAddress('00:00:00:00:00:FF'))
+        .setBridge(new MacAddress('00:00:00:00:00:FF'))
+        .setRoot(new MacAddress('00:00:00:00:00:FF'))
+        .setPort('eth0')
+        .setCost(0)
+        .setMessageAge(0)
+        .build();
+      const pvstMsg = PVSTMessage.fromSTP(stp, 99);
+
+      const result = A.spanningTree.receiveTrame(pvstMsg, A.getInterface(0));
+      expect(result).toBe(ActionHandle.Stop);
+
+      A.destroy();
+    });
+
+    it('should route standard STP BPDU to VLAN 0 tree as fallback', () => {
+      const A = new SwitchHost('A', 1, SpanningTreeProtocol.PVST);
+      A.knownVlan[10] = 'VLAN 10';
+      A.spanningTree.Enable = true;
+      A.getInterface(0).up();
+
+      // Create a standard STP BPDU (not PVSTMessage)
+      const stpBpdu = new SpanningTreeMessage.Builder()
+        .setMacSource(new MacAddress('00:00:00:00:00:FF'))
+        .setBridge(new MacAddress('00:00:00:00:00:FF'))
+        .setRoot(new MacAddress('00:00:00:00:00:FF'))
+        .setPort('eth0')
+        .setCost(0)
+        .setMessageAge(0)
+        .build();
+
+      // Should route to VLAN 0 tree (from interface default) and process it
+      const result = A.spanningTree.receiveTrame(stpBpdu, A.getInterface(0));
+      expect(result).toBe(ActionHandle.Handled);
+
+      A.destroy();
+    });
+
+    it('should block data frames on Blocking port per VLAN', async () => {
+      const A = new SwitchHost('A', 2, SpanningTreeProtocol.PVST);
+      const B = new SwitchHost('B', 2, SpanningTreeProtocol.PVST);
+      const C = new SwitchHost('C', 2, SpanningTreeProtocol.PVST);
+
+      // eslint-disable-next-line no-restricted-syntax
+      for (const sw of [A, B, C]) {
+        sw.knownVlan[10] = 'VLAN 10';
+      }
+
+      A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
+      B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
+      C.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:03'));
+
+      // eslint-disable-next-line no-restricted-syntax
+      for (const sw of [A, B, C]) {
+        sw.spanningTree.Enable = true;
+        sw.getInterface(0).up();
+        sw.getInterface(1).up();
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+      const _AB = new Link(A.getInterface(0), B.getInterface(0));
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+      const _BC = new Link(B.getInterface(1), C.getInterface(0));
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+      const _CA = new Link(C.getInterface(1), A.getInterface(1));
+
+      await waitForConvergence(
+        () => {
+          if (!A.spanningTree.IsRoot) return false;
+          let blocked = false;
+          [B, C].forEach((sw) => {
+            sw.getInterfaces().forEach((ifaceName) => {
+              const iface = sw.getInterface(ifaceName);
+              if (sw.spanningTree.State(iface) === SpanningTreeState.Blocking) {
+                blocked = true;
+              }
+            });
+          });
+          return blocked;
+        },
+        [A, B, C],
+        10000
+      );
+
+      // Find the blocked port
+      let blockedPort: HardwareInterface | null = null;
+      let blockedSwitch: SwitchHost | null = null;
+
+      [B, C].forEach((sw) => {
+        sw.getInterfaces().forEach((ifaceName) => {
+          const iface = sw.getInterface(ifaceName);
+          if (sw.spanningTree.State(iface) === SpanningTreeState.Blocking) {
+            blockedPort = iface;
+            blockedSwitch = sw;
+          }
+        });
+      });
+
+      expect(blockedPort).not.toBeNull();
+
+      // Send a data frame (non-STP) on the blocked port — should be stopped
+      const dataFrame = new EthernetMessage.Builder()
+        .setMacSource(new MacAddress('AA:BB:CC:DD:EE:01'))
+        .setMacDestination(new MacAddress('AA:BB:CC:DD:EE:02'))
+        .build();
+
+      const result = blockedSwitch!.spanningTree.receiveTrame(
+        dataFrame,
+        blockedPort!
+      );
+      expect(result).toBe(ActionHandle.Stop);
+
+      [A, B, C].forEach((sw) => sw.destroy());
+    });
+
+    it('should block loops in triangle topology per VLAN', async () => {
+      const A = new SwitchHost('A', 2, SpanningTreeProtocol.PVST);
+      const B = new SwitchHost('B', 2, SpanningTreeProtocol.PVST);
+      const C = new SwitchHost('C', 2, SpanningTreeProtocol.PVST);
+
+      // eslint-disable-next-line no-restricted-syntax
+      for (const sw of [A, B, C]) {
+        sw.knownVlan[10] = 'VLAN 10';
+      }
+
+      A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
+      B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
+      C.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:03'));
+
+      // eslint-disable-next-line no-restricted-syntax
+      for (const sw of [A, B, C]) {
+        sw.spanningTree.Enable = true;
+        sw.getInterface(0).up();
+        sw.getInterface(1).up();
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+      const _AB = new Link(A.getInterface(0), B.getInterface(0));
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+      const _BC = new Link(B.getInterface(1), C.getInterface(0));
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+      const _CA = new Link(C.getInterface(1), A.getInterface(1));
+
+      // Wait for convergence with at least one blocked port for VLAN 10
+      await waitForConvergence(
+        () => {
+          if (!A.spanningTree.IsRoot) return false;
+          let blocked = 0;
+          [A, B, C].forEach((sw) => {
+            sw.getInterfaces().forEach((ifaceName) => {
+              const iface = sw.getInterface(ifaceName);
+              const role = sw.spanningTree.Role(iface, 10);
+              if (
+                role === SpanningTreePortRole.Blocked ||
+                role === SpanningTreePortRole.Alternate ||
+                role === SpanningTreePortRole.Backup
+              ) {
+                blocked += 1;
+              }
+            });
+          });
+          return blocked >= 1;
+        },
+        [A, B, C],
+        10000
+      );
+
+      // Count blocked ports for VLAN 10
+      let blockedCount = 0;
+      [A, B, C].forEach((sw) => {
+        sw.getInterfaces().forEach((ifaceName) => {
+          const iface = sw.getInterface(ifaceName);
+          const role = sw.spanningTree.Role(iface, 10);
+          if (
+            role === SpanningTreePortRole.Blocked ||
+            role === SpanningTreePortRole.Alternate ||
+            role === SpanningTreePortRole.Backup
+          ) {
+            blockedCount += 1;
+          }
+        });
+      });
+
+      expect(blockedCount).toBeGreaterThanOrEqual(1);
+
+      [A, B, C].forEach((sw) => sw.destroy());
+    });
+
+    it('should converge independently per VLAN', async () => {
+      const A = new SwitchHost('A', 1, SpanningTreeProtocol.PVST);
+      const B = new SwitchHost('B', 1, SpanningTreeProtocol.PVST);
+
+      A.knownVlan[10] = 'VLAN 10';
+      A.knownVlan[20] = 'VLAN 20';
+      B.knownVlan[10] = 'VLAN 10';
+      B.knownVlan[20] = 'VLAN 20';
+
+      A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
+      B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
+
+      A.spanningTree.Enable = true;
+      B.spanningTree.Enable = true;
+
+      A.getInterface(0).up();
+      B.getInterface(0).up();
+
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+      const _AB = new Link(A.getInterface(0), B.getInterface(0));
+
+      // Wait for convergence
+      await waitForConvergence(
+        () => A.spanningTree.IsRoot && !B.spanningTree.IsRoot,
+        [A, B]
+      );
+
+      // Both VLANs should have A as root
+      // VLAN 10: B's port should be Root
+      const bRoleV10 = B.spanningTree.Role(B.getInterface(0), 10);
+      expect(bRoleV10).toBe(SpanningTreePortRole.Root);
+
+      // VLAN 20: B's port should also be Root
+      const bRoleV20 = B.spanningTree.Role(B.getInterface(0), 20);
+      expect(bRoleV20).toBe(SpanningTreePortRole.Root);
+
+      // Both VLANs should have valid costs
+      const bCostV10 = B.spanningTree.Cost(B.getInterface(0), 10);
+      const bCostV20 = B.spanningTree.Cost(B.getInterface(0), 20);
+      expect(bCostV10).toBeGreaterThan(0);
+      expect(bCostV20).toBeGreaterThan(0);
+
+      A.destroy();
+      B.destroy();
+    });
+
+    it('should send PVSTMessage with Cisco multicast address 01:00:0C:CC:CC:CD', async () => {
+      const A = new SwitchHost('A', 1, SpanningTreeProtocol.PVST);
+      const B = new SwitchHost('B', 1, SpanningTreeProtocol.PVST);
+
+      A.knownVlan[10] = 'VLAN 10';
+      B.knownVlan[10] = 'VLAN 10';
+
+      A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
+      B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
+
+      A.spanningTree.Enable = true;
+      B.spanningTree.Enable = true;
+
+      A.getInterface(0).up();
+      B.getInterface(0).up();
+
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+      const _AB = new Link(A.getInterface(0), B.getInterface(0));
+
+      const listener = new TestListener();
+      B.getInterface(0).addListener(listener);
+
+      A.spanningTree.negociate();
+
+      await new Promise((resolve) => {
+        setTimeout(resolve, 100);
+      });
+
+      const pvstMsgs = listener.receivedTrames.filter(
+        (m) => m instanceof PVSTMessage
+      ) as PVSTMessage[];
+
+      expect(pvstMsgs.length).toBeGreaterThan(0);
+
+      // PVST must use Cisco multicast address, not STP standard address
+      const pvstMulticast = new MacAddress('01:00:0C:CC:CC:CD');
+      pvstMsgs.forEach((msg) => {
+        expect(msg.macDst.equals(pvstMulticast)).toBe(true);
+      });
+
+      // At least one PVSTMessage for VLAN 10 must be present
+      const vlan10Msgs = pvstMsgs.filter((msg) => msg.vlanId === 10);
+      expect(vlan10Msgs.length).toBeGreaterThan(0);
+
+      A.destroy();
+      B.destroy();
+    });
+
+    it('should send standard SpanningTreeMessage with IEEE multicast for STP mode', async () => {
+      const A = new SwitchHost('A', 1, SpanningTreeProtocol.STP);
+      const B = new SwitchHost('B', 1, SpanningTreeProtocol.STP);
+
+      A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
+      B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
+
+      A.spanningTree.Enable = true;
+      B.spanningTree.Enable = true;
+
+      A.getInterface(0).up();
+      B.getInterface(0).up();
+
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+      const _AB = new Link(A.getInterface(0), B.getInterface(0));
+
+      const listener = new TestListener();
+      B.getInterface(0).addListener(listener);
+
+      A.spanningTree.negociate();
+
+      await new Promise((resolve) => {
+        setTimeout(resolve, 100);
+      });
+
+      const stpMsgs = listener.receivedTrames.filter(
+        (m) => m instanceof SpanningTreeMessage
+      ) as SpanningTreeMessage[];
+
+      expect(stpMsgs.length).toBeGreaterThan(0);
+
+      // STP must use IEEE 802.1D multicast, NOT Cisco address
+      const stpMulticast = new MacAddress('01:80:C2:00:00:00');
+      stpMsgs.forEach((msg) => {
+        expect(msg.macDst.equals(stpMulticast)).toBe(true);
+      });
+
+      // STP messages should NOT be PVSTMessage instances
+      const pvstMsgs = stpMsgs.filter((m) => m instanceof PVSTMessage);
+      expect(pvstMsgs.length).toBe(0);
+
+      A.destroy();
+      B.destroy();
+    });
+
+    it('should route received PVSTMessage to correct VLAN tree', async () => {
+      const A = new SwitchHost('A', 1, SpanningTreeProtocol.PVST);
+      const B = new SwitchHost('B', 1, SpanningTreeProtocol.PVST);
+
+      A.knownVlan[10] = 'VLAN 10';
+      A.knownVlan[20] = 'VLAN 20';
+      B.knownVlan[10] = 'VLAN 10';
+      B.knownVlan[20] = 'VLAN 20';
+
+      A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
+      B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
+
+      A.spanningTree.Enable = true;
+      B.spanningTree.Enable = true;
+
+      A.getInterface(0).up();
+      B.getInterface(0).up();
+
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+      const _AB = new Link(A.getInterface(0), B.getInterface(0));
+
+      // Wait for convergence with A as root for both VLANs
+      await waitForConvergence(
+        () =>
+          A.spanningTree.IsRoot &&
+          !B.spanningTree.IsRoot &&
+          B.spanningTree.Root.equals(A.spanningTree.BridgeId),
+        [A, B]
+      );
+
+      // B should recognize A as root for both VLANs (received PVSTMessages were routed correctly)
+      expect(B.spanningTree.IsRoot).toBe(false);
+      expect(B.spanningTree.Root.equals(A.spanningTree.BridgeId)).toBe(true);
+
+      A.destroy();
+      B.destroy();
+    });
+  });
+
+  describe('createSpanningTreeService Factory', () => {
+    it('should return disabled STP for None protocol', () => {
+      const A = new SwitchHost('A', 1);
+      const service = createSpanningTreeService(SpanningTreeProtocol.None, A);
+      expect(service.getProtocolType()).toBe(SpanningTreeProtocol.STP);
+      expect(service.Enable).toBe(false);
+      service.destroy();
+      A.destroy();
+    });
+
+    it('should return enabled STP for STP protocol', () => {
+      const A = new SwitchHost('A', 1);
+      const service = createSpanningTreeService(SpanningTreeProtocol.STP, A);
+      expect(service.getProtocolType()).toBe(SpanningTreeProtocol.STP);
+      expect(service.Enable).toBe(true);
+      service.destroy();
+      A.destroy();
+    });
+
+    it('should return PVSTService for PVST protocol', () => {
+      const A = new SwitchHost('A', 1);
+      const service = createSpanningTreeService(SpanningTreeProtocol.PVST, A);
+      expect(service.getProtocolType()).toBe(SpanningTreeProtocol.PVST);
+      expect(service.Enable).toBe(true);
+      service.destroy();
+      A.destroy();
+    });
+
+    it('should throw for RPVST protocol', () => {
+      const A = new SwitchHost('A', 1);
+      expect(() =>
+        createSpanningTreeService(SpanningTreeProtocol.RPVST, A)
+      ).toThrow('not yet implemented');
+      A.destroy();
+    });
+
+    it('should throw for MSTP protocol', () => {
+      const A = new SwitchHost('A', 1);
+      expect(() =>
+        createSpanningTreeService(SpanningTreeProtocol.MSTP, A)
+      ).toThrow('not yet implemented');
+      A.destroy();
+    });
+  });
+
+  describe('Bridge Priority Configuration', () => {
+    it('should default to priority 32768', () => {
+      const A = new SwitchHost('A', 1, SpanningTreeProtocol.STP);
+      expect(A.spanningTree.Priority).toBe(32768);
+      A.destroy();
+    });
+
+    it('should accept valid priority (multiple of 4096)', () => {
+      const A = new SwitchHost('A', 1, SpanningTreeProtocol.STP);
+      A.spanningTree.Priority = 4096;
+      expect(A.spanningTree.Priority).toBe(4096);
+      A.destroy();
+    });
+
+    it('should accept priority 0', () => {
+      const A = new SwitchHost('A', 1, SpanningTreeProtocol.STP);
+      A.spanningTree.Priority = 0;
+      expect(A.spanningTree.Priority).toBe(0);
+      A.destroy();
+    });
+
+    it('should reject invalid priority (not multiple of 4096)', () => {
+      const A = new SwitchHost('A', 1, SpanningTreeProtocol.STP);
+      expect(() => {
+        A.spanningTree.Priority = 1000;
+      }).toThrow();
+      A.destroy();
+    });
+
+    it('should reject priority > 61440', () => {
+      const A = new SwitchHost('A', 1, SpanningTreeProtocol.STP);
+      expect(() => {
+        A.spanningTree.Priority = 65536;
+      }).toThrow();
+      A.destroy();
+    });
+
+    it('should influence root election (lower priority wins)', async () => {
+      const A = new SwitchHost('A', 1, SpanningTreeProtocol.STP);
+      const B = new SwitchHost('B', 1, SpanningTreeProtocol.STP);
+
+      // Give B a higher MAC so normally A wins
+      A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
+      B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
+
+      // But give B lower priority
+      B.spanningTree.Priority = 4096;
+
+      A.spanningTree.Enable = true;
+      B.spanningTree.Enable = true;
+      A.getInterface(0).up();
+      B.getInterface(0).up();
+
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+      const _AB = new Link(A.getInterface(0), B.getInterface(0));
+
+      await waitForConvergence(() => B.spanningTree.IsRoot, [A, B]);
+
+      // B should be root because it has lower priority
+      expect(B.spanningTree.IsRoot).toBe(true);
+
+      A.destroy();
+      B.destroy();
+    });
+
+    it('should propagate priority in BPDUs', async () => {
+      const A = new SwitchHost('A', 1, SpanningTreeProtocol.STP);
+      const B = new SwitchHost('B', 1, SpanningTreeProtocol.STP);
+
+      A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
+      B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
+
+      A.spanningTree.Priority = 4096;
+      A.spanningTree.Enable = true;
+      B.spanningTree.Enable = true;
+      A.getInterface(0).up();
+      B.getInterface(0).up();
+
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+      const _AB = new Link(A.getInterface(0), B.getInterface(0));
+
+      const listener = new TestListener();
+      B.getInterface(0).addListener(listener);
+
+      A.spanningTree.negociate();
+
+      await new Promise((resolve) => {
+        setTimeout(resolve, 100);
+      });
+
+      const stpMsgs = listener.receivedTrames.filter(
+        (m) => m instanceof SpanningTreeMessage
+      ) as SpanningTreeMessage[];
+
+      expect(stpMsgs.length).toBeGreaterThan(0);
+      // Bridge priority should be 4096 in the BPDUs
+      stpMsgs.forEach((msg) => {
+        expect(msg.bridgeId.priority).toBe(4096);
+      });
+
+      A.destroy();
+      B.destroy();
+    });
+
+    it('should set priority per-VLAN in PVST', () => {
+      const A = new SwitchHost('A', 1, SpanningTreeProtocol.PVST);
+      A.knownVlan[10] = 'VLAN 10';
+      A.knownVlan[20] = 'VLAN 20';
+      A.spanningTree.Enable = true;
+
+      // Set all VLANs to same priority
+      A.spanningTree.Priority = 8192;
+      expect(A.spanningTree.Priority).toBe(8192);
+
+      A.destroy();
+    });
+  });
+
+  describe('Per-Port Cost Configuration', () => {
+    it('should allow setting port cost manually', () => {
+      const A = new SwitchHost('A', 2, SpanningTreeProtocol.STP);
+      A.spanningTree.Enable = true;
+      A.getInterface(0).up();
+
+      A.spanningTree.setPortCost(A.getInterface(0), 100);
+      expect(A.spanningTree.Cost(A.getInterface(0))).toBe(100);
+
+      A.destroy();
+    });
+
+    it('should propagate setPortCost across all VLANs in PVST', () => {
+      const A = new SwitchHost('A', 1, SpanningTreeProtocol.PVST);
+      A.knownVlan[10] = 'VLAN 10';
+      A.knownVlan[20] = 'VLAN 20';
+      A.spanningTree.Enable = true;
+      A.getInterface(0).up();
+
+      A.spanningTree.setPortCost(A.getInterface(0), 50);
+      expect(A.spanningTree.Cost(A.getInterface(0), 10)).toBe(50);
+      expect(A.spanningTree.Cost(A.getInterface(0), 20)).toBe(50);
+
+      A.destroy();
+    });
+
+    it('should return getVlanIds for STP (single tree)', () => {
+      const A = new SwitchHost('A', 1, SpanningTreeProtocol.STP);
+      expect(A.spanningTree.getVlanIds()).toEqual([0]);
+      A.destroy();
+    });
+
+    it('should return getVlanIds for PVST (all VLANs)', () => {
+      const A = new SwitchHost('A', 1, SpanningTreeProtocol.PVST);
+      A.knownVlan[10] = 'VLAN 10';
+      A.knownVlan[20] = 'VLAN 20';
+      A.spanningTree.Enable = true;
+
+      const vlanIds = A.spanningTree.getVlanIds();
+      expect(vlanIds).toContain(10);
+      expect(vlanIds).toContain(20);
 
       A.destroy();
     });

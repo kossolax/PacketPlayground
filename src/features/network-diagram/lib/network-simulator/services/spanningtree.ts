@@ -39,6 +39,7 @@ export enum SpanningTreeProtocol {
 }
 
 const SpanningTreeMultiCastAddress = new MacAddress('01:80:C2:00:00:00');
+const PVSTMultiCastAddress = new MacAddress('01:00:0C:CC:CC:CD');
 
 export class SpanningTreeMessage extends EthernetMessage {
   public protocolId = 0;
@@ -99,15 +100,29 @@ export class SpanningTreeMessage extends EthernetMessage {
 
     private bridge = new MacAddress('FF:FF:FF:FF:FF:FF');
 
+    private bridgePriority = 32768;
+
     public setBridge(bridge: MacAddress): this {
       this.bridge = bridge;
       return this;
     }
 
+    public setBridgePriority(priority: number): this {
+      this.bridgePriority = priority;
+      return this;
+    }
+
     private root = new MacAddress('FF:FF:FF:FF:FF:FF');
+
+    private rootPriority = 32768;
 
     public setRoot(root: MacAddress): this {
       this.root = root;
+      return this;
+    }
+
+    public setRootPriority(priority: number): this {
+      this.rootPriority = priority;
       return this;
     }
 
@@ -153,7 +168,9 @@ export class SpanningTreeMessage extends EthernetMessage {
 
       // Set Bridge ID in BPDU payload (lowest MAC of all interfaces)
       message.bridgeId.mac = this.bridge;
+      message.bridgeId.priority = this.bridgePriority;
       message.rootId.mac = this.root;
+      message.rootId.priority = this.rootPriority;
       message.messageType = this.type;
       message.rootPathCost = this.cost;
       message.portId.globalId = this.port;
@@ -176,15 +193,12 @@ export class PVSTMessage extends SpanningTreeMessage {
     return `PVST (VLAN=${this.vlanId}, age=${this.messageAge})`;
   }
 
-  public static setVlanId(
-    message: SpanningTreeMessage,
-    vlanId: number
-  ): PVSTMessage {
-    // Convert SpanningTreeMessage to PVSTMessage by copying all fields
-    const pvstMsg = Object.create(PVSTMessage.prototype);
-    Object.assign(pvstMsg, message);
-    pvstMsg.vlanId = vlanId;
-    return pvstMsg;
+  public static fromSTP(stp: SpanningTreeMessage, vlanId: number): PVSTMessage {
+    const pvst = Object.create(PVSTMessage.prototype) as PVSTMessage;
+    Object.assign(pvst, stp);
+    pvst.macDst = PVSTMultiCastAddress;
+    pvst.vlanId = vlanId;
+    return pvst;
   }
 }
 
@@ -233,9 +247,30 @@ export abstract class SpanningTreeService
   abstract get BridgeId(): MacAddress;
 
   /**
+   * Returns the bridge priority (default 32768)
+   */
+  abstract get Priority(): number;
+
+  /**
+   * Sets the bridge priority (must be multiple of 4096 per IEEE 802.1D)
+   */
+  abstract set Priority(value: number);
+
+  /**
    * Returns true if this bridge is the root bridge
    */
   abstract get IsRoot(): boolean;
+
+  /**
+   * Sets a manual port cost override for a given interface
+   */
+  abstract setPortCost(iface: Interface, value: number): void;
+
+  /**
+   * Returns the list of VLAN IDs managed by this service.
+   * For STP, returns [0] (single tree). For PVST, returns all discovered VLANs.
+   */
+  abstract getVlanIds(): number[];
 
   /**
    * Performs spanning tree negotiation (sends BPDUs)
@@ -291,6 +326,21 @@ export class STPService
 
   get BridgeId(): MacAddress {
     return this.bridgeId.mac;
+  }
+
+  get Priority(): number {
+    return this.bridgeId.priority;
+  }
+
+  set Priority(value: number) {
+    if (value % 4096 !== 0 || value < 0 || value > 61440) {
+      throw new Error(
+        'Bridge priority must be a multiple of 4096 between 0 and 61440'
+      );
+    }
+    this.bridgeId.priority = value;
+    this.rootId.priority = Math.min(this.rootId.priority, value);
+    this.setDefaultRoot();
   }
 
   get IsRoot(): boolean {
@@ -363,6 +413,15 @@ export class STPService
   public Cost(iface: Interface, _vlanId?: number): number {
     // STP ignores vlanId (single tree for all VLANs)
     return this.cost.get(iface) ?? Number.MAX_VALUE;
+  }
+
+  public setPortCost(iface: Interface, value: number): void {
+    this.cost.set(iface, value);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/class-methods-use-this
+  public getVlanIds(): number[] {
+    return [0];
   }
 
   override set Enable(enable: boolean) {
@@ -618,6 +677,23 @@ export class STPService
     return message.portId.globalId < myPortId;
   }
 
+  protected buildBPDU(
+    iface: HardwareInterface,
+    advertisedCost: number,
+    interfaceName: string
+  ): SpanningTreeMessage {
+    return new SpanningTreeMessage.Builder()
+      .setMacSource(iface.getMacAddress() as MacAddress)
+      .setBridge(this.bridgeId.mac)
+      .setBridgePriority(this.bridgeId.priority)
+      .setRoot(this.rootId.mac)
+      .setRootPriority(this.rootId.priority)
+      .setPort(interfaceName)
+      .setCost(advertisedCost)
+      .setMessageAge(0)
+      .build();
+  }
+
   public negociate(): void {
     if (!this.enabled) return;
 
@@ -669,15 +745,7 @@ export class STPService
           }
         }
 
-        const message = new SpanningTreeMessage.Builder()
-          .setMacSource(iface.getMacAddress() as MacAddress)
-          .setBridge(this.bridgeId.mac)
-          .setRoot(this.rootId.mac)
-          .setPort(i)
-          .setCost(advertisedCost) // RFC 802.1D: Cost to root via best path
-          .setMessageAge(0) // RFC 802.1D: BPDUs generated by this bridge start with age 0
-          .build();
-
+        const message = this.buildBPDU(iface, advertisedCost, i);
         iface.sendTrame(message);
       }
     });
@@ -924,9 +992,36 @@ export class STPService
 }
 
 /**
- * PVST (Per-VLAN Spanning Tree) Service
- * Maintains one independent spanning tree per VLAN for load balancing
- * Uses standard STP (802.1D) convergence, not rapid (802.1w)
+ * Internal STP instance used by PVST — one per VLAN.
+ * Overrides buildBPDU() to emit PVSTMessage with Cisco multicast address (01:00:0C:CC:CC:CD).
+ */
+class PVSTInternalSTP extends STPService {
+  private readonly vlanId: number;
+
+  constructor(host: SwitchHost, enabled: boolean, vlanId: number) {
+    super(host, enabled);
+    this.vlanId = vlanId;
+  }
+
+  protected override buildBPDU(
+    iface: HardwareInterface,
+    advertisedCost: number,
+    interfaceName: string
+  ): SpanningTreeMessage {
+    const bpdu = super.buildBPDU(iface, advertisedCost, interfaceName);
+    return PVSTMessage.fromSTP(bpdu, this.vlanId);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/class-methods-use-this
+  public override getProtocolType(): SpanningTreeProtocol {
+    return SpanningTreeProtocol.PVST;
+  }
+}
+
+/**
+ * PVST (Per-VLAN Spanning Tree) Service — Cisco proprietary
+ * Maintains one independent spanning tree per VLAN for load balancing.
+ * Uses Cisco multicast address 01:00:0C:CC:CC:CD for BPDUs.
  */
 export class PVSTService
   extends SpanningTreeService
@@ -993,7 +1088,11 @@ export class PVSTService
     // Create missing VLAN trees
     vlans.forEach((vlanId) => {
       if (!this.vlanTrees.has(vlanId)) {
-        const stpInstance = new STPService(this.host, this.enabled);
+        const stpInstance = new PVSTInternalSTP(
+          this.host,
+          this.enabled,
+          vlanId
+        );
         this.vlanTrees.set(vlanId, stpInstance);
       }
     });
@@ -1072,6 +1171,20 @@ export class PVSTService
     return tree?.Cost(iface) ?? Number.MAX_VALUE;
   }
 
+  public setPortCost(iface: Interface, value: number): void {
+    this.vlanTrees.forEach((tree) => {
+      tree.setPortCost(iface, value);
+    });
+  }
+
+  public getVlanIds(): number[] {
+    return Array.from(this.vlanTrees.keys());
+  }
+
+  public getVlanTree(vlanId: number): STPService | undefined {
+    return this.vlanTrees.get(vlanId);
+  }
+
   get Root(): MacAddress {
     // For PVST, "Root" concept is per-VLAN
     // Return root of first VLAN for backward compatibility
@@ -1083,6 +1196,18 @@ export class PVSTService
     // Bridge ID is shared across all VLANs
     const firstTree = Array.from(this.vlanTrees.values())[0];
     return firstTree?.BridgeId ?? new MacAddress('FF:FF:FF:FF:FF:FF');
+  }
+
+  get Priority(): number {
+    const firstTree = Array.from(this.vlanTrees.values())[0];
+    return firstTree?.Priority ?? 32768;
+  }
+
+  set Priority(value: number) {
+    this.vlanTrees.forEach((tree) => {
+      // eslint-disable-next-line no-param-reassign
+      tree.Priority = value;
+    });
   }
 
   get IsRoot(): boolean {

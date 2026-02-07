@@ -5,6 +5,7 @@ import type { SwitchHost } from '../../nodes/switch';
 import { VlanMode } from '../../protocols/ethernet';
 import { TerminalCommand } from '../command-base';
 import { parseInterfaceName, toShortName } from '../../utils/interface-names';
+import { SpanningTreeInterfaceCommand } from './spanning-tree';
 
 export { VlanMode };
 
@@ -186,8 +187,10 @@ export class InterfaceCommand extends TerminalCommand {
 
     if ('RoutingTable' in this.terminal.Node)
       this.registerCommand(new IPInterfaceCommand(this));
-    if ('knownVlan' in this.terminal.Node)
+    if ('knownVlan' in this.terminal.Node) {
       this.registerCommand(new SwitchPortCommand(this));
+      this.registerCommand(new SpanningTreeInterfaceCommand(this));
+    }
   }
 
   public override exec(
