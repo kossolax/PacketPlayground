@@ -95,7 +95,7 @@ export class Scheduler {
   }
 
   private constructor() {
-    this.Speed = SchedulerState.SLOWER;
+    this.Speed = SchedulerState.FASTER;
   }
 
   private calculateStringTime(): string {

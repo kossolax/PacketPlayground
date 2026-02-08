@@ -7,6 +7,9 @@ import { Link } from '../layers/physical';
 import {
   SpanningTreeMessage,
   PVSTMessage,
+  MSTPMessage,
+  MSTConfiguration,
+  MSTPService,
   SpanningTreePortRole,
   SpanningTreeState,
   SpanningTreeProtocol,
@@ -2255,6 +2258,100 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
       A.destroy();
       B.destroy();
     });
+
+    it('should fully converge triangle topology (PVST)', async () => {
+      const A = new SwitchHost('A', 2, SpanningTreeProtocol.PVST);
+      const B = new SwitchHost('B', 2, SpanningTreeProtocol.PVST);
+      const C = new SwitchHost('C', 2, SpanningTreeProtocol.PVST);
+
+      // eslint-disable-next-line no-restricted-syntax
+      for (const sw of [A, B, C]) {
+        sw.knownVlan[10] = 'VLAN 10';
+      }
+
+      A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
+      B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
+      C.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:03'));
+
+      // eslint-disable-next-line no-restricted-syntax
+      for (const sw of [A, B, C]) {
+        sw.spanningTree.Enable = true;
+        sw.getInterface(0).up();
+        sw.getInterface(1).up();
+      }
+
+      // Triangle: A(0)-B(0), B(1)-C(0), C(1)-A(1)
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+      const _AB = new Link(A.getInterface(0), B.getInterface(0));
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+      const _BC = new Link(B.getInterface(1), C.getInterface(0));
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+      const _CA = new Link(C.getInterface(1), A.getInterface(1));
+
+      // Expected converged state for VLAN 10:
+      //   A = root → both ports Designated + Forwarding
+      //   B = non-root → port0 Root, port1 Designated
+      //   C = non-root → port0 Blocked, port1 Root
+      //     (C's port toward B is blocked because B has lower bridge ID)
+      await waitForConvergence(
+        () => {
+          if (!A.spanningTree.IsRoot) return false;
+          // A: both Designated
+          const aRole0 = A.spanningTree.Role(A.getInterface(0), 10);
+          const aRole1 = A.spanningTree.Role(A.getInterface(1), 10);
+          if (aRole0 !== SpanningTreePortRole.Designated) return false;
+          if (aRole1 !== SpanningTreePortRole.Designated) return false;
+          // B: one Root, one Designated
+          const bRole0 = B.spanningTree.Role(B.getInterface(0), 10);
+          const bRole1 = B.spanningTree.Role(B.getInterface(1), 10);
+          if (bRole0 !== SpanningTreePortRole.Root) return false;
+          if (bRole1 !== SpanningTreePortRole.Designated) return false;
+          // C: one Root, one Blocked
+          const cRole1 = C.spanningTree.Role(C.getInterface(1), 10);
+          if (cRole1 !== SpanningTreePortRole.Root) return false;
+          const cRole0 = C.spanningTree.Role(C.getInterface(0), 10);
+          if (
+            cRole0 !== SpanningTreePortRole.Blocked &&
+            cRole0 !== SpanningTreePortRole.Alternate
+          )
+            return false;
+          return true;
+        },
+        [A, B, C],
+        10000
+      );
+
+      // Verify final state
+      expect(A.spanningTree.IsRoot).toBe(true);
+
+      // A: root, both Designated
+      expect(A.spanningTree.Role(A.getInterface(0), 10)).toBe(
+        SpanningTreePortRole.Designated
+      );
+      expect(A.spanningTree.Role(A.getInterface(1), 10)).toBe(
+        SpanningTreePortRole.Designated
+      );
+
+      // B: non-root, port0=Root (toward A), port1=Designated (toward C)
+      expect(B.spanningTree.Role(B.getInterface(0), 10)).toBe(
+        SpanningTreePortRole.Root
+      );
+      expect(B.spanningTree.Role(B.getInterface(1), 10)).toBe(
+        SpanningTreePortRole.Designated
+      );
+
+      // C: non-root, port1=Root (toward A), port0=Blocked (toward B)
+      expect(C.spanningTree.Role(C.getInterface(1), 10)).toBe(
+        SpanningTreePortRole.Root
+      );
+      const cPort0Role = C.spanningTree.Role(C.getInterface(0), 10);
+      expect(
+        cPort0Role === SpanningTreePortRole.Blocked ||
+          cPort0Role === SpanningTreePortRole.Alternate
+      ).toBe(true);
+
+      [A, B, C].forEach((sw) => sw.destroy());
+    });
   });
 
   describe('createSpanningTreeService Factory', () => {
@@ -2294,11 +2391,12 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
       A.destroy();
     });
 
-    it('should throw for MSTP protocol', () => {
+    it('should return MSTPService for MSTP protocol', () => {
       const A = new SwitchHost('A', 1);
-      expect(() =>
-        createSpanningTreeService(SpanningTreeProtocol.MSTP, A)
-      ).toThrow('not yet implemented');
+      const service = createSpanningTreeService(SpanningTreeProtocol.MSTP, A);
+      expect(service.getProtocolType()).toBe(SpanningTreeProtocol.MSTP);
+      expect(service.Enable).toBe(true);
+      service.destroy();
       A.destroy();
     });
   });
@@ -2992,6 +3090,816 @@ describe('SpanningTreeService - RFC 802.1D Compliance', () => {
       expect(aReceived.length).toBeGreaterThan(0);
       expect(cReceived.length).toBeGreaterThan(0);
 
+      [A, B, C].forEach((sw) => sw.destroy());
+    });
+
+    it('should fully converge triangle topology (RPVST)', async () => {
+      const A = new SwitchHost('A', 2, SpanningTreeProtocol.RPVST);
+      const B = new SwitchHost('B', 2, SpanningTreeProtocol.RPVST);
+      const C = new SwitchHost('C', 2, SpanningTreeProtocol.RPVST);
+
+      // eslint-disable-next-line no-restricted-syntax
+      for (const sw of [A, B, C]) {
+        sw.knownVlan[10] = 'VLAN 10';
+      }
+
+      A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
+      B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
+      C.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:03'));
+
+      // eslint-disable-next-line no-restricted-syntax
+      for (const sw of [A, B, C]) {
+        sw.spanningTree.Enable = true;
+        sw.getInterface(0).up();
+        sw.getInterface(1).up();
+      }
+
+      // Triangle: A(0)-B(0), B(1)-C(0), C(1)-A(1)
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+      const _AB = new Link(A.getInterface(0), B.getInterface(0));
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+      const _BC = new Link(B.getInterface(1), C.getInterface(0));
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+      const _CA = new Link(C.getInterface(1), A.getInterface(1));
+
+      // Expected converged state for VLAN 10:
+      //   A = root → both ports Designated + Forwarding
+      //   B = non-root → port0 Root, port1 Designated
+      //   C = non-root → port1 Root (toward A), port0 Blocked (toward B)
+      await waitForConvergence(
+        () => {
+          if (!A.spanningTree.IsRoot) return false;
+          // A: both Designated
+          const aRole0 = A.spanningTree.Role(A.getInterface(0), 10);
+          const aRole1 = A.spanningTree.Role(A.getInterface(1), 10);
+          if (aRole0 !== SpanningTreePortRole.Designated) return false;
+          if (aRole1 !== SpanningTreePortRole.Designated) return false;
+          // B: one Root, one Designated
+          const bRole0 = B.spanningTree.Role(B.getInterface(0), 10);
+          const bRole1 = B.spanningTree.Role(B.getInterface(1), 10);
+          if (bRole0 !== SpanningTreePortRole.Root) return false;
+          if (bRole1 !== SpanningTreePortRole.Designated) return false;
+          // C: one Root, one Blocked
+          const cRole1 = C.spanningTree.Role(C.getInterface(1), 10);
+          if (cRole1 !== SpanningTreePortRole.Root) return false;
+          const cRole0 = C.spanningTree.Role(C.getInterface(0), 10);
+          if (
+            cRole0 !== SpanningTreePortRole.Blocked &&
+            cRole0 !== SpanningTreePortRole.Alternate
+          )
+            return false;
+          return true;
+        },
+        [A, B, C],
+        10000
+      );
+
+      // Verify final state
+      expect(A.spanningTree.IsRoot).toBe(true);
+
+      // A: root, both Designated
+      expect(A.spanningTree.Role(A.getInterface(0), 10)).toBe(
+        SpanningTreePortRole.Designated
+      );
+      expect(A.spanningTree.Role(A.getInterface(1), 10)).toBe(
+        SpanningTreePortRole.Designated
+      );
+
+      // B: non-root, port0=Root (toward A), port1=Designated (toward C)
+      expect(B.spanningTree.Role(B.getInterface(0), 10)).toBe(
+        SpanningTreePortRole.Root
+      );
+      expect(B.spanningTree.Role(B.getInterface(1), 10)).toBe(
+        SpanningTreePortRole.Designated
+      );
+
+      // C: non-root, port1=Root (toward A), port0=Blocked (toward B)
+      expect(C.spanningTree.Role(C.getInterface(1), 10)).toBe(
+        SpanningTreePortRole.Root
+      );
+      const cPort0Role = C.spanningTree.Role(C.getInterface(0), 10);
+      expect(
+        cPort0Role === SpanningTreePortRole.Blocked ||
+          cPort0Role === SpanningTreePortRole.Alternate
+      ).toBe(true);
+
+      [A, B, C].forEach((sw) => sw.destroy());
+    });
+
+    it('should converge triangle topology without manual negociate (PVST)', async () => {
+      // This test mirrors the real UI: relies only on scheduler timers, no manual negociate()
+      const A = new SwitchHost('A', 2, SpanningTreeProtocol.PVST);
+      const B = new SwitchHost('B', 2, SpanningTreeProtocol.PVST);
+      const C = new SwitchHost('C', 2, SpanningTreeProtocol.PVST);
+
+      A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
+      B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
+      C.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:03'));
+
+      // eslint-disable-next-line no-restricted-syntax
+      for (const sw of [A, B, C]) {
+        sw.getInterface(0).up();
+        sw.getInterface(1).up();
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+      const _AB = new Link(A.getInterface(0), B.getInterface(0));
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+      const _BC = new Link(B.getInterface(1), C.getInterface(0));
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+      const _CA = new Link(C.getInterface(1), A.getInterface(1));
+
+      const vlanId = 0;
+
+      // Wait for convergence using ONLY scheduler timers — NO manual negociate()
+      const startTime = Date.now();
+      let converged = false;
+      while (!converged && Date.now() - startTime < 10000) {
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise((resolve) => {
+          setTimeout(resolve, 100);
+        });
+        converged =
+          A.spanningTree.IsRoot &&
+          A.spanningTree.Role(A.getInterface(0), vlanId) ===
+            SpanningTreePortRole.Designated &&
+          A.spanningTree.Role(A.getInterface(1), vlanId) ===
+            SpanningTreePortRole.Designated &&
+          B.spanningTree.Role(B.getInterface(0), vlanId) ===
+            SpanningTreePortRole.Root &&
+          (C.spanningTree.Role(C.getInterface(0), vlanId) ===
+            SpanningTreePortRole.Blocked ||
+            C.spanningTree.Role(C.getInterface(0), vlanId) ===
+              SpanningTreePortRole.Alternate) &&
+          C.spanningTree.Role(C.getInterface(1), vlanId) ===
+            SpanningTreePortRole.Root;
+      }
+
+      expect(converged).toBe(true);
+      [A, B, C].forEach((sw) => sw.destroy());
+    });
+
+    it('should converge triangle topology without manual negociate (RPVST)', async () => {
+      // This test mirrors the real UI: relies only on scheduler timers, no manual negociate()
+      const A = new SwitchHost('A', 2, SpanningTreeProtocol.RPVST);
+      const B = new SwitchHost('B', 2, SpanningTreeProtocol.RPVST);
+      const C = new SwitchHost('C', 2, SpanningTreeProtocol.RPVST);
+
+      A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
+      B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
+      C.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:03'));
+
+      // eslint-disable-next-line no-restricted-syntax
+      for (const sw of [A, B, C]) {
+        sw.getInterface(0).up();
+        sw.getInterface(1).up();
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+      const _AB = new Link(A.getInterface(0), B.getInterface(0));
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+      const _BC = new Link(B.getInterface(1), C.getInterface(0));
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+      const _CA = new Link(C.getInterface(1), A.getInterface(1));
+
+      const vlanId = 0;
+
+      // Wait for convergence using ONLY scheduler timers — NO manual negociate()
+      const startTime = Date.now();
+      let converged = false;
+      while (!converged && Date.now() - startTime < 10000) {
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise((resolve) => {
+          setTimeout(resolve, 100);
+        });
+        converged =
+          A.spanningTree.IsRoot &&
+          A.spanningTree.Role(A.getInterface(0), vlanId) ===
+            SpanningTreePortRole.Designated &&
+          A.spanningTree.Role(A.getInterface(1), vlanId) ===
+            SpanningTreePortRole.Designated &&
+          B.spanningTree.Role(B.getInterface(0), vlanId) ===
+            SpanningTreePortRole.Root &&
+          (C.spanningTree.Role(C.getInterface(0), vlanId) ===
+            SpanningTreePortRole.Blocked ||
+            C.spanningTree.Role(C.getInterface(0), vlanId) ===
+              SpanningTreePortRole.Alternate) &&
+          C.spanningTree.Role(C.getInterface(1), vlanId) ===
+            SpanningTreePortRole.Root;
+      }
+
+      expect(converged).toBe(true);
+      [A, B, C].forEach((sw) => sw.destroy());
+    });
+  });
+
+  describe('MSTConfiguration', () => {
+    it('should default all VLANs to instance 0 (IST)', () => {
+      const config = new MSTConfiguration();
+      expect(config.getInstanceForVlan(1)).toBe(0);
+      expect(config.getInstanceForVlan(10)).toBe(0);
+      expect(config.getInstanceForVlan(4094)).toBe(0);
+    });
+
+    it('should map VLANs to specific instances', () => {
+      const config = new MSTConfiguration();
+      config.setVlanInstance(10, 1);
+      config.setVlanInstance(20, 1);
+      config.setVlanInstance(30, 2);
+
+      expect(config.getInstanceForVlan(10)).toBe(1);
+      expect(config.getInstanceForVlan(20)).toBe(1);
+      expect(config.getInstanceForVlan(30)).toBe(2);
+    });
+
+    it('should return instance 0 for unmapped VLANs', () => {
+      const config = new MSTConfiguration();
+      config.setVlanInstance(10, 1);
+      expect(config.getInstanceForVlan(99)).toBe(0);
+    });
+
+    it('should compute deterministic digest', () => {
+      const config1 = new MSTConfiguration();
+      config1.name = 'REGION_A';
+      config1.revision = 1;
+      config1.setVlanInstance(10, 1);
+
+      const config2 = new MSTConfiguration();
+      config2.name = 'REGION_A';
+      config2.revision = 1;
+      config2.setVlanInstance(10, 1);
+
+      expect(config1.computeDigest()).toBe(config2.computeDigest());
+    });
+
+    it('should detect same region (identical config)', () => {
+      const config1 = new MSTConfiguration();
+      config1.name = 'REGION_A';
+      config1.revision = 1;
+      config1.setVlanInstance(10, 1);
+
+      const config2 = new MSTConfiguration();
+      config2.name = 'REGION_A';
+      config2.revision = 1;
+      config2.setVlanInstance(10, 1);
+
+      expect(config1.isSameRegion(config2)).toBe(true);
+    });
+
+    it('should detect different region (different name)', () => {
+      const config1 = new MSTConfiguration();
+      config1.name = 'REGION_A';
+
+      const config2 = new MSTConfiguration();
+      config2.name = 'REGION_B';
+
+      expect(config1.isSameRegion(config2)).toBe(false);
+    });
+
+    it('should detect different region (different revision)', () => {
+      const config1 = new MSTConfiguration();
+      config1.name = 'REGION_A';
+      config1.revision = 1;
+
+      const config2 = new MSTConfiguration();
+      config2.name = 'REGION_A';
+      config2.revision = 2;
+
+      expect(config1.isSameRegion(config2)).toBe(false);
+    });
+
+    it('should detect different region (different mapping)', () => {
+      const config1 = new MSTConfiguration();
+      config1.name = 'REGION_A';
+      config1.setVlanInstance(10, 1);
+
+      const config2 = new MSTConfiguration();
+      config2.name = 'REGION_A';
+      config2.setVlanInstance(10, 2);
+
+      expect(config1.isSameRegion(config2)).toBe(false);
+    });
+
+    it('should list active instances (always includes 0)', () => {
+      const config = new MSTConfiguration();
+      expect(config.getActiveInstances()).toEqual([0]);
+
+      config.setVlanInstance(10, 3);
+      config.setVlanInstance(20, 1);
+      expect(config.getActiveInstances()).toEqual([0, 1, 3]);
+    });
+
+    it('should reject instance ID > 15 or < 0', () => {
+      const config = new MSTConfiguration();
+      expect(() => config.setVlanInstance(10, 16)).toThrow();
+      expect(() => config.setVlanInstance(10, -1)).toThrow();
+    });
+
+    it('should return VLANs mapped to a specific instance', () => {
+      const config = new MSTConfiguration();
+      config.setVlanInstance(10, 1);
+      config.setVlanInstance(20, 1);
+      config.setVlanInstance(30, 2);
+
+      expect(config.getVlansForInstance(1)).toEqual([10, 20]);
+      expect(config.getVlansForInstance(2)).toEqual([30]);
+      expect(config.getVlansForInstance(3)).toEqual([]);
+    });
+
+    it('should unmap VLAN back to IST when instanceId is 0', () => {
+      const config = new MSTConfiguration();
+      config.setVlanInstance(10, 1);
+      expect(config.getInstanceForVlan(10)).toBe(1);
+
+      config.setVlanInstance(10, 0);
+      expect(config.getInstanceForVlan(10)).toBe(0);
+    });
+  });
+
+  describe('MSTPMessage', () => {
+    it('should create MSTPMessage with version 3', () => {
+      const config = new MSTConfiguration();
+      config.name = 'TEST_REGION';
+      config.revision = 1;
+
+      const baseBpdu = new SpanningTreeMessage.Builder()
+        .setMacSource(new MacAddress('00:00:00:00:00:01'))
+        .setBridge(new MacAddress('00:00:00:00:00:01'))
+        .setRoot(new MacAddress('00:00:00:00:00:01'))
+        .build();
+
+      const mstp = MSTPMessage.fromRSTP(baseBpdu, config, []);
+      expect(mstp.version).toBe(3);
+    });
+
+    it('should include MST config identifier (name, revision, digest)', () => {
+      const config = new MSTConfiguration();
+      config.name = 'MY_REGION';
+      config.revision = 42;
+      config.setVlanInstance(10, 1);
+
+      const baseBpdu = new SpanningTreeMessage.Builder()
+        .setMacSource(new MacAddress('00:00:00:00:00:01'))
+        .setBridge(new MacAddress('00:00:00:00:00:01'))
+        .setRoot(new MacAddress('00:00:00:00:00:01'))
+        .build();
+
+      const mstp = MSTPMessage.fromRSTP(baseBpdu, config, []);
+      expect(mstp.mstConfigName).toBe('MY_REGION');
+      expect(mstp.mstConfigRevision).toBe(42);
+      expect(mstp.mstConfigDigest).toBe(config.computeDigest());
+    });
+
+    it('should include MSTI records', () => {
+      const config = new MSTConfiguration();
+      const records = [
+        {
+          instanceId: 1,
+          flags: {
+            proposal: false,
+            agreement: false,
+            forwarding: true,
+            learning: false,
+            portRole: 3,
+          },
+          priority: 32768,
+          rootMac: new MacAddress('00:00:00:00:00:01'),
+          rootPathCost: 0,
+          bridgePriority: 32768,
+          bridgeMac: new MacAddress('00:00:00:00:00:01'),
+          portPriority: 128,
+          remainingHops: 20,
+        },
+      ];
+
+      const baseBpdu = new SpanningTreeMessage.Builder()
+        .setMacSource(new MacAddress('00:00:00:00:00:01'))
+        .setBridge(new MacAddress('00:00:00:00:00:01'))
+        .setRoot(new MacAddress('00:00:00:00:00:01'))
+        .build();
+
+      const mstp = MSTPMessage.fromRSTP(baseBpdu, config, records);
+      expect(mstp.mstiRecords).toHaveLength(1);
+      expect(mstp.mstiRecords[0].instanceId).toBe(1);
+    });
+
+    it('should use standard STP multicast (01:80:C2:00:00:00), not PVST', () => {
+      const config = new MSTConfiguration();
+      const baseBpdu = new SpanningTreeMessage.Builder()
+        .setMacSource(new MacAddress('00:00:00:00:00:01'))
+        .setBridge(new MacAddress('00:00:00:00:00:01'))
+        .setRoot(new MacAddress('00:00:00:00:00:01'))
+        .build();
+
+      const mstp = MSTPMessage.fromRSTP(baseBpdu, config, []);
+      expect(mstp.macDst.equals(new MacAddress('01:80:C2:00:00:00'))).toBe(
+        true
+      );
+    });
+
+    it('should be instanceof SpanningTreeMessage', () => {
+      const config = new MSTConfiguration();
+      const baseBpdu = new SpanningTreeMessage.Builder()
+        .setMacSource(new MacAddress('00:00:00:00:00:01'))
+        .setBridge(new MacAddress('00:00:00:00:00:01'))
+        .setRoot(new MacAddress('00:00:00:00:00:01'))
+        .build();
+
+      const mstp = MSTPMessage.fromRSTP(baseBpdu, config, []);
+      expect(mstp).toBeInstanceOf(SpanningTreeMessage);
+      expect(mstp).toBeInstanceOf(MSTPMessage);
+    });
+  });
+
+  describe('MSTP (Multiple Spanning Tree Protocol)', () => {
+    it('should create MSTPService from factory', () => {
+      const A = new SwitchHost('A', 2);
+      const service = createSpanningTreeService(SpanningTreeProtocol.MSTP, A);
+      expect(service.getProtocolType()).toBe(SpanningTreeProtocol.MSTP);
+      expect(service).toBeInstanceOf(MSTPService);
+      service.destroy();
+      A.destroy();
+    });
+
+    it('should return MSTP protocol type', () => {
+      const A = new SwitchHost('A', 2, SpanningTreeProtocol.MSTP);
+      expect(A.spanningTree.getProtocolType()).toBe(SpanningTreeProtocol.MSTP);
+      A.destroy();
+    });
+
+    it('should initialize IST (instance 0) on creation', () => {
+      const A = new SwitchHost('A', 2, SpanningTreeProtocol.MSTP);
+      const mstp = A.spanningTree as MSTPService;
+      expect(mstp.getInstance(0)).toBeDefined();
+      A.destroy();
+    });
+
+    it('should create instances when VLANs are mapped', () => {
+      const A = new SwitchHost('A', 2, SpanningTreeProtocol.MSTP);
+      const mstp = A.spanningTree as MSTPService;
+      mstp.mstConfig.setVlanInstance(10, 1);
+      mstp.mstConfig.setVlanInstance(20, 2);
+
+      // Trigger instance creation via negociate
+      mstp.negociate();
+
+      // getVlanIds returns active instances
+      const instances = mstp.getVlanIds();
+      expect(instances).toContain(0);
+    });
+
+    it('should elect root for IST in 2-switch topology', async () => {
+      const A = new SwitchHost('A', 1, SpanningTreeProtocol.MSTP);
+      const B = new SwitchHost('B', 1, SpanningTreeProtocol.MSTP);
+
+      A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
+      B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
+
+      A.spanningTree.Enable = true;
+      B.spanningTree.Enable = true;
+      A.getInterface(0).up();
+      B.getInterface(0).up();
+
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+      const _AB = new Link(A.getInterface(0), B.getInterface(0));
+
+      await waitForConvergence(
+        () => A.spanningTree.IsRoot && !B.spanningTree.IsRoot,
+        [A, B]
+      );
+
+      expect(A.spanningTree.IsRoot).toBe(true);
+      expect(B.spanningTree.IsRoot).toBe(false);
+
+      A.destroy();
+      B.destroy();
+    });
+
+    it('should elect independent roots per instance', async () => {
+      const A = new SwitchHost('A', 1, SpanningTreeProtocol.MSTP);
+      const B = new SwitchHost('B', 1, SpanningTreeProtocol.MSTP);
+
+      A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
+      B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
+
+      const mstpA = A.spanningTree as MSTPService;
+      const mstpB = B.spanningTree as MSTPService;
+
+      // Map VLAN 10 to instance 1
+      mstpA.mstConfig.setVlanInstance(10, 1);
+      mstpB.mstConfig.setVlanInstance(10, 1);
+      // Same region
+      mstpA.mstConfig.name = 'TEST';
+      mstpB.mstConfig.name = 'TEST';
+
+      // A is IST root (lower MAC), B is instance 1 root (lower priority)
+      mstpB.setInstancePriority(1, 4096);
+
+      A.spanningTree.Enable = true;
+      B.spanningTree.Enable = true;
+      A.getInterface(0).up();
+      B.getInterface(0).up();
+
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+      const _AB = new Link(A.getInterface(0), B.getInterface(0));
+
+      await waitForConvergence(
+        () => {
+          const istA = mstpA.getInstance(0);
+          const inst1B = mstpB.getInstance(1);
+          return (istA?.IsRoot ?? false) && (inst1B?.IsRoot ?? false);
+        },
+        [A, B],
+        5000
+      );
+
+      // IST: A is root (lower MAC)
+      expect(mstpA.getInstance(0)?.IsRoot).toBe(true);
+      // Instance 1: B is root (lower priority 4096 vs 32768)
+      expect(mstpB.getInstance(1)?.IsRoot).toBe(true);
+
+      A.destroy();
+      B.destroy();
+    });
+
+    it('should converge triangle topology (IST blocks correct port)', async () => {
+      const A = new SwitchHost('A', 2, SpanningTreeProtocol.MSTP);
+      const B = new SwitchHost('B', 2, SpanningTreeProtocol.MSTP);
+      const C = new SwitchHost('C', 2, SpanningTreeProtocol.MSTP);
+
+      A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
+      B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
+      C.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:03'));
+
+      // eslint-disable-next-line no-restricted-syntax
+      for (const sw of [A, B, C]) {
+        sw.spanningTree.Enable = true;
+        sw.getInterface(0).up();
+        sw.getInterface(1).up();
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+      const _AB = new Link(A.getInterface(0), B.getInterface(0));
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+      const _BC = new Link(B.getInterface(1), C.getInterface(0));
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+      const _CA = new Link(C.getInterface(1), A.getInterface(1));
+
+      await waitForConvergence(
+        () => {
+          if (!A.spanningTree.IsRoot) return false;
+          let blocked = 0;
+          [A, B, C].forEach((sw) => {
+            sw.getInterfaces().forEach((ifaceName) => {
+              const iface = sw.getInterface(ifaceName);
+              const role = sw.spanningTree.Role(iface);
+              if (
+                role === SpanningTreePortRole.Blocked ||
+                role === SpanningTreePortRole.Alternate ||
+                role === SpanningTreePortRole.Backup
+              ) {
+                blocked += 1;
+              }
+            });
+          });
+          return blocked >= 1;
+        },
+        [A, B, C],
+        10000
+      );
+
+      expect(A.spanningTree.IsRoot).toBe(true);
+
+      // At least one port blocked to break loop
+      let blockedCount = 0;
+      [A, B, C].forEach((sw) => {
+        sw.getInterfaces().forEach((ifaceName) => {
+          const iface = sw.getInterface(ifaceName);
+          const role = sw.spanningTree.Role(iface);
+          if (
+            role === SpanningTreePortRole.Blocked ||
+            role === SpanningTreePortRole.Alternate ||
+            role === SpanningTreePortRole.Backup
+          ) {
+            blockedCount += 1;
+          }
+        });
+      });
+      expect(blockedCount).toBeGreaterThanOrEqual(1);
+
+      [A, B, C].forEach((sw) => sw.destroy());
+    });
+
+    it('should allow per-instance priority (different roots per instance)', () => {
+      const A = new SwitchHost('A', 1, SpanningTreeProtocol.MSTP);
+      const mstp = A.spanningTree as MSTPService;
+
+      mstp.mstConfig.setVlanInstance(10, 1);
+      mstp.setInstancePriority(1, 4096);
+
+      expect(mstp.getInstancePriority(1)).toBe(4096);
+      // IST priority unchanged
+      expect(mstp.Priority).toBe(32768);
+
+      A.destroy();
+    });
+
+    it('should block data frames based on VLAN-to-instance mapping', async () => {
+      const A = new SwitchHost('A', 2, SpanningTreeProtocol.MSTP);
+      const B = new SwitchHost('B', 2, SpanningTreeProtocol.MSTP);
+      const C = new SwitchHost('C', 2, SpanningTreeProtocol.MSTP);
+
+      A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
+      B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
+      C.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:03'));
+
+      // eslint-disable-next-line no-restricted-syntax
+      for (const sw of [A, B, C]) {
+        sw.spanningTree.Enable = true;
+        sw.getInterface(0).up();
+        sw.getInterface(1).up();
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+      const _AB = new Link(A.getInterface(0), B.getInterface(0));
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+      const _BC = new Link(B.getInterface(1), C.getInterface(0));
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+      const _CA = new Link(C.getInterface(1), A.getInterface(1));
+
+      await waitForConvergence(
+        () => {
+          if (!A.spanningTree.IsRoot) return false;
+          let blocked = 0;
+          [A, B, C].forEach((sw) => {
+            sw.getInterfaces().forEach((ifaceName) => {
+              const iface = sw.getInterface(ifaceName);
+              const role = sw.spanningTree.Role(iface);
+              if (
+                role === SpanningTreePortRole.Blocked ||
+                role === SpanningTreePortRole.Alternate ||
+                role === SpanningTreePortRole.Backup
+              ) {
+                blocked += 1;
+              }
+            });
+          });
+          return blocked >= 1;
+        },
+        [A, B, C],
+        10000
+      );
+
+      // Find the blocked port
+      let blockedSwitch: SwitchHost | null = null;
+      let blockedIface: HardwareInterface | null = null;
+      [A, B, C].forEach((sw) => {
+        sw.getInterfaces().forEach((ifaceName) => {
+          const iface = sw.getInterface(ifaceName);
+          if (sw.spanningTree.State(iface) === SpanningTreeState.Blocking) {
+            blockedSwitch = sw;
+            blockedIface = iface;
+          }
+        });
+      });
+
+      expect(blockedSwitch).not.toBeNull();
+      expect(blockedIface).not.toBeNull();
+
+      // Data frame on blocked port should be stopped
+      if (blockedSwitch && blockedIface) {
+        const dataFrame = new EthernetMessage.Builder()
+          .setMacSource(new MacAddress('AA:BB:CC:DD:EE:01'))
+          .setMacDestination(new MacAddress('AA:BB:CC:DD:EE:02'))
+          .setPayload('test data')
+          .build();
+
+        const result = (blockedSwitch as SwitchHost).spanningTree.receiveTrame(
+          dataFrame,
+          blockedIface
+        );
+        expect(result).toBe(ActionHandle.Stop);
+      }
+
+      [A, B, C].forEach((sw) => sw.destroy());
+    });
+
+    it('should send MSTPMessage BPDUs with version 3', async () => {
+      const A = new SwitchHost('A', 1, SpanningTreeProtocol.MSTP);
+      const B = new SwitchHost('B', 1, SpanningTreeProtocol.MSTP);
+
+      A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
+      B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
+
+      A.spanningTree.Enable = true;
+      B.spanningTree.Enable = true;
+      A.getInterface(0).up();
+      B.getInterface(0).up();
+
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+      const _AB = new Link(A.getInterface(0), B.getInterface(0));
+
+      const listener = new TestListener();
+      B.getInterface(0).addListener(listener);
+
+      A.spanningTree.negociate();
+
+      await new Promise((resolve) => {
+        setTimeout(resolve, 100);
+      });
+
+      const mstpMsgs = listener.receivedTrames.filter(
+        (m) => m instanceof MSTPMessage
+      ) as MSTPMessage[];
+
+      expect(mstpMsgs.length).toBeGreaterThan(0);
+      mstpMsgs.forEach((msg) => {
+        expect(msg.version).toBe(3);
+        // Standard STP multicast, not PVST
+        expect(msg.macDst.equals(new MacAddress('01:80:C2:00:00:00'))).toBe(
+          true
+        );
+      });
+
+      A.destroy();
+      B.destroy();
+    });
+
+    it('should handle protocol switch (PVST → MSTP → STP)', () => {
+      const A = new SwitchHost('A', 2, SpanningTreeProtocol.PVST);
+      expect(A.getStpProtocol()).toBe(SpanningTreeProtocol.PVST);
+
+      A.setStpProtocol(SpanningTreeProtocol.MSTP);
+      expect(A.getStpProtocol()).toBe(SpanningTreeProtocol.MSTP);
+      expect(A.spanningTree).toBeInstanceOf(MSTPService);
+
+      A.setStpProtocol(SpanningTreeProtocol.STP);
+      expect(A.getStpProtocol()).toBe(SpanningTreeProtocol.STP);
+
+      A.destroy();
+    });
+
+    it('should destroy all instances on destroy()', () => {
+      const A = new SwitchHost('A', 2, SpanningTreeProtocol.MSTP);
+      const mstp = A.spanningTree as MSTPService;
+
+      mstp.mstConfig.setVlanInstance(10, 1);
+      mstp.negociate(); // Trigger instance creation
+
+      expect(mstp.getInstance(0)).toBeDefined();
+
+      mstp.destroy();
+      expect(mstp.getInstance(0)).toBeUndefined();
+
+      A.destroy();
+    });
+
+    it('should converge without manual negociate (scheduler only)', async () => {
+      const A = new SwitchHost('A', 2, SpanningTreeProtocol.MSTP);
+      const B = new SwitchHost('B', 2, SpanningTreeProtocol.MSTP);
+      const C = new SwitchHost('C', 2, SpanningTreeProtocol.MSTP);
+
+      A.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:01'));
+      B.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:02'));
+      C.getInterface(0).setMacAddress(new MacAddress('00:00:00:00:00:03'));
+
+      // eslint-disable-next-line no-restricted-syntax
+      for (const sw of [A, B, C]) {
+        sw.getInterface(0).up();
+        sw.getInterface(1).up();
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+      const _AB = new Link(A.getInterface(0), B.getInterface(0));
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+      const _BC = new Link(B.getInterface(1), C.getInterface(0));
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars, @typescript-eslint/naming-convention
+      const _CA = new Link(C.getInterface(1), A.getInterface(1));
+
+      // Wait for convergence using ONLY scheduler timers — NO manual negociate()
+      const startTime = Date.now();
+      let converged = false;
+      while (!converged && Date.now() - startTime < 10000) {
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise((resolve) => {
+          setTimeout(resolve, 100);
+        });
+        converged =
+          A.spanningTree.IsRoot &&
+          A.spanningTree.Role(A.getInterface(0)) ===
+            SpanningTreePortRole.Designated &&
+          A.spanningTree.Role(A.getInterface(1)) ===
+            SpanningTreePortRole.Designated &&
+          B.spanningTree.Role(B.getInterface(0)) ===
+            SpanningTreePortRole.Root &&
+          (C.spanningTree.Role(C.getInterface(0)) ===
+            SpanningTreePortRole.Blocked ||
+            C.spanningTree.Role(C.getInterface(0)) ===
+              SpanningTreePortRole.Alternate) &&
+          C.spanningTree.Role(C.getInterface(1)) === SpanningTreePortRole.Root;
+      }
+
+      expect(converged).toBe(true);
       [A, B, C].forEach((sw) => sw.destroy());
     });
   });

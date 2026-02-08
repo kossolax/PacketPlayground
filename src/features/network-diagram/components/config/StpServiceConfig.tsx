@@ -21,6 +21,7 @@ import {
   SpanningTreeState,
   SpanningTreeProtocol,
   isPerVlanProtocol,
+  isMstpProtocol,
 } from '../../lib/network-simulator/services/spanningtree';
 
 interface StpServiceConfigProps {
@@ -69,6 +70,8 @@ export default function StpServiceConfig({ node }: StpServiceConfigProps) {
     setProtocol,
     selectedVlan,
     setSelectedVlan,
+    selectedInstance,
+    setSelectedInstance,
     getBridgeId,
     getRootId,
     getIsRoot,
@@ -77,10 +80,16 @@ export default function StpServiceConfig({ node }: StpServiceConfigProps) {
     getVlanIds,
     getPortsInfo,
     setPortCost,
+    getMstConfig,
+    setMstName,
+    setMstRevision,
+    setMstInstanceVlan,
   } = useStpService(node);
 
   const isPvst = isPerVlanProtocol(protocol);
+  const isMstp = isMstpProtocol(protocol);
   const activeVlan = isPvst ? (selectedVlan ?? undefined) : undefined;
+  const mstConfig = getMstConfig();
 
   return (
     <div className="space-y-6">
@@ -130,12 +139,8 @@ export default function StpServiceConfig({ node }: StpServiceConfigProps) {
                 <SelectItem value={SpanningTreeProtocol.RPVST}>
                   Rapid PVST+ (802.1w)
                 </SelectItem>
-                <SelectItem
-                  value={SpanningTreeProtocol.MSTP}
-                  disabled
-                  className="text-muted-foreground"
-                >
-                  MSTP (Not implemented)
+                <SelectItem value={SpanningTreeProtocol.MSTP}>
+                  MSTP (802.1s)
                 </SelectItem>
               </SelectContent>
             </Select>
@@ -166,6 +171,172 @@ export default function StpServiceConfig({ node }: StpServiceConfigProps) {
             </Select>
           </CardContent>
         </Card>
+      )}
+
+      {enabled && isMstp && (
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle>MST Region Configuration</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label
+                    htmlFor="mst-name"
+                    className="text-muted-foreground text-xs"
+                  >
+                    Region Name
+                  </Label>
+                  <Input
+                    id="mst-name"
+                    className="h-8"
+                    value={mstConfig?.name ?? ''}
+                    maxLength={32}
+                    placeholder="Region name"
+                    onChange={(e) => setMstName(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label
+                    htmlFor="mst-revision"
+                    className="text-muted-foreground text-xs"
+                  >
+                    Revision
+                  </Label>
+                  <Input
+                    id="mst-revision"
+                    type="number"
+                    className="h-8"
+                    value={mstConfig?.revision ?? 0}
+                    min={0}
+                    max={65535}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10);
+                      if (!Number.isNaN(val)) setMstRevision(val);
+                    }}
+                  />
+                </div>
+              </div>
+              {mstConfig && mstConfig.getActiveInstances().length > 1 && (
+                <div className="space-y-1">
+                  <Label className="text-muted-foreground text-xs">
+                    Instance-VLAN Mapping
+                  </Label>
+                  <div className="space-y-1 text-xs font-mono">
+                    {mstConfig.getActiveInstances().map((instId) => {
+                      const vlans =
+                        instId === 0
+                          ? '(unmapped VLANs)'
+                          : mstConfig.getVlansForInstance(instId).join(', ') ||
+                            'none';
+                      return (
+                        <div key={instId} className="flex justify-between">
+                          <span>Instance {instId}:</span>
+                          <span className="text-muted-foreground">{vlans}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              <div className="grid grid-cols-3 gap-2 items-end">
+                <div className="space-y-1">
+                  <Label className="text-muted-foreground text-xs">
+                    Instance
+                  </Label>
+                  <Input
+                    id="mst-add-instance"
+                    type="number"
+                    className="h-8"
+                    min={1}
+                    max={15}
+                    placeholder="1-15"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-muted-foreground text-xs">
+                    VLAN ID
+                  </Label>
+                  <Input
+                    id="mst-add-vlan"
+                    type="number"
+                    className="h-8"
+                    min={1}
+                    max={4094}
+                    placeholder="VLAN"
+                  />
+                </div>
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    className="h-8 px-3 rounded-md bg-primary text-primary-foreground text-xs"
+                    onClick={() => {
+                      const instEl = document.getElementById(
+                        'mst-add-instance'
+                      ) as HTMLInputElement;
+                      const vlanEl = document.getElementById(
+                        'mst-add-vlan'
+                      ) as HTMLInputElement;
+                      const inst = parseInt(instEl?.value, 10);
+                      const vlan = parseInt(vlanEl?.value, 10);
+                      if (
+                        inst >= 1 &&
+                        inst <= 15 &&
+                        vlan >= 1 &&
+                        vlan <= 4094
+                      ) {
+                        setMstInstanceVlan(inst, vlan);
+                      }
+                    }}
+                  >
+                    Map
+                  </button>
+                  <button
+                    type="button"
+                    className="h-8 px-3 rounded-md bg-destructive text-destructive-foreground text-xs"
+                    onClick={() => {
+                      const vlanEl = document.getElementById(
+                        'mst-add-vlan'
+                      ) as HTMLInputElement;
+                      const vlan = parseInt(vlanEl?.value, 10);
+                      if (vlan >= 1 && vlan <= 4094) {
+                        setMstInstanceVlan(0, vlan, true);
+                      }
+                    }}
+                  >
+                    Unmap
+                  </button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Instance Selection</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Select
+                value={String(selectedInstance)}
+                onValueChange={(value) =>
+                  setSelectedInstance(parseInt(value, 10))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {getVlanIds().map((instId) => (
+                    <SelectItem key={instId} value={String(instId)}>
+                      {instId === 0 ? 'IST (0)' : `Instance ${instId}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </CardContent>
+          </Card>
+        </>
       )}
 
       {enabled && (

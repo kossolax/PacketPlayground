@@ -1341,7 +1341,7 @@ function roleToRstpCode(role: SpanningTreePortRole): number {
  * - BPDU version = 2
  */
 export class RSTPService extends STPService {
-  private proposalPending = new Map<Interface, boolean>();
+  protected proposalPending = new Map<Interface, boolean>();
 
   private agreed = new Map<Interface, boolean>();
 
@@ -1612,6 +1612,599 @@ export function isPerVlanProtocol(protocol: SpanningTreeProtocol): boolean {
 }
 
 /**
+ * Returns true if the protocol is MSTP
+ */
+export function isMstpProtocol(protocol: SpanningTreeProtocol): boolean {
+  return protocol === SpanningTreeProtocol.MSTP;
+}
+
+/**
+ * IEEE 802.1s MST Configuration — maps VLANs to spanning tree instances (0-15)
+ * Instance 0 (IST) always exists; unmapped VLANs default to IST.
+ */
+export class MSTConfiguration {
+  public name: string = '';
+
+  public revision: number = 0;
+
+  private vlanToInstance = new Map<number, number>();
+
+  /**
+   * Map a VLAN to an MST instance. instanceId=0 removes the mapping (back to IST).
+   */
+  setVlanInstance(vlanId: number, instanceId: number): void {
+    if (instanceId < 0 || instanceId > 15) {
+      throw new Error('MST instance ID must be between 0 and 15');
+    }
+    if (instanceId === 0) {
+      this.vlanToInstance.delete(vlanId);
+    } else {
+      this.vlanToInstance.set(vlanId, instanceId);
+    }
+  }
+
+  /**
+   * Returns the instance ID for a given VLAN. Unmapped VLANs return 0 (IST).
+   */
+  getInstanceForVlan(vlanId: number): number {
+    return this.vlanToInstance.get(vlanId) ?? 0;
+  }
+
+  /**
+   * Returns all VLANs mapped to a specific instance.
+   */
+  getVlansForInstance(instanceId: number): number[] {
+    if (instanceId === 0) {
+      // IST: everything NOT explicitly mapped elsewhere
+      // Return empty — caller should derive from host.knownVlan minus mapped VLANs
+      return [];
+    }
+    const result: number[] = [];
+    this.vlanToInstance.forEach((inst, vlan) => {
+      if (inst === instanceId) result.push(vlan);
+    });
+    return result.sort((a, b) => a - b);
+  }
+
+  /**
+   * Returns all active instance IDs (always includes 0).
+   */
+  getActiveInstances(): number[] {
+    const instances = new Set<number>([0]);
+    this.vlanToInstance.forEach((inst) => instances.add(inst));
+    return Array.from(instances).sort((a, b) => a - b);
+  }
+
+  /**
+   * Compute a deterministic digest for region comparison.
+   * Simplified string digest (not HMAC-MD5 — educational simulator).
+   */
+  computeDigest(): string {
+    const entries: string[] = [];
+    const sorted = Array.from(this.vlanToInstance.entries()).sort(
+      (a, b) => a[0] - b[0]
+    );
+    sorted.forEach(([vlan, inst]) => {
+      entries.push(`${vlan}:${inst}`);
+    });
+    return `${this.name}|${this.revision}|${entries.join(',')}`;
+  }
+
+  /**
+   * Returns true if two configurations are in the same MST region
+   * (identical name, revision, and VLAN-to-instance mapping).
+   */
+  isSameRegion(other: MSTConfiguration): boolean {
+    return this.computeDigest() === other.computeDigest();
+  }
+}
+
+/**
+ * MSTI record embedded in an MSTP BPDU — one per active instance (excluding IST).
+ */
+export interface MSTInstanceRecord {
+  instanceId: number;
+  flags: {
+    proposal: boolean;
+    agreement: boolean;
+    forwarding: boolean;
+    learning: boolean;
+    portRole: number;
+  };
+  priority: number;
+  rootMac: MacAddress;
+  rootPathCost: number;
+  bridgePriority: number;
+  bridgeMac: MacAddress;
+  portPriority: number;
+  remainingHops: number;
+}
+
+/**
+ * IEEE 802.1s MSTP BPDU — extends SpanningTreeMessage with MST config identifier
+ * and MSTI records. Uses standard STP multicast (01:80:C2:00:00:00), version 3.
+ */
+export class MSTPMessage extends SpanningTreeMessage {
+  public mstConfigName: string = '';
+
+  public mstConfigRevision: number = 0;
+
+  public mstConfigDigest: string = '';
+
+  public cistInternalRootPathCost: number = 0;
+
+  public mstiRecords: MSTInstanceRecord[] = [];
+
+  public override toString(): string {
+    return `MSTP (age=${this.messageAge}, MSTIs=${this.mstiRecords.length})`;
+  }
+
+  /**
+   * Create an MSTPMessage from an RSTP-style BPDU (IST data) + MST config + MSTI records.
+   */
+  public static fromRSTP(
+    rstp: SpanningTreeMessage,
+    config: MSTConfiguration,
+    mstiRecords: MSTInstanceRecord[]
+  ): MSTPMessage {
+    const mstp = Object.create(MSTPMessage.prototype) as MSTPMessage;
+    Object.assign(mstp, rstp);
+    // Standard STP multicast, NOT PVST
+    mstp.macDst = SpanningTreeMultiCastAddress;
+    mstp.version = 3;
+    mstp.mstConfigName = config.name;
+    mstp.mstConfigRevision = config.revision;
+    mstp.mstConfigDigest = config.computeDigest();
+    mstp.cistInternalRootPathCost = rstp.rootPathCost;
+    mstp.mstiRecords = mstiRecords;
+    return mstp;
+  }
+}
+
+/**
+ * Internal RSTP instance used by MSTP — one per MST instance.
+ * Does NOT send BPDUs itself — the container MSTPService handles unified BPDU sending.
+ */
+class MSTInternalRSTP extends RSTPService {
+  public readonly instanceId: number;
+
+  constructor(host: SwitchHost, enabled: boolean, instanceId: number) {
+    // Pass enabled=false to parent to avoid registering as a DatalinkListener
+    // We'll manage enabling ourselves
+    super(host, false);
+    this.instanceId = instanceId;
+
+    // Destroy the scheduler subscription from parent — container handles timing
+    if (this.repeatCleanup) {
+      this.repeatCleanup();
+      this.repeatCleanup = null;
+    }
+
+    // Now set actual enabled state without listener registration
+    // (MSTPService container handles frame reception)
+    // Must call setDefaultRoot() to initialize bridge ID and port roles
+    this.enabled = enabled;
+    if (enabled) {
+      this.setDefaultRoot();
+    }
+  }
+
+  // Override Enable to avoid registering as a DatalinkListener
+  // MSTInternalRSTP should never register on interfaces — container handles reception
+  override set Enable(enable: boolean) {
+    this.enabled = enable;
+    if (enable) {
+      this.setDefaultRoot();
+    }
+  }
+
+  override get Enable(): boolean {
+    return this.enabled;
+  }
+
+  /**
+   * Internal negociate: only handle state transitions (BPDU aging, role re-evaluation).
+   * Does NOT send BPDUs — container sends unified MSTPMessage.
+   */
+  public override negociate(): void {
+    if (!this.enabled) return;
+
+    // Re-evaluate expired ports (same as RSTPService but without sending)
+    this.host.getInterfaces().forEach((i) => {
+      const iface = this.host.getInterface(i);
+      if (iface.isActive() === false || iface.isConnected === false) return;
+
+      const role = this.Role(iface);
+      if (
+        (role === SpanningTreePortRole.Blocked ||
+          role === SpanningTreePortRole.Alternate ||
+          role === SpanningTreePortRole.Backup) &&
+        this.cost.get(iface) === Number.MAX_VALUE
+      ) {
+        this.changeRole(iface, SpanningTreePortRole.Designated);
+        this.cost.set(iface, 0);
+      }
+    });
+  }
+
+  /**
+   * Build an RSTP BPDU for this instance (used by container for IST portion of MSTPMessage).
+   */
+  public buildInstanceBPDU(
+    iface: HardwareInterface,
+    ifaceName: string
+  ): SpanningTreeMessage {
+    let advertisedCost = 0;
+    if (!this.IsRoot) {
+      const rootPortEntry = Array.from(this.roles.entries()).find(
+        ([_, portRole]) => portRole === SpanningTreePortRole.Root
+      );
+      if (rootPortEntry) {
+        advertisedCost = this.Cost(rootPortEntry[0]);
+      }
+    }
+    return this.buildBPDU(iface, advertisedCost, ifaceName);
+  }
+
+  /**
+   * Generate an MSTI record for embedding in the container's MSTPMessage.
+   */
+  public getMSTIRecord(
+    iface: HardwareInterface,
+    ifaceName: string
+  ): MSTInstanceRecord {
+    const role = this.Role(iface);
+    const state = this.State(iface);
+    return {
+      instanceId: this.instanceId,
+      flags: {
+        proposal: this.proposalPending.get(iface) ?? false,
+        agreement: false,
+        forwarding: state === SpanningTreeState.Forwarding,
+        learning: state === SpanningTreeState.Learning,
+        portRole: roleToRstpCode(role),
+      },
+      priority: this.bridgeId.priority,
+      rootMac: this.rootId.mac,
+      rootPathCost: this.IsRoot
+        ? 0
+        : (() => {
+            const rootPortEntry = Array.from(this.roles.entries()).find(
+              ([_, portRole]) => portRole === SpanningTreePortRole.Root
+            );
+            return rootPortEntry ? this.Cost(rootPortEntry[0]) : 0;
+          })(),
+      bridgePriority: this.bridgeId.priority,
+      bridgeMac: this.bridgeId.mac,
+      portPriority: STPService.getPortId(ifaceName),
+      remainingHops: 20,
+    };
+  }
+
+  /**
+   * Apply an incoming MSTI record from a received MSTPMessage.
+   * Builds a synthetic SpanningTreeMessage and delegates to parent receiveTrame.
+   */
+  public applyMSTIRecord(
+    record: MSTInstanceRecord,
+    from: Interface,
+    sourceMac: MacAddress
+  ): ActionHandle {
+    // Build a synthetic BPDU from the MSTI record
+    const syntheticBpdu = new SpanningTreeMessage.Builder()
+      .setMacSource(sourceMac)
+      .setBridge(record.bridgeMac)
+      .setBridgePriority(record.bridgePriority)
+      .setRoot(record.rootMac)
+      .setRootPriority(record.priority)
+      .setCost(record.rootPathCost)
+      .setPort(record.portPriority)
+      .setMessageAge(0)
+      .build();
+
+    syntheticBpdu.version = 2;
+    syntheticBpdu.flags.proposal = record.flags.proposal;
+    syntheticBpdu.flags.agreement = record.flags.agreement;
+    syntheticBpdu.flags.forwarding = record.flags.forwarding;
+    syntheticBpdu.flags.learning = record.flags.learning;
+    syntheticBpdu.flags.portRole = record.flags.portRole;
+
+    return super.receiveTrame(syntheticBpdu, from);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/class-methods-use-this
+  public override getProtocolType(): SpanningTreeProtocol {
+    return SpanningTreeProtocol.MSTP;
+  }
+}
+
+/**
+ * IEEE 802.1s Multiple Spanning Tree Protocol (MSTP) Service
+ * Maps N VLANs to M instances (M <= 15). Instance 0 = IST (Internal Spanning Tree).
+ * Sends ONE unified BPDU per port containing IST + all MSTI data.
+ * Internal instances use RSTP state machines for rapid convergence.
+ */
+export class MSTPService
+  extends SpanningTreeService
+  implements DatalinkListener
+{
+  public mstConfig = new MSTConfiguration();
+
+  private instanceTrees = new Map<number, MSTInternalRSTP>();
+
+  private repeatCleanup: (() => void) | null = null;
+
+  constructor(host: SwitchHost, enabled: boolean = true) {
+    super(host);
+
+    host.addListener((msg) => {
+      if (msg === 'OnInterfaceAdded') {
+        this.initializeInstances();
+      }
+    });
+
+    this.Enable = enabled;
+
+    // Initialize IST (instance 0) immediately
+    this.initializeInstances();
+
+    // Schedule unified BPDU sending
+    const subscription = Scheduler.getInstance()
+      .repeat(2) // helloTime = 2s
+      .subscribe(() => this.negociate());
+    this.repeatCleanup = () => subscription.unsubscribe();
+  }
+
+  // eslint-disable-next-line @typescript-eslint/class-methods-use-this
+  public getProtocolType(): SpanningTreeProtocol {
+    return SpanningTreeProtocol.MSTP;
+  }
+
+  /**
+   * Initialize or update instance trees based on MST configuration.
+   */
+  private initializeInstances(): void {
+    const activeInstances = this.mstConfig.getActiveInstances();
+
+    activeInstances.forEach((instanceId) => {
+      if (!this.instanceTrees.has(instanceId)) {
+        const tree = new MSTInternalRSTP(this.host, this.enabled, instanceId);
+        this.instanceTrees.set(instanceId, tree);
+      }
+    });
+  }
+
+  /**
+   * Ensure an instance tree exists, creating it if needed.
+   */
+  private ensureInstance(instanceId: number): MSTInternalRSTP {
+    let tree = this.instanceTrees.get(instanceId);
+    if (!tree) {
+      tree = new MSTInternalRSTP(this.host, this.enabled, instanceId);
+      this.instanceTrees.set(instanceId, tree);
+    }
+    return tree;
+  }
+
+  private getIst(): MSTInternalRSTP {
+    return this.ensureInstance(0);
+  }
+
+  // --- Abstract implementations (delegate to IST by default) ---
+
+  public State(iface: Interface, vlanId?: number): SpanningTreeState {
+    if (!this.enabled) return SpanningTreeState.Disabled;
+    const instanceId =
+      vlanId !== undefined ? this.mstConfig.getInstanceForVlan(vlanId) : 0;
+    const tree = this.instanceTrees.get(instanceId);
+    return tree?.State(iface) ?? this.getIst().State(iface);
+  }
+
+  public Role(iface: Interface, vlanId?: number): SpanningTreePortRole {
+    if (!this.enabled) return SpanningTreePortRole.Disabled;
+    const instanceId =
+      vlanId !== undefined ? this.mstConfig.getInstanceForVlan(vlanId) : 0;
+    const tree = this.instanceTrees.get(instanceId);
+    return tree?.Role(iface) ?? this.getIst().Role(iface);
+  }
+
+  public Cost(iface: Interface, vlanId?: number): number {
+    if (!this.enabled) return Number.MAX_VALUE;
+    const instanceId =
+      vlanId !== undefined ? this.mstConfig.getInstanceForVlan(vlanId) : 0;
+    const tree = this.instanceTrees.get(instanceId);
+    return tree?.Cost(iface) ?? this.getIst().Cost(iface);
+  }
+
+  get Root(): MacAddress {
+    return this.getIst().Root;
+  }
+
+  get BridgeId(): MacAddress {
+    return this.getIst().BridgeId;
+  }
+
+  get Priority(): number {
+    return this.getIst().Priority;
+  }
+
+  set Priority(value: number) {
+    this.getIst().Priority = value;
+  }
+
+  get IsRoot(): boolean {
+    return this.getIst().IsRoot;
+  }
+
+  public setPortCost(iface: Interface, value: number): void {
+    this.instanceTrees.forEach((tree) => {
+      tree.setPortCost(iface, value);
+    });
+  }
+
+  public getVlanIds(): number[] {
+    // For MSTP, return instance IDs as the "selectable items"
+    return this.mstConfig.getActiveInstances();
+  }
+
+  // --- MSTP-specific methods ---
+
+  public getInstance(id: number): MSTInternalRSTP | undefined {
+    if (this.instanceTrees.has(id)) return this.instanceTrees.get(id);
+    // Auto-create instances with mapped VLANs (only when service is active)
+    if (
+      this.enabled &&
+      (id === 0 || this.mstConfig.getVlansForInstance(id).length > 0)
+    ) {
+      return this.ensureInstance(id);
+    }
+    return undefined;
+  }
+
+  public getInstanceIds(): number[] {
+    return Array.from(this.instanceTrees.keys()).sort((a, b) => a - b);
+  }
+
+  public setInstancePriority(instanceId: number, value: number): void {
+    const tree = this.ensureInstance(instanceId);
+    tree.Priority = value;
+  }
+
+  public getInstancePriority(instanceId: number): number {
+    const tree = this.instanceTrees.get(instanceId);
+    return tree?.Priority ?? 32768;
+  }
+
+  // --- Core BPDU logic ---
+
+  public negociate(): void {
+    if (!this.enabled) return;
+
+    // Run internal state maintenance on all instances
+    this.instanceTrees.forEach((tree) => tree.negociate());
+
+    const ist = this.getIst();
+
+    this.host.getInterfaces().forEach((ifaceName) => {
+      const iface = this.host.getInterface(ifaceName);
+      if (!iface.isActive() || !iface.isConnected) return;
+
+      const istRole = ist.Role(iface);
+      // Skip non-forwarding IST ports
+      if (
+        istRole === SpanningTreePortRole.Blocked ||
+        istRole === SpanningTreePortRole.Alternate ||
+        istRole === SpanningTreePortRole.Backup
+      ) {
+        return;
+      }
+
+      // Build IST BPDU via the internal tree's buildBPDU (handles root/bridge priority correctly)
+      const istBpdu = ist.buildInstanceBPDU(iface, ifaceName);
+
+      // Collect MSTI records from non-IST instances
+      const mstiRecords: MSTInstanceRecord[] = [];
+      this.instanceTrees.forEach((tree) => {
+        if (tree.instanceId === 0) return; // IST is in the main BPDU
+        mstiRecords.push(tree.getMSTIRecord(iface, ifaceName));
+      });
+
+      // Wrap in MSTPMessage and send
+      const mstpMsg = MSTPMessage.fromRSTP(
+        istBpdu,
+        this.mstConfig,
+        mstiRecords
+      );
+      iface.sendTrame(mstpMsg);
+    });
+  }
+
+  public receiveTrame(message: DatalinkMessage, from: Interface): ActionHandle {
+    if (!this.enabled) return ActionHandle.Continue;
+
+    if (message instanceof MSTPMessage) {
+      const ist = this.getIst();
+
+      // Check if same region
+      const sameRegion =
+        message.mstConfigDigest === this.mstConfig.computeDigest();
+
+      // Always process IST (instance 0)
+      const istResult = ist.receiveTrame(message, from);
+
+      // Process MSTI records only if same region
+      if (sameRegion) {
+        message.mstiRecords.forEach((record) => {
+          const tree = this.instanceTrees.get(record.instanceId);
+          if (tree) {
+            tree.applyMSTIRecord(record, from, message.macSrc as MacAddress);
+          }
+        });
+      }
+
+      return istResult;
+    }
+
+    // Standard STP/RSTP BPDU — route to IST (interop)
+    if (message instanceof SpanningTreeMessage) {
+      return this.getIst().receiveTrame(message, from);
+    }
+
+    // Data frame — resolve VLAN → instance → check blocking state
+    let vlanId = 0;
+    if ('vlanId' in message && typeof message.vlanId === 'number') {
+      vlanId = message.vlanId;
+    } else if ('Vlan' in from && 'NativeVlan' in from) {
+      const dot1qIface = from as unknown as {
+        Vlan: number[];
+        NativeVlan: number;
+        VlanMode: number;
+      };
+      if (dot1qIface.VlanMode === 0) {
+        vlanId = dot1qIface.Vlan[0] ?? dot1qIface.NativeVlan;
+      } else {
+        vlanId = dot1qIface.NativeVlan;
+      }
+    }
+
+    const instanceId = this.mstConfig.getInstanceForVlan(vlanId);
+    const tree = this.instanceTrees.get(instanceId) ?? this.getIst();
+    const state = tree.State(from);
+
+    if (state === SpanningTreeState.Blocking) {
+      return ActionHandle.Stop;
+    }
+
+    return ActionHandle.Continue;
+  }
+
+  override set Enable(enable: boolean) {
+    super.Enable = enable;
+    if (enable) {
+      this.initializeInstances();
+    }
+    this.instanceTrees.forEach((inst) => {
+      // eslint-disable-next-line no-param-reassign
+      inst.Enable = enable;
+    });
+  }
+
+  override get Enable(): boolean {
+    return this.enabled;
+  }
+
+  public destroy(): void {
+    this.enabled = false;
+    if (this.repeatCleanup) {
+      this.repeatCleanup();
+      this.repeatCleanup = null;
+    }
+    this.instanceTrees.forEach((tree) => tree.destroy());
+    this.instanceTrees.clear();
+  }
+}
+
+/**
  * Factory function to create the appropriate spanning tree service
  * based on the requested protocol type
  */
@@ -1633,8 +2226,8 @@ export function createSpanningTreeService(
       // RPVST: Rapid Per-VLAN Spanning Tree+ (802.1w + per-VLAN)
       return new RPVSTService(host, true);
     case SpanningTreeProtocol.MSTP:
-      // TODO: Implement MSTP (802.1s)
-      throw new Error('MSTP protocol not yet implemented');
+      // IEEE 802.1s Multiple Spanning Tree Protocol
+      return new MSTPService(host, true);
     default:
       return new STPService(host, false);
   }

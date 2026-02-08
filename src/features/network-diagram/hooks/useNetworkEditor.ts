@@ -82,7 +82,7 @@ function createSimulatorNode(device: Device): GenericNode {
       simNode = new RouterHost(name, 2); // Router with 2 interfaces
       break;
     case 'switch':
-      simNode = new SwitchHost(name, 24, SpanningTreeProtocol.STP); // Switch with 24 ports, STP enabled
+      simNode = new SwitchHost(name, 24, SpanningTreeProtocol.PVST); // Switch with 24 ports, PVST enabled
       break;
     case 'hub':
       simNode = new SwitchHost(name, 8, SpanningTreeProtocol.None); // Hub is a switch with 8 ports
