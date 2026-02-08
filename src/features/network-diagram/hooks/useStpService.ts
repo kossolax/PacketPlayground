@@ -5,7 +5,10 @@ import {
   SpanningTreeProtocol,
   SpanningTreePortRole,
   PVSTService,
+  MSTPService,
+  MSTConfiguration,
   isPerVlanProtocol,
+  isMstpProtocol,
 } from '../lib/network-simulator/services/spanningtree';
 
 export interface StpPortInfo {
@@ -38,19 +41,31 @@ export default function useStpService(node: SwitchHost) {
   const [enabled, setEnabled] = useState(node.spanningTree.Enable);
   const [protocol, setProtocolState] = useState(node.getStpProtocol());
   const [selectedVlan, setSelectedVlan] = useState<number | null>(null);
+  const [selectedInstance, setSelectedInstance] = useState<number>(0);
 
-  // Sync with backend when enabled changes
+  // Sync with backend when enabled changes — skip if already in sync
   useEffect(() => {
-    // eslint-disable-next-line no-param-reassign
-    node.spanningTree.Enable = enabled;
+    if (node.spanningTree.Enable !== enabled) {
+      // eslint-disable-next-line no-param-reassign
+      node.spanningTree.Enable = enabled;
+    }
   }, [enabled, node]);
 
-  // Sync with backend when protocol changes
+  // Sync with backend when protocol changes — skip if already in sync
   useEffect(() => {
-    node.setStpProtocol(protocol);
+    if (node.getStpProtocol() !== protocol) {
+      node.setStpProtocol(protocol);
+    }
   }, [protocol, node]);
 
+  const isMstp = isMstpProtocol(protocol);
+
   const getBridgeId = (vlanId?: number): string => {
+    if (isMstp) {
+      const mstp = node.spanningTree as MSTPService;
+      const tree = mstp.getInstance(selectedInstance);
+      return tree?.BridgeId.toString() || 'Unknown';
+    }
     if (isPerVlanProtocol(protocol) && vlanId !== undefined) {
       const pvst = node.spanningTree as PVSTService;
       const tree = pvst.getVlanTree(vlanId);
@@ -60,6 +75,11 @@ export default function useStpService(node: SwitchHost) {
   };
 
   const getRootId = (vlanId?: number): string => {
+    if (isMstp) {
+      const mstp = node.spanningTree as MSTPService;
+      const tree = mstp.getInstance(selectedInstance);
+      return tree?.Root.toString() || 'Unknown';
+    }
     if (isPerVlanProtocol(protocol) && vlanId !== undefined) {
       const pvst = node.spanningTree as PVSTService;
       const tree = pvst.getVlanTree(vlanId);
@@ -69,6 +89,11 @@ export default function useStpService(node: SwitchHost) {
   };
 
   const getIsRoot = (vlanId?: number): boolean => {
+    if (isMstp) {
+      const mstp = node.spanningTree as MSTPService;
+      const tree = mstp.getInstance(selectedInstance);
+      return tree?.IsRoot ?? false;
+    }
     if (isPerVlanProtocol(protocol) && vlanId !== undefined) {
       const pvst = node.spanningTree as PVSTService;
       const tree = pvst.getVlanTree(vlanId);
@@ -80,9 +105,14 @@ export default function useStpService(node: SwitchHost) {
   const setProtocol = (newProtocol: SpanningTreeProtocol): void => {
     setProtocolState(newProtocol);
     setSelectedVlan(null);
+    setSelectedInstance(0);
   };
 
   const getPriority = (vlanId?: number): number => {
+    if (isMstp) {
+      const mstp = node.spanningTree as MSTPService;
+      return mstp.getInstancePriority(selectedInstance);
+    }
     if (isPerVlanProtocol(protocol) && vlanId !== undefined) {
       const pvst = node.spanningTree as PVSTService;
       const tree = pvst.getVlanTree(vlanId);
@@ -92,6 +122,11 @@ export default function useStpService(node: SwitchHost) {
   };
 
   const setPriority = (value: number, vlanId?: number): void => {
+    if (isMstp) {
+      const mstp = node.spanningTree as MSTPService;
+      mstp.setInstancePriority(selectedInstance, value);
+      return;
+    }
     if (isPerVlanProtocol(protocol) && vlanId !== undefined) {
       const pvst = node.spanningTree as PVSTService;
       const tree = pvst.getVlanTree(vlanId);
@@ -124,6 +159,36 @@ export default function useStpService(node: SwitchHost) {
     node.spanningTree.setPortCost(iface, value);
   };
 
+  // MSTP-specific getters
+  const getMstConfig = (): MSTConfiguration | null => {
+    if (!isMstp) return null;
+    return (node.spanningTree as MSTPService).mstConfig;
+  };
+
+  const setMstName = (name: string): void => {
+    if (!isMstp) return;
+    const config = (node.spanningTree as MSTPService).mstConfig;
+    config.name = name;
+  };
+
+  const setMstRevision = (revision: number): void => {
+    if (!isMstp) return;
+    const config = (node.spanningTree as MSTPService).mstConfig;
+    config.revision = revision;
+  };
+
+  const setMstInstanceVlan = (
+    instanceId: number,
+    vlanId: number,
+    remove: boolean = false
+  ): void => {
+    if (!isMstp) return;
+    (node.spanningTree as MSTPService).mstConfig.setVlanInstance(
+      vlanId,
+      remove ? 0 : instanceId
+    );
+  };
+
   return {
     enabled,
     setEnabled,
@@ -131,6 +196,8 @@ export default function useStpService(node: SwitchHost) {
     setProtocol,
     selectedVlan,
     setSelectedVlan,
+    selectedInstance,
+    setSelectedInstance,
     getBridgeId,
     getRootId,
     getIsRoot,
@@ -139,5 +206,9 @@ export default function useStpService(node: SwitchHost) {
     getVlanIds,
     getPortsInfo,
     setPortCost,
+    getMstConfig,
+    setMstName,
+    setMstRevision,
+    setMstInstanceVlan,
   };
 }

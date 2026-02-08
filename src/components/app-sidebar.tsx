@@ -1,5 +1,4 @@
 import {
-  FileOutput,
   Globe,
   IterationCw,
   Link2,
@@ -146,11 +145,6 @@ const osiLayers: OSILayer[] = [
 ];
 
 const developmentItems: SidebarItem[] = [
-  {
-    title: 'Theme',
-    url: '/theme',
-    icon: FileOutput,
-  },
   {
     title: 'Network Diagram',
     url: '/network-diagram',
