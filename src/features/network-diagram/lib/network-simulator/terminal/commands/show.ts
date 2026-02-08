@@ -4,6 +4,7 @@ import {
   SpanningTreeState,
   SpanningTreePortRole,
   PVSTService,
+  isPerVlanProtocol,
 } from '../../services/spanningtree';
 import { TerminalCommand } from '../command-base';
 
@@ -66,7 +67,7 @@ function formatSpanningTreeForVlan(
   const { spanningTree: stp } = host;
   const lines: string[] = [];
 
-  if (protocol === SpanningTreeProtocol.PVST) {
+  if (isPerVlanProtocol(protocol)) {
     const pvst = stp as PVSTService;
     const tree = pvst.getVlanTree(vlanId);
     if (!tree) return '';
@@ -137,7 +138,7 @@ class ShowSpanningTreeCommand extends TerminalCommand {
       }
 
       if (
-        protocol === SpanningTreeProtocol.PVST &&
+        isPerVlanProtocol(protocol) &&
         args.length === 2 &&
         args[0] === 'vlan'
       ) {
@@ -148,7 +149,7 @@ class ShowSpanningTreeCommand extends TerminalCommand {
         } else {
           this.terminal.write(`VLAN ${id} not found`);
         }
-      } else if (protocol === SpanningTreeProtocol.PVST) {
+      } else if (isPerVlanProtocol(protocol)) {
         const vlanIds = host.spanningTree.getVlanIds();
         const outputs = vlanIds
           .map((id) => formatSpanningTreeForVlan(host, id, protocol))
@@ -174,7 +175,7 @@ class ShowSpanningTreeCommand extends TerminalCommand {
       const host = this.terminal.Node as SwitchHost;
       const protocol = host.getStpProtocol();
 
-      if (protocol === SpanningTreeProtocol.PVST) {
+      if (isPerVlanProtocol(protocol)) {
         if (args.length === 1)
           return ['vlan'].filter((c) => c.startsWith(args[0]));
       }

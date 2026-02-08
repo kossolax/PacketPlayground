@@ -1,5 +1,9 @@
 import type { SwitchHost } from '../../nodes/switch';
-import { SpanningTreeProtocol, PVSTService } from '../../services/spanningtree';
+import {
+  SpanningTreeProtocol,
+  PVSTService,
+  isPerVlanProtocol,
+} from '../../services/spanningtree';
 import { TerminalCommand } from '../command-base';
 import type { InterfaceCommand } from './interface';
 
@@ -94,7 +98,7 @@ export class SpanningTreeConfigCommand extends TerminalCommand {
     }
 
     const protocol = host.getStpProtocol();
-    if (protocol === SpanningTreeProtocol.PVST) {
+    if (isPerVlanProtocol(protocol)) {
       const pvst = host.spanningTree as PVSTService;
       const tree = pvst.getVlanTree(vlanId);
       if (tree) {

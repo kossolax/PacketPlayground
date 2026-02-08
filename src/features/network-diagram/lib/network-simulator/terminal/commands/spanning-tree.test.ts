@@ -27,6 +27,13 @@ describe('Terminal spanning-tree commands', () => {
       expect(host.getStpProtocol()).toBe(SpanningTreeProtocol.PVST);
     });
 
+    it('should change protocol to RPVST', () => {
+      terminal.exec('enable');
+      terminal.exec('configure terminal');
+      expect(terminal.exec('spanning-tree mode rapid-pvst')).toBe(true);
+      expect(host.getStpProtocol()).toBe(SpanningTreeProtocol.RPVST);
+    });
+
     it('should reject invalid mode', () => {
       terminal.exec('enable');
       terminal.exec('configure terminal');
@@ -122,6 +129,22 @@ describe('Terminal spanning-tree commands', () => {
       terminal.exec('enable');
       expect(terminal.exec('show spanning-tree')).toBe(true);
       expect(output).toContain('disabled');
+    });
+
+    it('should display RPVST info with rapid-pvst protocol', () => {
+      let output = '';
+      terminal.onText = (t) => {
+        output = t;
+      };
+
+      host.knownVlan[10] = 'VLAN 10';
+      terminal.exec('enable');
+      terminal.exec('configure terminal');
+      terminal.exec('spanning-tree mode rapid-pvst');
+      terminal.exec('end');
+
+      terminal.exec('show spanning-tree');
+      expect(output).toContain('rapid-pvst');
     });
 
     it('should display PVST per-VLAN info', () => {

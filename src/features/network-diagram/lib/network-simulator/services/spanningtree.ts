@@ -51,6 +51,12 @@ export class SpanningTreeMessage extends EthernetMessage {
   public flags = {
     topologyChange: false,
     topologyChangeAck: false,
+    // IEEE 802.1w RSTP additions
+    proposal: false,
+    agreement: false,
+    forwarding: false,
+    learning: false,
+    portRole: 0, // 0=Unknown, 1=Alternate/Backup, 2=Root, 3=Designated
   };
 
   public rootId = {
@@ -299,23 +305,23 @@ export class STPService
   extends SpanningTreeService
   implements DatalinkListener
 {
-  private roles = new Map<Interface, SpanningTreePortRole>();
+  protected roles = new Map<Interface, SpanningTreePortRole>();
 
-  private state = new Map<Interface, SpanningTreeState>();
+  protected state = new Map<Interface, SpanningTreeState>();
 
-  private cost = new Map<Interface, number>();
+  protected cost = new Map<Interface, number>();
 
-  private bpduTimers = new Map<Interface, (() => void) | null>();
+  protected bpduTimers = new Map<Interface, (() => void) | null>();
 
-  private receivedBPDUs = new Map<Interface, SpanningTreeMessage>();
+  protected receivedBPDUs = new Map<Interface, SpanningTreeMessage>();
 
-  private maxAge = 20;
+  protected maxAge = 20;
 
-  private helloTime = 2; // RFC 802.1D default: 2 seconds
+  protected helloTime = 2; // RFC 802.1D default: 2 seconds
 
-  private forwardDelay = 15;
+  protected forwardDelay = 15;
 
-  private rootId = {
+  protected rootId = {
     mac: new MacAddress('FF:FF:FF:FF:FF:FF'),
     priority: 32768,
   };
@@ -347,18 +353,18 @@ export class STPService
     return this.rootId.mac.equals(this.bridgeId.mac);
   }
 
-  private bridgeId = {
+  protected bridgeId = {
     mac: new MacAddress('FF:FF:FF:FF:FF:FF'),
     priority: 32768,
   };
 
-  private repeatCleanup: (() => void) | null = null;
+  protected repeatCleanup: (() => void) | null = null;
 
   // Track interfaces that already have event listeners
-  private interfacesWithListeners: Set<HardwareInterface> = new Set();
+  protected interfacesWithListeners: Set<HardwareInterface> = new Set();
 
   // Handler for interface up/down events (bound to preserve 'this')
-  private handleInterfaceEvent = (msg: string) => {
+  protected handleInterfaceEvent = (msg: string) => {
     if (msg === 'OnInterfaceUp' || msg === 'OnInterfaceDown') {
       // Re-evaluate roles and states when interface goes up/down
       this.setDefaultRoot();
@@ -437,7 +443,7 @@ export class STPService
     return this.enabled;
   }
 
-  private setDefaultRoot(): void {
+  protected setDefaultRoot(): void {
     // Save current root status and bridge ID for transition detection
     const wasRoot = this.IsRoot;
     const oldBridgeId = this.bridgeId.mac;
@@ -520,10 +526,10 @@ export class STPService
     }
   }
 
-  private changingState: Map<HardwareInterface, (() => void) | null> =
+  protected changingState: Map<HardwareInterface, (() => void) | null> =
     new Map();
 
-  private changeState(
+  protected changeState(
     iface: HardwareInterface,
     state: SpanningTreeState,
     force: boolean = false
@@ -569,7 +575,7 @@ export class STPService
     }
   }
 
-  private changeRole(
+  protected changeRole(
     iface: HardwareInterface,
     role: SpanningTreePortRole
   ): void {
@@ -644,7 +650,7 @@ export class STPService
    * 3. Sender Bridge ID (priority + MAC) - lower is better
    * 4. Sender Port ID - lower is better
    */
-  private static isBetterBPDU(
+  protected static isBetterBPDU(
     message: SpanningTreeMessage,
     myCost: number,
     myBridgeId: { priority: number; mac: MacAddress },
@@ -1028,7 +1034,7 @@ export class PVSTService
   implements DatalinkListener
 {
   // Map: VLAN ID → Independent STP instance for that VLAN
-  private vlanTrees = new Map<number, STPService>();
+  protected vlanTrees = new Map<number, STPService>();
 
   // Cleanup functions for timers and subscriptions
   private cleanups: (() => void)[] = [];
@@ -1055,7 +1061,7 @@ export class PVSTService
   /**
    * Discover all VLANs from host configuration and interface settings
    */
-  private discoverVlans(): number[] {
+  protected discoverVlans(): number[] {
     const vlans = new Set<number>();
 
     // 1. From host.knownVlan registry
@@ -1080,15 +1086,28 @@ export class PVSTService
   }
 
   /**
+   * Factory method to create internal tree instances.
+   * Override in subclasses to use different internal tree types (e.g., RSTP).
+   */
+  // eslint-disable-next-line @typescript-eslint/class-methods-use-this, @typescript-eslint/no-unused-vars
+  protected createInternalTree(
+    host: SwitchHost,
+    enabled: boolean,
+    vlanId: number
+  ): STPService {
+    return new PVSTInternalSTP(host, enabled, vlanId);
+  }
+
+  /**
    * Initialize or update VLAN spanning tree instances
    */
-  private initializeVlanTrees(): void {
+  protected initializeVlanTrees(): void {
     const vlans = this.discoverVlans();
 
     // Create missing VLAN trees
     vlans.forEach((vlanId) => {
       if (!this.vlanTrees.has(vlanId)) {
-        const stpInstance = new PVSTInternalSTP(
+        const stpInstance = this.createInternalTree(
           this.host,
           this.enabled,
           vlanId
@@ -1295,6 +1314,304 @@ export class PVSTService
 }
 
 /**
+ * Helper to convert STP port role to RSTP port role encoding (802.1w)
+ */
+function roleToRstpCode(role: SpanningTreePortRole): number {
+  switch (role) {
+    case SpanningTreePortRole.Alternate:
+    case SpanningTreePortRole.Backup:
+      return 1;
+    case SpanningTreePortRole.Root:
+      return 2;
+    case SpanningTreePortRole.Designated:
+      return 3;
+    default:
+      return 0;
+  }
+}
+
+/**
+ * IEEE 802.1w Rapid Spanning Tree Protocol (RSTP) implementation
+ * Extends STP with rapid convergence via proposal/agreement mechanism.
+ * Key differences from STP:
+ * - Ports skip Listening state (Blocking → Learning → Forwarding)
+ * - Proposal/Agreement for immediate Designated port transition
+ * - All active ports send BPDUs (not just Designated)
+ * - BPDU timeout is 3×helloTime (6s) instead of maxAge (20s)
+ * - BPDU version = 2
+ */
+export class RSTPService extends STPService {
+  private proposalPending = new Map<Interface, boolean>();
+
+  private agreed = new Map<Interface, boolean>();
+
+  protected override changeState(
+    iface: HardwareInterface,
+    state: SpanningTreeState,
+    force: boolean = false
+  ): void {
+    // RSTP: Skip Listening entirely → go Blocking → Learning → Forwarding
+    if (state === SpanningTreeState.Listening) {
+      super.changeState(iface, SpanningTreeState.Learning, force);
+      return;
+    }
+    super.changeState(iface, state, force);
+  }
+
+  protected override changeRole(
+    iface: HardwareInterface,
+    role: SpanningTreePortRole
+  ): void {
+    super.changeRole(iface, role);
+    // Guard: proposalPending may not exist during super() constructor call
+    if (role === SpanningTreePortRole.Designated && this.proposalPending) {
+      this.proposalPending.set(iface, true);
+    }
+  }
+
+  protected override buildBPDU(
+    iface: HardwareInterface,
+    advertisedCost: number,
+    interfaceName: string
+  ): SpanningTreeMessage {
+    const bpdu = super.buildBPDU(iface, advertisedCost, interfaceName);
+    // RSTP uses version 2
+    bpdu.version = 2;
+    // Encode port role and state in flags
+    const role = this.Role(iface);
+    bpdu.flags.portRole = roleToRstpCode(role);
+    bpdu.flags.forwarding = this.State(iface) === SpanningTreeState.Forwarding;
+    bpdu.flags.learning = this.State(iface) === SpanningTreeState.Learning;
+    // Set proposal if pending on designated ports
+    if (this.proposalPending.get(iface)) {
+      bpdu.flags.proposal = true;
+    }
+    return bpdu;
+  }
+
+  public override negociate(): void {
+    if (!this.enabled) return;
+
+    this.host.getInterfaces().forEach((i) => {
+      const iface = this.host.getInterface(i);
+      if (iface.isActive() === false || iface.isConnected === false) return;
+
+      const role = this.Role(iface);
+
+      // RSTP: Re-evaluate Blocked/Alternate/Backup ports with expired BPDUs
+      if (
+        (role === SpanningTreePortRole.Blocked ||
+          role === SpanningTreePortRole.Alternate ||
+          role === SpanningTreePortRole.Backup) &&
+        this.cost.get(iface) === Number.MAX_VALUE
+      ) {
+        this.changeRole(iface, SpanningTreePortRole.Designated);
+        this.cost.set(iface, 0);
+      }
+
+      // RSTP: ALL active ports send BPDUs (root ports too, not just designated)
+      // Only skip Blocked/Alternate/Backup
+      const currentRole = this.Role(iface);
+      if (
+        currentRole === SpanningTreePortRole.Blocked ||
+        currentRole === SpanningTreePortRole.Alternate ||
+        currentRole === SpanningTreePortRole.Backup
+      ) {
+        return;
+      }
+
+      // Compute advertised cost
+      let advertisedCost = 0;
+      if (!this.IsRoot) {
+        const rootPortEntry = Array.from(this.roles.entries()).find(
+          ([_, portRole]) => portRole === SpanningTreePortRole.Root
+        );
+        if (rootPortEntry) {
+          advertisedCost = this.Cost(rootPortEntry[0]);
+        }
+      }
+
+      const message = this.buildBPDU(iface, advertisedCost, i);
+      iface.sendTrame(message);
+    });
+  }
+
+  public override receiveTrame(
+    message: DatalinkMessage,
+    from: Interface
+  ): ActionHandle {
+    if (message instanceof SpanningTreeMessage) {
+      // Handle proposal/agreement before delegating to parent
+      if (message.flags.proposal) {
+        // Received proposal: sync all non-edge ports (block them), then send agreement
+        this.host.getInterfaces().forEach((i) => {
+          const iface = this.host.getInterface(i);
+          if (iface === from) return;
+          if (!iface.isActive() || !iface.isConnected) return;
+          const role = this.Role(iface);
+          // Block non-root, non-edge ports during sync
+          if (
+            role === SpanningTreePortRole.Designated &&
+            this.State(iface) !== SpanningTreeState.Forwarding
+          ) {
+            this.changeState(
+              iface as HardwareInterface,
+              SpanningTreeState.Blocking,
+              true
+            );
+          }
+        });
+        this.agreed.set(from, true);
+      }
+
+      if (message.flags.agreement) {
+        // Received agreement on a designated port: immediately transition to Forwarding
+        this.proposalPending.set(from, false);
+        this.agreed.set(from, true);
+        const fromHw = from as HardwareInterface;
+        if (this.Role(from) === SpanningTreePortRole.Designated) {
+          this.changeState(fromHw, SpanningTreeState.Forwarding, true);
+        }
+      }
+    }
+
+    // Delegate to parent STP for core BPDU processing
+    const result = super.receiveTrame(message, from);
+
+    if (
+      message instanceof SpanningTreeMessage &&
+      result === ActionHandle.Handled
+    ) {
+      // After parent processing, check if we need to send agreement back
+      if (this.agreed.get(from)) {
+        this.agreed.delete(from);
+        // If this port became Root, send agreement back
+        if (this.Role(from) === SpanningTreePortRole.Root) {
+          const fromHw = from as HardwareInterface;
+          const ifaceName = this.host
+            .getInterfaces()
+            .find((name) => this.host.getInterface(name) === fromHw);
+          if (ifaceName) {
+            let advertisedCost = 0;
+            const rootPortEntry = Array.from(this.roles.entries()).find(
+              ([_, portRole]) => portRole === SpanningTreePortRole.Root
+            );
+            if (rootPortEntry) {
+              advertisedCost = this.Cost(rootPortEntry[0]);
+            }
+            const agreementBpdu = this.buildBPDU(
+              fromHw,
+              advertisedCost,
+              ifaceName
+            );
+            agreementBpdu.flags.agreement = true;
+            agreementBpdu.flags.proposal = false;
+            fromHw.sendTrame(agreementBpdu);
+          }
+          // Immediately transition root port to Forwarding
+          this.changeState(fromHw, SpanningTreeState.Forwarding, true);
+        }
+      }
+
+      // RSTP: Use 3×helloTime for BPDU timeout instead of maxAge
+      // Override the timer set by parent with shorter timeout
+      const existingTimer = this.bpduTimers.get(from);
+      if (existingTimer) existingTimer();
+
+      const bpduTimeout = this.helloTime * 3;
+      const subscription = Scheduler.getInstance()
+        .once(bpduTimeout)
+        .subscribe(() => {
+          const wasRootPort =
+            this.Role(from as HardwareInterface) === SpanningTreePortRole.Root;
+
+          this.cost.set(from, Number.MAX_VALUE);
+
+          if (wasRootPort && !this.IsRoot) {
+            this.rootId.mac = this.bridgeId.mac;
+            this.rootId.priority = this.bridgeId.priority;
+
+            this.host.getInterfaces().forEach((i) => {
+              const iface = this.host.getInterface(i);
+              if (iface.isActive() && iface.isConnected) {
+                this.changeRole(iface, SpanningTreePortRole.Designated);
+                this.cost.set(iface, 0);
+              }
+            });
+          }
+        });
+
+      this.bpduTimers.set(from, () => subscription.unsubscribe());
+    }
+
+    return result;
+  }
+
+  // eslint-disable-next-line @typescript-eslint/class-methods-use-this
+  public override getProtocolType(): SpanningTreeProtocol {
+    return SpanningTreeProtocol.STP; // Base RSTP, not per-VLAN
+  }
+}
+
+/**
+ * Internal RSTP instance used by RPVST — one per VLAN.
+ * Overrides buildBPDU() to emit PVSTMessage with Cisco multicast address.
+ */
+class RPVSTInternalRSTP extends RSTPService {
+  private readonly vlanId: number;
+
+  constructor(host: SwitchHost, enabled: boolean, vlanId: number) {
+    super(host, enabled);
+    this.vlanId = vlanId;
+  }
+
+  protected override buildBPDU(
+    iface: HardwareInterface,
+    advertisedCost: number,
+    interfaceName: string
+  ): SpanningTreeMessage {
+    const bpdu = super.buildBPDU(iface, advertisedCost, interfaceName);
+    return PVSTMessage.fromSTP(bpdu, this.vlanId);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/class-methods-use-this
+  public override getProtocolType(): SpanningTreeProtocol {
+    return SpanningTreeProtocol.RPVST;
+  }
+}
+
+/**
+ * RPVST (Rapid Per-VLAN Spanning Tree Plus) Service
+ * Extends PVSTService to use RSTP internals for faster convergence per VLAN.
+ * Uses Cisco multicast address 01:00:0C:CC:CC:CD for BPDUs.
+ */
+export class RPVSTService extends PVSTService {
+  // eslint-disable-next-line @typescript-eslint/class-methods-use-this
+  protected override createInternalTree(
+    host: SwitchHost,
+    enabled: boolean,
+    vlanId: number
+  ): STPService {
+    return new RPVSTInternalRSTP(host, enabled, vlanId);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/class-methods-use-this
+  public override getProtocolType(): SpanningTreeProtocol {
+    return SpanningTreeProtocol.RPVST;
+  }
+}
+
+/**
+ * Returns true if the protocol is per-VLAN (PVST or RPVST)
+ */
+export function isPerVlanProtocol(protocol: SpanningTreeProtocol): boolean {
+  return (
+    protocol === SpanningTreeProtocol.PVST ||
+    protocol === SpanningTreeProtocol.RPVST
+  );
+}
+
+/**
  * Factory function to create the appropriate spanning tree service
  * based on the requested protocol type
  */
@@ -1313,8 +1630,8 @@ export function createSpanningTreeService(
       // PVST: Per-VLAN Spanning Tree (one tree per VLAN)
       return new PVSTService(host, true);
     case SpanningTreeProtocol.RPVST:
-      // TODO: Implement Rapid PVST+ (802.1w + per-VLAN)
-      throw new Error('R-PVST protocol not yet implemented');
+      // RPVST: Rapid Per-VLAN Spanning Tree+ (802.1w + per-VLAN)
+      return new RPVSTService(host, true);
     case SpanningTreeProtocol.MSTP:
       // TODO: Implement MSTP (802.1s)
       throw new Error('MSTP protocol not yet implemented');

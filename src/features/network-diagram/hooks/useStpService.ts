@@ -5,6 +5,7 @@ import {
   SpanningTreeProtocol,
   SpanningTreePortRole,
   PVSTService,
+  isPerVlanProtocol,
 } from '../lib/network-simulator/services/spanningtree';
 
 export interface StpPortInfo {
@@ -50,7 +51,7 @@ export default function useStpService(node: SwitchHost) {
   }, [protocol, node]);
 
   const getBridgeId = (vlanId?: number): string => {
-    if (protocol === SpanningTreeProtocol.PVST && vlanId !== undefined) {
+    if (isPerVlanProtocol(protocol) && vlanId !== undefined) {
       const pvst = node.spanningTree as PVSTService;
       const tree = pvst.getVlanTree(vlanId);
       return tree?.BridgeId.toString() || 'Unknown';
@@ -59,7 +60,7 @@ export default function useStpService(node: SwitchHost) {
   };
 
   const getRootId = (vlanId?: number): string => {
-    if (protocol === SpanningTreeProtocol.PVST && vlanId !== undefined) {
+    if (isPerVlanProtocol(protocol) && vlanId !== undefined) {
       const pvst = node.spanningTree as PVSTService;
       const tree = pvst.getVlanTree(vlanId);
       return tree?.Root.toString() || 'Unknown';
@@ -68,7 +69,7 @@ export default function useStpService(node: SwitchHost) {
   };
 
   const getIsRoot = (vlanId?: number): boolean => {
-    if (protocol === SpanningTreeProtocol.PVST && vlanId !== undefined) {
+    if (isPerVlanProtocol(protocol) && vlanId !== undefined) {
       const pvst = node.spanningTree as PVSTService;
       const tree = pvst.getVlanTree(vlanId);
       return tree?.IsRoot ?? false;
@@ -82,7 +83,7 @@ export default function useStpService(node: SwitchHost) {
   };
 
   const getPriority = (vlanId?: number): number => {
-    if (protocol === SpanningTreeProtocol.PVST && vlanId !== undefined) {
+    if (isPerVlanProtocol(protocol) && vlanId !== undefined) {
       const pvst = node.spanningTree as PVSTService;
       const tree = pvst.getVlanTree(vlanId);
       return tree?.Priority ?? 32768;
@@ -91,7 +92,7 @@ export default function useStpService(node: SwitchHost) {
   };
 
   const setPriority = (value: number, vlanId?: number): void => {
-    if (protocol === SpanningTreeProtocol.PVST && vlanId !== undefined) {
+    if (isPerVlanProtocol(protocol) && vlanId !== undefined) {
       const pvst = node.spanningTree as PVSTService;
       const tree = pvst.getVlanTree(vlanId);
       if (tree) tree.Priority = value;

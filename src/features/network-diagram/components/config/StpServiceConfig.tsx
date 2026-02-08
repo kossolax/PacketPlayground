@@ -20,6 +20,7 @@ import useStpService from '../../hooks/useStpService';
 import {
   SpanningTreeState,
   SpanningTreeProtocol,
+  isPerVlanProtocol,
 } from '../../lib/network-simulator/services/spanningtree';
 
 interface StpServiceConfigProps {
@@ -78,7 +79,7 @@ export default function StpServiceConfig({ node }: StpServiceConfigProps) {
     setPortCost,
   } = useStpService(node);
 
-  const isPvst = protocol === SpanningTreeProtocol.PVST;
+  const isPvst = isPerVlanProtocol(protocol);
   const activeVlan = isPvst ? (selectedVlan ?? undefined) : undefined;
 
   return (
@@ -126,12 +127,8 @@ export default function StpServiceConfig({ node }: StpServiceConfigProps) {
                 <SelectItem value={SpanningTreeProtocol.PVST}>
                   PVST (Per-VLAN STP)
                 </SelectItem>
-                <SelectItem
-                  value={SpanningTreeProtocol.RPVST}
-                  disabled
-                  className="text-muted-foreground"
-                >
-                  Rapid PVST+ (Not implemented)
+                <SelectItem value={SpanningTreeProtocol.RPVST}>
+                  Rapid PVST+ (802.1w)
                 </SelectItem>
                 <SelectItem
                   value={SpanningTreeProtocol.MSTP}
